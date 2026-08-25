@@ -68,6 +68,8 @@ public sealed class QrShareAdminVm
 {
     public QrShareLink Share { get; set; } = null!;
     public string ShareUrl { get; set; } = "";
+    public string MessageTemplate { get; set; } = "";
+    public string Message { get; set; } = "";
     public string WhatsAppUrl { get; set; } = "";
     public string EmailUrl { get; set; } = "";
 }
@@ -82,6 +84,8 @@ public sealed class QrDetailsVm
     public List<AccessLog> Timeline { get; set; } = [];
     public List<QrTokenHistory> History { get; set; } = [];
     public List<QrShareAdminVm> ShareLinks { get; set; } = [];
+    public string DefaultShareMessageTemplate { get; set; } = "";
+    public bool SmsConfigured { get; set; }
     public string CreatedBy { get; set; } = "—";
     public string ModifiedBy { get; set; } = "—";
 }

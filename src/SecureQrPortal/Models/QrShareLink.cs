@@ -13,6 +13,7 @@ public sealed class QrShareLink
     [MaxLength(150)] public string Username { get; set; } = string.Empty;
     public string PasswordHash { get; set; } = string.Empty;
     public string ProtectedPassword { get; set; } = string.Empty;
+    [MaxLength(2000)] public string? MessageTemplate { get; set; }
 
     public int MaxOpenCount { get; set; } = 1;
     public int CurrentOpenCount { get; set; }

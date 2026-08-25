@@ -18,6 +18,7 @@ public sealed class QrController(
     QrCodeService qr,
     QrStatusService status,
     QrShareService shares,
+    SmsGatewayService sms,
     AdminIdentityService admin,
     AuditService audit,
     UserManager<ApplicationUser> users) : Controller
@@ -175,11 +176,14 @@ public sealed class QrController(
         {
             var raw = shares.GetRawToken(x);
             var shareUrl = $"{Request.Scheme}://{Request.Host}/q/share/{raw}";
-            var message = $"Secure QR access for {p.QrReference}. This share link can reveal credentials {x.MaxOpenCount} time(s), expires {x.ExpiresAtUtc.ToLocalTime():dd MMM yyyy HH:mm}, and each revealed access window lasts {x.SessionDurationMinutes} minute(s). This link should only be opened by the intended recipient: {shareUrl}";
+            var template = QrShareMessage.NormalizeTemplate(x.MessageTemplate);
+            var message = QrShareMessage.Render(template, x, shareUrl, p.QrReference);
             return new QrShareAdminVm
             {
                 Share = x,
                 ShareUrl = shareUrl,
+                MessageTemplate = template,
+                Message = message,
                 WhatsAppUrl = $"https://wa.me/?text={Uri.EscapeDataString(message)}",
                 EmailUrl = $"mailto:?subject={Uri.EscapeDataString($"Secure QR access {p.QrReference}")}&body={Uri.EscapeDataString(message)}"
             };
@@ -195,13 +199,22 @@ public sealed class QrController(
             Timeline = await db.AccessLogs.Where(x => x.SecurePageId == id).OrderByDescending(x => x.TimestampUtc).Take(100).ToListAsync(ct),
             History = p.TokenHistory.OrderByDescending(x => x.RevokedAtUtc).ToList(),
             ShareLinks = shareVms,
+            DefaultShareMessageTemplate = QrShareMessage.DefaultTemplate,
+            SmsConfigured = sms.IsConfigured,
             CreatedBy = p.CreatedByAdminId != null && names.TryGetValue(p.CreatedByAdminId, out var c) ? c : "—",
             ModifiedBy = p.LastModifiedByAdminId != null && names.TryGetValue(p.LastModifiedByAdminId, out var m) ? m : "—"
         });
     }
 
     [HttpPost]
-    public async Task<IActionResult> CreateShare(long id, int maxOpenCount = 1, int linkLifetimeHours = 24, int sessionDurationMinutes = 15, CancellationToken ct = default)
+    public async Task<IActionResult> CreateShare(
+        long id,
+        int maxOpenCount = 1,
+        int linkLifetimeHours = 24,
+        int sessionDurationMinutes = 15,
+        string pagePassword = "",
+        string? messageTemplate = null,
+        CancellationToken ct = default)
     {
         var p = await db.SecurePages.Include(x => x.Credential).SingleOrDefaultAsync(x => x.Id == id, ct);
         if (p is null) return NotFound();
@@ -211,9 +224,73 @@ public sealed class QrController(
             return RedirectToAction(nameof(Details), new { id });
         }
 
-        var share = await shares.CreateAsync(p, maxOpenCount, linkLifetimeHours, sessionDurationMinutes, admin.CurrentUserId, ct);
-        await audit.WriteAsync("QR_SHARE_CREATE", "QrShareLink", share.Id.ToString(), $"{p.QrReference}; opens={share.MaxOpenCount}; expires={share.ExpiresAtUtc:O}; session={share.SessionDurationMinutes}m", ct);
-        TempData["Success"] = "Secure share link created. Use WhatsApp, Email, or Copy Link below.";
+        try
+        {
+            var share = await shares.CreateAsync(
+                p,
+                maxOpenCount,
+                linkLifetimeHours,
+                sessionDurationMinutes,
+                pagePassword,
+                messageTemplate,
+                admin.CurrentUserId,
+                ct);
+            await audit.WriteAsync("QR_SHARE_CREATE", "QrShareLink", share.Id.ToString(), $"{p.QrReference}; opens={share.MaxOpenCount}; expires={share.ExpiresAtUtc:O}; session={share.SessionDurationMinutes}m; uses-page-credential=true", ct);
+            TempData["Success"] = "Secure share link created using the QR page's existing username and password.";
+        }
+        catch (InvalidOperationException ex)
+        {
+            TempData["Error"] = ex.Message;
+        }
+
+        return RedirectToAction(nameof(Details), new { id });
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> UpdateShareMessage(long id, long shareId, string? messageTemplate, CancellationToken ct = default)
+    {
+        if (!await shares.UpdateMessageAsync(shareId, id, messageTemplate, ct))
+            return NotFound();
+
+        await audit.WriteAsync("QR_SHARE_MESSAGE_UPDATE", "QrShareLink", shareId.ToString(), $"SecurePage={id}", ct);
+        TempData["Success"] = "Share message saved.";
+        return RedirectToAction(nameof(Details), new { id });
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> SendShareSms(long id, long shareId, string mobile, string? messageTemplate, CancellationToken ct = default)
+    {
+        var p = await db.SecurePages.AsNoTracking().SingleOrDefaultAsync(x => x.Id == id, ct);
+        if (p is null) return NotFound();
+
+        var share = await shares.GetForPageAsync(shareId, id, ct);
+        if (share is null) return NotFound();
+        if (share.RevokedAtUtc.HasValue || StoredUtc(share.ExpiresAtUtc) <= DateTime.UtcNow)
+        {
+            TempData["Error"] = "This share link is revoked or expired and cannot be sent by SMS.";
+            return RedirectToAction(nameof(Details), new { id });
+        }
+
+        var template = QrShareMessage.NormalizeTemplate(messageTemplate ?? share.MessageTemplate);
+        await shares.UpdateMessageAsync(shareId, id, template, ct);
+
+        var raw = shares.GetRawToken(share);
+        var shareUrl = $"{Request.Scheme}://{Request.Host}/q/share/{raw}";
+        var message = QrShareMessage.Render(template, share, shareUrl, p.QrReference);
+        var result = await sms.SendAsync(mobile, message, ct);
+
+        await audit.WriteAsync(
+            result.Success ? "QR_SHARE_SMS_SENT" : "QR_SHARE_SMS_FAILED",
+            "QrShareLink",
+            shareId.ToString(),
+            $"SecurePage={id}; mobile={MaskMobile(result.NormalizedMobile)}; http={result.HttpStatusCode?.ToString() ?? "none"}; response={SafeAudit(result.ResponseText)}",
+            ct);
+
+        if (result.Success)
+            TempData["Success"] = $"SMS request sent to {MaskMobile(result.NormalizedMobile)}. Gateway response: {result.ResponseText}";
+        else
+            TempData["Error"] = result.Error ?? $"SMS gateway rejected the request. Response: {result.ResponseText}";
+
         return RedirectToAction(nameof(Details), new { id });
     }
 
@@ -360,6 +437,22 @@ public sealed class QrController(
     }
 
     private static string Csv(string value) => $"\"{value.Replace("\"", "\"\"")}\"";
+
+    private static DateTime StoredUtc(DateTime value) =>
+        value.Kind == DateTimeKind.Utc ? value : DateTime.SpecifyKind(value, DateTimeKind.Utc);
+
+    private static string MaskMobile(string? mobile)
+    {
+        if (string.IsNullOrWhiteSpace(mobile)) return "—";
+        return mobile.Length <= 4 ? new string('*', mobile.Length) : new string('*', mobile.Length - 4) + mobile[^4..];
+    }
+
+    private static string SafeAudit(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return "empty";
+        var clean = value.Replace('\r', ' ').Replace('\n', ' ').Replace(';', ',').Trim();
+        return clean.Length <= 180 ? clean : clean[..180];
+    }
 
     private static IQueryable<SecurePage> ApplyStatusFilter(IQueryable<SecurePage> q, string f, DateTime now) => f.ToUpperInvariant() switch
     {

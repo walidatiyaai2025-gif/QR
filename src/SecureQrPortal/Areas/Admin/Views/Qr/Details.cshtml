@@ -123,7 +123,7 @@
     <div class="panel-head">
         <div>
             <h2>Share QR Access</h2>
-            <span class="muted">Create a temporary link that reveals temporary QR credentials with a hard expiry.</span>
+            <span class="muted">Create a protected link that reveals the same username and password already configured for this QR.</span>
         </div>
     </div>
     <div class="panel-body">
@@ -141,15 +141,23 @@
                 <div class="field">
                     <label>Access window after reveal (minutes)</label>
                     <input class="input" type="number" name="sessionDurationMinutes" min="1" max="1440" value="15" required>
-                    <small class="muted">Temporary credentials stop working at this hard deadline.</small>
                 </div>
-                <div class="field share-create-action">
-                    <label>&nbsp;</label>
-                    <button class="btn primary" type="submit">Create Secure Share Link</button>
+                <div class="field">
+                    <label>Current QR password</label>
+                    <input class="input" type="password" name="pagePassword" autocomplete="current-password" required>
+                    <small class="muted">Required to prove the protected share contains the exact existing QR password. It is never written to logs or the outgoing message.</small>
                 </div>
             </div>
+            <div class="field" style="margin-top:18px">
+                <label>Share message text editor</label>
+                <textarea class="input" name="messageTemplate" rows="8" maxlength="2000" style="min-height:180px;resize:vertical">@Model.DefaultShareMessageTemplate</textarea>
+                <small class="muted">Available placeholders: {ShareUrl}, {QrReference}, {ExpiresAt}, {SessionMinutes}, {RevealCount}. The message contains the protected share link only; credentials stay behind Reveal.</small>
+            </div>
+            <div class="actions" style="margin-top:14px">
+                <button class="btn primary" type="submit">Create Secure Share Link</button>
+            </div>
         </form>
-        <div class="share-instruction">The recipient sees a warning that the link has a limited reveal count. Simply previewing the link does not consume it; the count is consumed only when credentials are explicitly revealed, preventing mail/WhatsApp link scanners from burning a one-time link.</div>
+        <div class="share-instruction">Simply previewing the link does not consume it. The reveal count changes only when the recipient explicitly reveals the credentials.</div>
     </div>
 
     @if (Model.ShareLinks.Count > 0)
@@ -192,6 +200,41 @@
                                             <button class="btn danger" type="submit">Revoke</button>
                                         </form>
                                     }
+                                </div>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td colspan="6" style="padding:18px">
+                                <form asp-action="UpdateShareMessage" asp-route-id="@p.Id" asp-route-shareId="@sh.Id" method="post">
+                                    <div class="field">
+                                        <label>Message text editor</label>
+                                        <textarea class="input" name="messageTemplate" rows="7" maxlength="2000" style="min-height:160px;resize:vertical">@s.MessageTemplate</textarea>
+                                        <small class="muted">Save the message before using WhatsApp or Email so those buttons use the latest text.</small>
+                                    </div>
+                                    <div class="actions" style="margin-top:12px">
+                                        <button class="btn secondary" type="submit">Save Message</button>
+                                    </div>
+                                </form>
+
+                                <div style="margin-top:16px;border-top:1px solid rgba(255,255,255,.08);padding-top:16px">
+                                    <form asp-action="SendShareSms" asp-route-id="@p.Id" asp-route-shareId="@sh.Id" method="post">
+                                        <div class="field">
+                                            <label>Send this secure share by SMS</label>
+                                            <input class="input" name="mobile" inputmode="tel" autocomplete="tel" placeholder="965XXXXXXXX" required>
+                                            <input type="hidden" name="messageTemplate" value="@s.MessageTemplate">
+                                            <small class="muted">Kuwait 8-digit numbers are automatically prefixed with 965. SMS sends the protected share URL, never the username/password directly.</small>
+                                        </div>
+                                        <div class="actions" style="margin-top:12px">
+                                            @if (Model.SmsConfigured)
+                                            {
+                                                <button class="btn primary" type="submit">Send SMS</button>
+                                            }
+                                            else
+                                            {
+                                                <button class="btn secondary" type="button" disabled>SMS gateway not configured</button>
+                                            }
+                                        </div>
+                                    </form>
                                 </div>
                             </td>
                         </tr>
