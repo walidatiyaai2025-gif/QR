@@ -92,7 +92,7 @@ public sealed class QrShareService(ApplicationDbContext db, IDataProtectionProvi
             .Include(x => x.SecurePage).ThenInclude(x => x.Organization)
             .AsNoTracking()
             .SingleAsync(x => x.Id == candidate.Id, ct);
-        return new QrShareRevealResult(share, _secretProtector.Unprotect(share.ProtectedPassword));
+        return new QrShareRevealResult(share, GetPassword(share));
     }
 
     public async Task<QrShareCredentialResult> VerifyCredentialAsync(
@@ -142,6 +142,8 @@ public sealed class QrShareService(ApplicationDbContext db, IDataProtectionProvi
     }
 
     public string GetRawToken(QrShareLink share) => _secretProtector.Unprotect(share.ProtectedToken);
+
+    public string GetPassword(QrShareLink share) => _secretProtector.Unprotect(share.ProtectedPassword);
 
     private static string GenerateToken() => Microsoft.AspNetCore.WebUtilities.WebEncoders.Base64UrlEncode(RandomNumberGenerator.GetBytes(32));
 
