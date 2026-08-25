@@ -8,6 +8,7 @@ public sealed class Organization
     [MaxLength(200)] public string NameArabic { get; set; } = string.Empty;
     [MaxLength(200)] public string NameEnglish { get; set; } = string.Empty;
     [MaxLength(400)] public string? LogoPath { get; set; }
+    [MaxLength(11)] public string? MobileNumber { get; set; }
     public bool IsActive { get; set; } = true;
     public bool IsDemo { get; set; }
     public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;

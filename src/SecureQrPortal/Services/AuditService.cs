@@ -11,7 +11,9 @@ public sealed class AuditService(ApplicationDbContext db, IHttpContextAccessor a
         var http = accessor.HttpContext;
         db.AuditLogs.Add(new AuditLog
         {
-            AdminUserId = http?.User.FindFirstValue(ClaimTypes.NameIdentifier),
+            AdminUserId = http?.User.IsInRole("Administrator") == true
+                ? http.User.FindFirstValue(ClaimTypes.NameIdentifier)
+                : null,
             Action = action,
             EntityType = entityType,
             EntityId = entityId,

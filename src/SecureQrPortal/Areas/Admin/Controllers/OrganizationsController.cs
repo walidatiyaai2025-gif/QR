@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using SecureQrPortal.Data;
 using SecureQrPortal.Models;
+using SecureQrPortal.Security;
 using SecureQrPortal.Services;
 
 namespace SecureQrPortal.Areas.Admin.Controllers;
@@ -34,6 +35,32 @@ public sealed class OrganizationsController(ApplicationDbContext db, AuditServic
         if (string.IsNullOrWhiteSpace(model.NameArabic) || string.IsNullOrWhiteSpace(model.NameEnglish))
             ModelState.AddModelError("", text["ValidationNamesRequired"]);
 
+        string? normalizedMobile = null;
+        if (!string.IsNullOrWhiteSpace(model.MobileNumber))
+        {
+            normalizedMobile = MobileNumberNormalizer.NormalizeKuwait(model.MobileNumber);
+            if (normalizedMobile is null)
+            {
+                ModelState.AddModelError(nameof(Organization.MobileNumber),
+                    "رقم الجوال يجب أن يكون رقمًا كويتيًا صالحًا / Enter a valid Kuwait mobile number.");
+            }
+            else
+            {
+                model.MobileNumber = normalizedMobile;
+                var duplicate = await db.Organizations.AsNoTracking()
+                    .AnyAsync(x => x.Id != model.Id && x.MobileNumber == normalizedMobile, ct);
+                if (duplicate)
+                {
+                    ModelState.AddModelError(nameof(Organization.MobileNumber),
+                        "رقم الجوال مرتبط بجهة أخرى / This mobile number is already assigned to another organization.");
+                }
+            }
+        }
+        else
+        {
+            model.MobileNumber = null;
+        }
+
         if (!ModelState.IsValid)
         {
             ModelState.AddModelError("", text["ValidationCorrectFields"]);
@@ -53,6 +80,7 @@ public sealed class OrganizationsController(ApplicationDbContext db, AuditServic
 
         entity.NameArabic = model.NameArabic.Trim();
         entity.NameEnglish = model.NameEnglish.Trim();
+        entity.MobileNumber = normalizedMobile;
         entity.IsActive = model.IsActive;
         entity.UpdatedAtUtc = DateTime.UtcNow;
 
