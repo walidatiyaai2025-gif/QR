@@ -39,6 +39,29 @@
         <div><span class="muted">@(ar ? "التذكير التالي" : "Next Reminder")</span><strong class="numeric">@Local(d.NextReminderAtUtc)</strong></div>
     </div>
 </section>
+<section class="panel" style="margin-top:16px">
+    <div class="panel-head"><div><h2>@(ar ? "سجل تدقيق الإرسال" : "Delivery Audit")</h2><p class="muted">@(ar ? "أحداث خادم مخزنة فقط؛ لا يتم عرض أسرار أو محتوى الرسالة." : "Persisted server events only; no secrets or secure message content are displayed.")</p></div></div>
+    <div class="table-wrap admin-stack">
+        <table class="data-table admin-responsive-table">
+            <thead><tr><th>@(ar ? "الوقت" : "Time")</th><th>@(ar ? "المسؤول" : "Admin")</th><th>@(ar ? "الحدث" : "Event")</th><th>@(ar ? "التفاصيل" : "Details")</th></tr></thead>
+            <tbody>
+            @foreach (var item in Model.Audit)
+            {
+                <tr>
+                    <td data-label="@(ar ? "الوقت" : "Time")"><span class="numeric">@Local(item.TimestampUtc)</span></td>
+                    <td data-label="@(ar ? "المسؤول" : "Admin")">@item.Admin</td>
+                    <td data-label="@(ar ? "الحدث" : "Event")">@item.Action</td>
+                    <td data-label="@(ar ? "التفاصيل" : "Details")">@(item.Details ?? "—")</td>
+                </tr>
+            }
+            @if (Model.Audit.Count == 0)
+            {
+                <tr><td colspan="4" class="muted">@(ar ? "لا توجد أحداث تدقيق لهذا الإرسال." : "No audit events are recorded for this delivery.")</td></tr>
+            }
+            </tbody>
+        </table>
+    </div>
+</section>
 @if (!d.RevokedAtUtc.HasValue)
 {
     <section class="panel" style="margin-top:16px">
