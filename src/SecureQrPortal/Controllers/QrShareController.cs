@@ -13,18 +13,23 @@ namespace SecureQrPortal.Controllers;
 public sealed class QrShareController(
     QrShareService shares,
     TokenService tokens,
-    IDataProtectionProvider protection) : Controller
+    IDataProtectionProvider protection,
+    QrShareRuntimeInspector inspector) : Controller
 {
     private readonly IDataProtector _receiptProtector = protection.CreateProtector("SecureQrPortal.QrShare.Receipt.v2");
 
     [HttpGet("{token}")]
-    public async Task<IActionResult> Open(string token, CancellationToken ct)
+    public async Task<IActionResult> Open(string token, bool inspect = false, CancellationToken ct = default)
     {
         var share = await shares.FindByTokenAsync(token, ct);
+        var snapshot = await CaptureAsync("OPEN_GET_LOOKUP", token, share, null, share is null ? "TOKEN_NOT_FOUND" : "TOKEN_FOUND");
+        AttachInspector(inspect, snapshot);
         if (share is null) return View("Unavailable");
 
         if (TryGetValidCookieReceipt(share, out _))
         {
+            snapshot = await CaptureAsync("OPEN_GET_COOKIE_RESUME", token, share, null, "VALID_RECEIPT");
+            AttachInspector(inspect, snapshot);
             PrepareSensitiveResponse();
             return View("Reveal", BuildRevealVm(share));
         }
@@ -35,6 +40,15 @@ public sealed class QrShareController(
                         share.CurrentOpenCount < share.MaxOpenCount;
         var ar = CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "ar";
         ViewBag.RevealRequestId = Guid.NewGuid().ToString("N");
+        ViewBag.RuntimeInspectorEnabled = inspect;
+
+        snapshot = await CaptureAsync(
+            "OPEN_GET_RENDER",
+            token,
+            share,
+            null,
+            canReveal ? "CAN_REVEAL" : BlockReason(share));
+        AttachInspector(inspect, snapshot);
 
         return View("Open", new QrShareLandingVm
         {
@@ -46,45 +60,94 @@ public sealed class QrShareController(
     }
 
     [HttpPost("{token}/reveal")]
-    public async Task<IActionResult> Reveal(string token, string? revealRequestId, CancellationToken ct)
+    public async Task<IActionResult> Reveal(
+        string token,
+        string? revealRequestId,
+        bool inspect = false,
+        CancellationToken ct = default)
     {
         var existing = await shares.FindByTokenAsync(token, ct);
+        var beforeCount = existing?.CurrentOpenCount;
+        var snapshot = await CaptureAsync(
+            "REVEAL_POST_START",
+            token,
+            existing,
+            revealRequestId,
+            existing is null ? "TOKEN_NOT_FOUND" : "REQUEST_RECEIVED");
+        AttachInspector(inspect, snapshot);
+
         if (existing is not null && TryGetValidCookieReceipt(existing, out _))
         {
+            snapshot = await CaptureAsync("REVEAL_POST_COOKIE_RESUME", token, existing, revealRequestId, "VALID_RECEIPT");
+            AttachInspector(inspect, snapshot);
             PrepareSensitiveResponse();
             return View("Reveal", BuildRevealVm(existing));
         }
 
-        // Old cached landing pages may not contain the idempotency field. They are
-        // still allowed once, while all newly-rendered pages carry a stable request id
-        // so browser/proxy retries cannot consume the one-time reveal twice.
         revealRequestId = string.IsNullOrWhiteSpace(revealRequestId)
             ? Guid.NewGuid().ToString("N")
             : revealRequestId;
 
         var result = await shares.RevealAsync(token, revealRequestId, ct);
-        if (result is null) return View("Unavailable");
+        if (result is null)
+        {
+            var after = await shares.FindByTokenAsync(token, ct);
+            snapshot = await CaptureAsync(
+                "REVEAL_POST_REJECTED",
+                token,
+                after,
+                revealRequestId,
+                after is null ? "TOKEN_NOT_FOUND" : BlockReason(after),
+                $"beforeCount={(beforeCount?.ToString() ?? "null")}; afterCount={(after?.CurrentOpenCount.ToString() ?? "null")}");
+            AttachInspector(inspect, snapshot);
+            return View("Unavailable");
+        }
 
         var receipt = CreateRevealReceipt(result.Share);
         WriteRevealReceiptCookie(result.Share, receipt);
 
+        snapshot = await CaptureAsync(
+            "REVEAL_POST_SUCCESS",
+            token,
+            result.Share,
+            revealRequestId,
+            "CREDENTIALS_RENDERED",
+            $"beforeCount={(beforeCount?.ToString() ?? "null")}; afterCount={result.Share.CurrentOpenCount}");
+        AttachInspector(inspect, snapshot);
         PrepareSensitiveResponse();
         return View("Reveal", BuildRevealVm(result.Share));
     }
 
     [HttpGet("{token}/credentials")]
-    public async Task<IActionResult> Credentials(string token, string? receipt, CancellationToken ct)
+    public async Task<IActionResult> Credentials(
+        string token,
+        string? receipt,
+        bool inspect = false,
+        CancellationToken ct = default)
     {
         var share = await shares.FindByTokenAsync(token, ct);
+        var snapshot = await CaptureAsync(
+            "CREDENTIALS_GET_START",
+            token,
+            share,
+            null,
+            share is null ? "TOKEN_NOT_FOUND" : "REQUEST_RECEIVED");
+        AttachInspector(inspect, snapshot);
         if (share is null) return View("Unavailable");
 
         if (!TryValidateRevealReceipt(share, receipt))
         {
             if (!TryGetValidCookieReceipt(share, out receipt))
+            {
+                snapshot = await CaptureAsync("CREDENTIALS_GET_REJECTED", token, share, null, "NO_VALID_RECEIPT");
+                AttachInspector(inspect, snapshot);
                 return View("Unavailable");
+            }
         }
 
         WriteRevealReceiptCookie(share, receipt!);
+        snapshot = await CaptureAsync("CREDENTIALS_GET_SUCCESS", token, share, null, "CREDENTIALS_RENDERED");
+        AttachInspector(inspect, snapshot);
         PrepareSensitiveResponse();
         return View("Reveal", BuildRevealVm(share));
     }
@@ -180,12 +243,46 @@ public sealed class QrShareController(
         }
     }
 
+    private async Task<string> CaptureAsync(
+        string stage,
+        string? token,
+        QrShareLink? share,
+        string? revealRequestId,
+        string? outcome,
+        string? note = null) =>
+        await inspector.CaptureAsync(
+            HttpContext,
+            stage,
+            token,
+            share,
+            revealRequestId,
+            outcome,
+            note,
+            CancellationToken.None);
+
+    private void AttachInspector(bool enabled, string snapshot)
+    {
+        ViewBag.RuntimeInspectorEnabled = enabled;
+        if (!enabled) return;
+        ViewBag.RuntimeInspector = snapshot;
+        ViewBag.RuntimeInspectorLogPath = inspector.LogFilePath;
+    }
+
+    private static string BlockReason(QrShareLink share)
+    {
+        var now = DateTime.UtcNow;
+        if (share.RevokedAtUtc is not null) return "REVOKED";
+        if (share.ExpiresAtUtc <= now) return "LINK_EXPIRED";
+        if (share.CurrentOpenCount >= share.MaxOpenCount) return "REVEAL_LIMIT_REACHED";
+        return "REVEAL_SERVICE_REJECTED";
+    }
+
     private void PrepareSensitiveResponse()
     {
         Response.Headers.CacheControl = "no-store, no-cache, must-revalidate";
         Response.Headers.Pragma = "no-cache";
         Response.Headers.Expires = "0";
-        Response.Headers["X-QR-Share-Flow"] = "idempotent-v3";
+        Response.Headers["X-QR-Share-Flow"] = "runtime-inspector-v1";
     }
 
     private static string ReceiptCookieName(long shareId) => $"SecureQrPortal.ShareReceipt.{shareId}";
