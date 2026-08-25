@@ -42,8 +42,7 @@ public sealed class OrganizationsController(ApplicationDbContext db, AuditServic
 
         if (!ModelState.IsValid)
         {
-            if (!ModelState[string.Empty]?.Errors.Any() ?? true)
-                ModelState.AddModelError("", text["ValidationCorrectFields"]);
+            ModelState.AddModelError("", text["ValidationCorrectFields"]);
             return View(model);
         }
 
