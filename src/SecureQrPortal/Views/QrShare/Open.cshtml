@@ -2,6 +2,7 @@
 @model QrShareLandingVm
 @{
     var ar = CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "ar";
+    var brandName = Branding.Name(ar);
     ViewData["Title"] = ar ? "رابط مشاركة آمن" : "Secure share link";
     var remaining = Math.Max(0, Model.Share.MaxOpenCount - Model.Share.CurrentOpenCount);
     var revealRequestId = (string?)ViewBag.RevealRequestId ?? Guid.NewGuid().ToString("N");
@@ -11,8 +12,10 @@
 <section class="public-center share-shell">
     <div class="premium-card share-card">
         <div class="public-title">
+            <img class="diwan-card-logo" src="@Branding.LogoPath" alt="@brandName">
+            <div class="qr-org-title">@Model.Organization</div>
             <div class="security-kicker">@(ar ? "مشاركة بيانات دخول QR" : "QR ACCESS SHARE")</div>
-            <h1>@Model.Organization</h1>
+            <h1>@brandName</h1>
             <p>@Model.PageTitle</p>
         </div>
         <div class="share-warning">
@@ -20,7 +23,7 @@
             <p>@(ar
                 ? $"هذا الرابط يسمح بإظهار بيانات الدخول الحالية الخاصة بالـ QR بحد أقصى {Model.Share.MaxOpenCount} مرة. المتبقي: {remaining}. لا ترسل الرابط إلى شخص غير مصرح له."
                 : $"This link can reveal the QR page's current credentials a maximum of {Model.Share.MaxOpenCount} time(s). Remaining: {remaining}. Do not forward it to an unauthorized person.")</p>
-            <p>@(ar ? "الرابط نفسه له مدة إظهار محددة. اسم المستخدم وكلمة المرور الظاهرين هما نفس بيانات دخول الـ QR الأصلية ولا يقوم النظام بتغيير كلمة المرور عند المشاركة." : "The share link has a limited reveal window. The username and password shown are the same existing QR credentials; sharing does not rotate or replace the QR password.")</p>
+            <p>@(ar ? "اسم المستخدم وكلمة المرور الظاهرين هما نفس بيانات دخول الـ QR الأصلية ولا يقوم النظام بتغيير كلمة المرور عند المشاركة." : "The username and password shown are the same existing QR credentials; sharing does not rotate or replace the QR password.")</p>
         </div>
         <dl class="share-facts">
             <dt>@(ar ? "انتهاء الرابط" : "Link expires")</dt><dd>@Model.Share.ExpiresAtUtc.ToLocalTime().ToString("dd MMM yyyy HH:mm")</dd>

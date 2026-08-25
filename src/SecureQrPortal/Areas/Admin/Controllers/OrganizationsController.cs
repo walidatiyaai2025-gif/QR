@@ -29,16 +29,10 @@ public sealed class OrganizationsController(ApplicationDbContext db, AuditServic
     }
 
     [HttpPost]
-    public async Task<IActionResult> Edit(Organization model, IFormFile? logo, bool removeLogo = false, CancellationToken ct = default)
+    public async Task<IActionResult> Edit(Organization model, CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(model.NameArabic) || string.IsNullOrWhiteSpace(model.NameEnglish))
             ModelState.AddModelError("", text["ValidationNamesRequired"]);
-
-        if (logo is { Length: > 0 })
-        {
-            var validation = await ValidateLogoAsync(logo, ct);
-            if (validation is not null) ModelState.AddModelError("", validation);
-        }
 
         if (!ModelState.IsValid)
         {
@@ -62,16 +56,13 @@ public sealed class OrganizationsController(ApplicationDbContext db, AuditServic
         entity.IsActive = model.IsActive;
         entity.UpdatedAtUtc = DateTime.UtcNow;
 
-        if (removeLogo)
+        // Organization logos are no longer part of product branding. The organization
+        // name remains available as contextual text above its QR, while the visual
+        // identity is always Al Diwan Al Amiri.
+        if (!string.IsNullOrWhiteSpace(entity.LogoPath))
         {
             DeleteOwnedLogo(entity.LogoPath);
             entity.LogoPath = null;
-        }
-        if (logo is { Length: > 0 })
-        {
-            var previous = entity.LogoPath;
-            entity.LogoPath = await SaveLogoAsync(logo, ct);
-            DeleteOwnedLogo(previous);
         }
 
         await db.SaveChangesAsync(ct);
@@ -102,36 +93,6 @@ public sealed class OrganizationsController(ApplicationDbContext db, AuditServic
         DeleteOwnedLogo(oldLogo);
         await audit.WriteAsync("ORGANIZATION_DELETE", "Organization", id.ToString(), organization.NameEnglish, ct);
         return RedirectToAction(nameof(Index));
-    }
-
-    private async Task<string?> ValidateLogoAsync(IFormFile file, CancellationToken ct)
-    {
-        if (file.Length > 3 * 1024 * 1024) return text["LogoTooLarge"];
-        var ext = Path.GetExtension(file.FileName).ToLowerInvariant();
-        if (ext is not (".png" or ".jpg" or ".jpeg" or ".webp")) return text["LogoTypeInvalid"];
-
-        var header = new byte[12];
-        await using var stream = file.OpenReadStream();
-        var read = await stream.ReadAsync(header.AsMemory(0, header.Length), ct);
-        var isPng = read >= 8 && header.AsSpan(0, 8).SequenceEqual(new byte[] { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A });
-        var isJpeg = read >= 3 && header[0] == 0xFF && header[1] == 0xD8 && header[2] == 0xFF;
-        var isWebp = read >= 12 && EncodingAscii(header, 0, 4) == "RIFF" && EncodingAscii(header, 8, 4) == "WEBP";
-        return (ext == ".png" && isPng) || (ext is ".jpg" or ".jpeg" && isJpeg) || (ext == ".webp" && isWebp)
-            ? null
-            : text["LogoContentInvalid"];
-    }
-
-    private static string EncodingAscii(byte[] bytes, int offset, int count) => System.Text.Encoding.ASCII.GetString(bytes, offset, count);
-
-    private async Task<string> SaveLogoAsync(IFormFile file, CancellationToken ct)
-    {
-        var ext = Path.GetExtension(file.FileName).ToLowerInvariant();
-        var dir = Path.Combine(env.WebRootPath, "uploads", "logos");
-        Directory.CreateDirectory(dir);
-        var name = $"{Guid.NewGuid():N}{ext}";
-        await using var fs = System.IO.File.Create(Path.Combine(dir, name));
-        await file.CopyToAsync(fs, ct);
-        return $"/uploads/logos/{name}";
     }
 
     private void DeleteOwnedLogo(string? path)

@@ -23,7 +23,7 @@ public sealed class SettingsController(
         var s = await settings.GetAllAsync(ct);
         return View(new GeneralSettingsVm
         {
-            ApplicationName = s.GetValueOrDefault("ApplicationName", "Secure QR Portal"),
+            ApplicationName = Branding.EnglishName,
             DefaultLanguage = s.GetValueOrDefault("DefaultLanguage", "ar"),
             LoginFooterText = s.GetValueOrDefault("LoginFooterText", ""),
             DefaultQrSize = int.TryParse(s.GetValueOrDefault("DefaultQrSize"), out var q) ? q : 12,
@@ -36,19 +36,22 @@ public sealed class SettingsController(
     [HttpPost]
     public async Task<IActionResult> General(GeneralSettingsVm vm, CancellationToken ct)
     {
+        // The visual/product identity is intentionally fixed to Al Diwan Al Amiri.
+        vm.ApplicationName = Branding.EnglishName;
+        ModelState.Remove(nameof(vm.ApplicationName));
         if (!ModelState.IsValid)
         {
             ModelState.AddModelError("", text["ValidationCorrectFields"]);
             return View(vm);
         }
-        await settings.SetAsync("ApplicationName", vm.ApplicationName, ct);
+        await settings.SetAsync("ApplicationName", Branding.EnglishName, ct);
         await settings.SetAsync("DefaultLanguage", vm.DefaultLanguage, ct);
         await settings.SetAsync("LoginFooterText", vm.LoginFooterText ?? "", ct);
         await settings.SetAsync("DefaultQrSize", vm.DefaultQrSize.ToString(), ct);
         await settings.SetAsync("SessionTimeoutMinutes", vm.SessionTimeoutMinutes.ToString(), ct);
         await settings.SetAsync("TimeZone", vm.TimeZone, ct);
         await settings.SetAsync("ShowExpiryPublicly", vm.ShowExpiryPublicly.ToString(), ct);
-        await audit.WriteAsync("APPLICATION_SETTINGS_CHANGE", "Settings", null, "General settings updated", ct);
+        await audit.WriteAsync("APPLICATION_SETTINGS_CHANGE", "Settings", null, "General settings updated; Diwan branding remains fixed", ct);
         TempData["Success"] = text["SettingsSaved"];
         return RedirectToAction(nameof(General));
     }

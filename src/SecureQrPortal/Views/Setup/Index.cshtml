@@ -1,3 +1,24 @@
+@using System.Globalization
 @model SetupVm
-@{ViewData["Title"]="First-run setup";}
-<section class="public-center"><div class="premium-card"><div class="public-title"><div class="brand-mark" style="margin:auto">QR</div><h1>First-run setup</h1><p>Create the initial System Administrator. This screen disables itself after the first account is created.</p></div><form method="post"><div asp-validation-summary="ModelOnly"></div><div class="field"><label asp-for="DisplayName"></label><input class="input" asp-for="DisplayName"></div><div class="field"><label asp-for="Email"></label><input class="input" asp-for="Email"></div><div class="field"><label asp-for="Password"></label><input class="input" asp-for="Password"></div><div class="field"><label asp-for="ConfirmPassword"></label><input class="input" asp-for="ConfirmPassword"></div><button class="btn primary block">Create administrator</button></form></div></section>
+@{
+    var ar = CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "ar";
+    var brandName = Branding.Name(ar);
+    ViewData["Title"] = ar ? "الإعداد الأول" : "First-run setup";
+}
+<section class="public-center">
+    <div class="premium-card">
+        <div class="public-title">
+            <img class="diwan-card-logo" src="@Branding.LogoPath" alt="@brandName">
+            <h1>@brandName</h1>
+            <p>@(ar ? "إنشاء حساب مسؤول النظام الأول. يتم تعطيل هذه الشاشة بعد إنشاء أول حساب." : "Create the initial System Administrator. This screen disables itself after the first account is created.")</p>
+        </div>
+        <form method="post">
+            <div asp-validation-summary="ModelOnly"></div>
+            <div class="field"><label asp-for="DisplayName"></label><input class="input" asp-for="DisplayName"></div>
+            <div class="field"><label asp-for="Email"></label><input class="input" asp-for="Email"></div>
+            <div class="field"><label asp-for="Password"></label><input class="input" asp-for="Password"></div>
+            <div class="field"><label asp-for="ConfirmPassword"></label><input class="input" asp-for="ConfirmPassword"></div>
+            <button class="btn primary block">@(ar ? "إنشاء المسؤول" : "Create administrator")</button>
+        </form>
+    </div>
+</section>

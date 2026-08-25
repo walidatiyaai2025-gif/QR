@@ -13,7 +13,11 @@
 </div>
 <section class="panel">
     <div class="panel-body">
-        <form method="post" asp-action="Edit" enctype="multipart/form-data">
+        <div class="branding-policy-note">
+            <img src="@Branding.LogoPath" alt="@Branding.EnglishName">
+            <div><strong>@Branding.EnglishName</strong><span>System branding is fixed to Al Diwan Al Amiri. Organizations provide names only; organization-specific logos are not used.</span></div>
+        </div>
+        <form method="post" asp-action="Edit">
             <input type="hidden" asp-for="Id" />
             <div asp-validation-summary="ModelOnly"></div>
             <div class="form-grid">
@@ -24,22 +28,6 @@
                 <div class="field">
                     <label asp-for="NameArabic">@T["ArabicName"]</label>
                     <input class="input" asp-for="NameArabic" dir="rtl" autocomplete="off" required />
-                </div>
-                <div class="field">
-                    <label for="organization-logo">@T["LogoUpload"]</label>
-                    <input class="input" id="organization-logo" type="file" name="logo" accept="image/png,image/jpeg,image/webp" />
-                </div>
-                <div class="field">
-                    <label>@T["CurrentLogo"]</label>
-                    @if (Model.LogoPath is not null)
-                    {
-                        <img src="@Model.LogoPath" alt="@T["OrganizationLogoAlt"]" style="height:90px;object-fit:contain;background:white;border-radius:12px;padding:6px" />
-                    }
-                    <span class="muted" dir="ltr">@Model.LogoPath</span>
-                    @if (Model.LogoPath is not null)
-                    {
-                        <label class="check" for="remove-logo" style="margin-top:8px"><input id="remove-logo" type="checkbox" name="removeLogo" value="true" /> @T["RemoveCurrentLogo"]</label>
-                    }
                 </div>
                 <label class="check span-2" asp-for="IsActive"><input asp-for="IsActive" /> @T["ActiveOrganization"]</label>
             </div>
