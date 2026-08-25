@@ -43,6 +43,14 @@ void main() {
     devices = DeviceRepository(client: client, storage: storage);
   });
 
+  AppRuntime createRuntime() => AppRuntime(
+    auth: auth,
+    inbox: inbox,
+    storage: storage,
+    biometrics: BiometricService(),
+    client: client,
+  );
+
   group('auth and session contracts', () {
     test(
       '01 request OTP calls the real endpoint with normalized Kuwait mobile',
@@ -701,14 +709,6 @@ void main() {
       },
     );
   });
-
-  AppRuntime createRuntime() => AppRuntime(
-    auth: auth,
-    inbox: inbox,
-    storage: storage,
-    biometrics: BiometricService(),
-    client: client,
-  );
 }
 
 class _QueueApiInterceptor extends Interceptor {
