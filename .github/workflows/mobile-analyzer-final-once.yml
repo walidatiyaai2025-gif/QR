@@ -1,0 +1,80 @@
+name: DA Secure Mobile Analyzer Final Once
+
+on:
+  push:
+    branches:
+      - worker/da-secure-flutter-real-runtime
+
+permissions:
+  contents: write
+
+jobs:
+  fix-analyzer:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Get dependencies
+        working-directory: mobile/da_secure
+        run: flutter pub get
+      - name: Apply scoped analyzer fixes
+        shell: python
+        run: |
+          from pathlib import Path
+
+          test_path = Path('mobile/da_secure/test/runtime_contract_test.dart')
+          text = test_path.read_text()
+          helper = """  AppRuntime createRuntime() => AppRuntime(\n    auth: auth,\n    inbox: inbox,\n    storage: storage,\n    biometrics: BiometricService(),\n    client: client,\n  );\n"""
+          if text.count(helper) != 1:
+              raise SystemExit('Expected exactly one createRuntime helper')
+          text = text.replace(helper, '', 1)
+          marker = "  group('auth and session contracts', () {\n"
+          if text.count(marker) != 1:
+              raise SystemExit('Expected auth group marker once')
+          text = text.replace(marker, helper + "\n" + marker, 1)
+          test_path.write_text(text)
+
+          router_path = Path('mobile/da_secure/lib/routing/app_router.dart')
+          router = router_path.read_text()
+          if router.count('(context, __)') != 4:
+              raise SystemExit('Expected four unnecessary underscore callbacks')
+          router = router.replace('(context, __)', '(context, _)')
+          router_path.write_text(router)
+      - name: Format
+        working-directory: mobile/da_secure
+        run: dart format lib test
+      - name: Analyze
+        working-directory: mobile/da_secure
+        run: flutter analyze
+      - name: Validate diff
+        shell: bash
+        run: |
+          git diff --check
+          git diff -- mobile/da_secure/test/runtime_contract_test.dart mobile/da_secure/lib/routing/app_router.dart
+          if git diff --quiet -- mobile/da_secure/test/runtime_contract_test.dart mobile/da_secure/lib/routing/app_router.dart; then
+            echo 'Expected scoped analyzer changes were not produced.' >&2
+            exit 1
+          fi
+          if git diff -- mobile/da_secure/test/runtime_contract_test.dart mobile/da_secure/lib/routing/app_router.dart | grep -E '^\+.*(BEGIN (RSA|OPENSSH|EC) PRIVATE KEY|AKIA[0-9A-Z]{16})'; then
+            echo 'Potential secret material detected.' >&2
+            exit 1
+          fi
+      - name: Commit and push analyzer closure
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add mobile/da_secure/test/runtime_contract_test.dart mobile/da_secure/lib/routing/app_router.dart
+          git commit -m 'fix(mobile): close Flutter runtime analyzer blockers'
+          git push origin HEAD:worker/da-secure-flutter-real-runtime
