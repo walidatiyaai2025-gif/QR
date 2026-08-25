@@ -70,6 +70,8 @@ public sealed class MobileDeliveryAdminService(
         await db.SaveChangesAsync(ct);
         await audit.WriteAsync("MOBILE_DELIVERY_CREATED", "MobileDelivery", delivery.Id.ToString(),
             $"SecurePageId={page.Id};OrganizationId={page.OrganizationId};ReminderEnabled={delivery.ReminderEnabled}", ct);
+        await audit.WriteAsync("MOBILE_REMINDER_CONFIG_CHANGED", "MobileDelivery", delivery.Id.ToString(),
+            $"Enabled={delivery.ReminderEnabled};Interval={delivery.ReminderInterval?.ToString() ?? "none"};Unit={delivery.ReminderUnit ?? "none"}", ct);
         await audit.WriteAsync("MOBILE_DELIVERY_SEND_REQUESTED", "MobileDelivery", delivery.Id.ToString(),
             $"SecurePageId={page.Id};OrganizationId={page.OrganizationId}", ct);
 
@@ -154,6 +156,12 @@ public sealed class MobileDeliveryAdminService(
         return new QrMobileDeliveryPanelVm
         {
             SecurePageId = securePageId,
+            QrReference = page.QrReference,
+            SecurePageStatus = qrStatus.GetStatus(page),
+            SecurePageExpiresAtUtc = page.ExpiresAtUtc,
+            AccessLimitMode = page.AccessLimitMode,
+            MaxAccessCount = page.MaxAccessCount,
+            RemainingAccesses = QrStatusService.RemainingAccesses(page),
             OrganizationActive = page.Organization.IsActive,
             OrganizationMobileNumber = page.Organization.MobileNumber,
             RegisteredDeviceCount = devices.Count,
