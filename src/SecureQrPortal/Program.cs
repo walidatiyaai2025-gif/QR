@@ -9,6 +9,7 @@ using SecureQrPortal;
 using SecureQrPortal.Data;
 using SecureQrPortal.Models;
 using SecureQrPortal.Security;
+using SecureQrPortal.Security.Captcha;
 using SecureQrPortal.Services;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -95,6 +96,36 @@ builder.Services.AddRateLimiter(options =>
                 QueueLimit = 0,
                 AutoReplenishment = true
             }));
+    options.AddPolicy("admin-login", httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 5,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0,
+                AutoReplenishment = true
+            }));
+    options.AddPolicy("admin-captcha-generation", httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 20,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0,
+                AutoReplenishment = true
+            }));
+    options.AddPolicy("admin-captcha-image", httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 60,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0,
+                AutoReplenishment = true
+            }));
 });
 
 builder.Services.AddHttpContextAccessor();
@@ -115,6 +146,7 @@ builder.Services.AddScoped<UiText>();
 builder.Services.AddScoped<HtmlContentService>();
 builder.Services.AddScoped<DeviceInfoService>();
 builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddCaptchaSecurity();
 
 var app = builder.Build();
 

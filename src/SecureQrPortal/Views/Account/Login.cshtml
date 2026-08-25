@@ -1,8 +1,92 @@
 @using System.Globalization
 @model LoginVm
 @{
- var ar=CultureInfo.CurrentUICulture.TwoLetterISOLanguageName=="ar";
- var brandName=Branding.Name(ar);
- ViewData["Title"]=ar?"دخول المسؤول":"Administrator Login";
+    var ar = CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "ar";
+    var brandName = Branding.Name(ar);
+    var captchaImageUrl = Url.Action("CaptchaImage", "Account", new { challengeId = Model.CaptchaChallengeId });
+    ViewData["Title"] = ar ? "دخول المسؤول" : "Administrator Login";
 }
-<section class="public-center"><div class="premium-card"><div class="public-title"><img class="diwan-card-logo" src="@Branding.LogoPath" alt="@brandName"><h1>@brandName</h1><p>@(ar?"لوحة إدارة الوصول الآمن عبر QR":"Secure QR administration console")</p></div><form method="post"><div asp-validation-summary="ModelOnly"></div><input type="hidden" name="returnUrl" value="@ViewBag.ReturnUrl"><div class="field"><label for="Email">@(ar?"البريد الإلكتروني":"Email")</label><input class="input" asp-for="Email" autocomplete="username" dir="ltr"></div><div class="field"><label for="Password">@(ar?"كلمة المرور":"Password")</label><div class="password-wrap"><input class="input" asp-for="Password" id="adminPassword" autocomplete="current-password"><button type="button" class="password-toggle" data-password-toggle="adminPassword" aria-label="@(ar?"إظهار أو إخفاء كلمة المرور":"Show or hide password")">◉</button></div></div><label class="check" style="margin-bottom:18px"><input asp-for="RememberMe"> @(ar?"تذكرني":"Remember me")</label><button class="btn primary block" type="submit">@(ar?"تسجيل الدخول":"Sign in")</button><p class="muted" style="text-align:center;font-size:12px;margin-top:18px">@(ar?"أول تشغيل؟":"First installation?") <a style="color:var(--gold2)" href="/setup">@(ar?"إعداد المسؤول الأول":"Run first-time setup")</a></p></form></div></section>
+
+<form id="captchaRefreshForm"
+      method="post"
+      action="@Url.Action("RefreshCaptcha", "Account")"
+      data-captcha-refresh-form>
+    @Html.AntiForgeryToken()
+    <input id="captchaRefreshChallengeId" type="hidden" name="challengeId" value="@Model.CaptchaChallengeId" data-captcha-challenge-id>
+    <input type="hidden" name="returnUrl" value="@ViewBag.ReturnUrl">
+</form>
+
+<section class="public-center">
+    <div class="premium-card">
+        <div class="public-title">
+            <img class="diwan-card-logo" src="@Branding.LogoPath" alt="@brandName">
+            <h1>@brandName</h1>
+            <p>@(ar ? "لوحة إدارة الوصول الآمن عبر QR" : "Secure QR administration console")</p>
+        </div>
+
+        <form method="post" asp-action="Login" asp-controller="Account">
+            <div asp-validation-summary="ModelOnly" role="alert"></div>
+            <input type="hidden" name="returnUrl" value="@ViewBag.ReturnUrl">
+            <input asp-for="CaptchaChallengeId" type="hidden" data-captcha-challenge-id>
+
+            <div class="field">
+                <label for="Email">@(ar ? "البريد الإلكتروني" : "Email")</label>
+                <input class="input" asp-for="Email" autocomplete="username" dir="ltr">
+            </div>
+
+            <div class="field">
+                <label for="Password">@(ar ? "كلمة المرور" : "Password")</label>
+                <div class="password-wrap">
+                    <input class="input" asp-for="Password" id="adminPassword" autocomplete="current-password">
+                    <button type="button"
+                            class="password-toggle"
+                            data-password-toggle="adminPassword"
+                            aria-label="@(ar ? "إظهار أو إخفاء كلمة المرور" : "Show or hide password")">◉</button>
+                </div>
+            </div>
+
+            <div class="field captcha-field">
+                <label for="CaptchaAnswer">@(ar ? "رمز التحقق" : "Verification code")</label>
+                <div class="captcha-panel">
+                    <img id="captchaImage"
+                         class="captcha-image"
+                         src="@captchaImageUrl"
+                         width="224"
+                         height="76"
+                         alt="@(ar ? "صورة رمز التحقق" : "Verification code image")"
+                         data-captcha-image>
+                    <button class="btn secondary captcha-refresh"
+                            type="submit"
+                            form="captchaRefreshForm"
+                            aria-controls="captchaImage CaptchaAnswer">
+                        <span aria-hidden="true">↻</span>
+                        @(ar ? "تحديث رمز التحقق" : "Refresh verification code")
+                    </button>
+                </div>
+                <input class="input captcha-input"
+                       asp-for="CaptchaAnswer"
+                       maxlength="6"
+                       autocomplete="off"
+                       autocapitalize="characters"
+                       spellcheck="false"
+                       inputmode="text"
+                       dir="ltr"
+                       aria-describedby="captchaHelp captchaValidation"
+                       placeholder="@(ar ? "أدخل الأحرف الظاهرة" : "Enter the characters shown")">
+                <span id="captchaHelp" class="captcha-help">
+                    @(ar ? "الأحرف غير حساسة لحالة الكتابة، وتنتهي صلاحية الرمز خلال 3 دقائق." : "The code is not case-sensitive and expires after 3 minutes.")
+                </span>
+                <span id="captchaValidation" asp-validation-for="CaptchaAnswer" class="field-validation-error" role="alert"></span>
+            </div>
+
+            <label class="check" style="margin-bottom:18px">
+                <input asp-for="RememberMe"> @(ar ? "تذكرني" : "Remember me")
+            </label>
+            <button class="btn primary block" type="submit">@(ar ? "تسجيل الدخول" : "Sign in")</button>
+            <p class="muted" style="text-align:center;font-size:12px;margin-top:18px">
+                @(ar ? "أول تشغيل؟" : "First installation?")
+                <a style="color:var(--gold2)" href="/setup">@(ar ? "إعداد المسؤول الأول" : "Run first-time setup")</a>
+            </p>
+        </form>
+    </div>
+</section>
