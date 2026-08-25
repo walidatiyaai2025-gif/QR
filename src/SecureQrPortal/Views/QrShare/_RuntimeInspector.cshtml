@@ -1,4 +1,8 @@
-@if (ViewBag.RuntimeInspectorEnabled == true && ViewBag.RuntimeInspector is string runtimeInspector)
+@{
+    var runtimeInspector = ViewBag.RuntimeInspector as string;
+    var inspectorEnabled = ViewBag.RuntimeInspectorEnabled == true && !string.IsNullOrWhiteSpace(runtimeInspector);
+}
+@if (inspectorEnabled)
 {
     <details class="premium-card" open style="margin-top:18px; max-width:980px; width:min(980px,calc(100vw - 32px));">
         <summary style="cursor:pointer; font-weight:800;">Runtime Inspector</summary>
