@@ -18,8 +18,11 @@ public sealed class OrganizationsController(ApplicationDbContext db, AuditServic
         if (!string.IsNullOrWhiteSpace(q))
         {
             var search = q.Trim();
+            var normalizedMobile = MobileNumberNormalizer.NormalizeKuwait(search);
             query = query.Where(o => o.NameArabic.Contains(search) || o.NameEnglish.Contains(search) ||
-                                     (o.MobileNumber != null && o.MobileNumber.Contains(search)));
+                                     (o.MobileNumber != null &&
+                                      (o.MobileNumber.Contains(search) ||
+                                       (normalizedMobile != null && o.MobileNumber == normalizedMobile))));
         }
 
         var rows = await query.OrderBy(o => o.NameEnglish)
