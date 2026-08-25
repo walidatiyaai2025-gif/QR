@@ -2,23 +2,23 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 18
 VisualStudioVersion = 18.0.0.0
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SecureQrPortal", "src\\SecureQrPortal\\SecureQrPortal.csproj", "{D1224CC7-ED56-4E45-B1FA-8E4B4B328D7A}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SecureQrPortal", "src\SecureQrPortal\SecureQrPortal.csproj", "{D1224CC7-ED56-4E45-B1FA-8E4B4B328D7A}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SecureQrPortal.Tests", "tests\\SecureQrPortal.Tests\\SecureQrPortal.Tests.csproj", "{53A97B22-81AE-4760-BC52-E43B6FE2A005}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SecureQrPortal.Tests", "tests\SecureQrPortal.Tests\SecureQrPortal.Tests.csproj", "{53A97B22-81AE-4760-BC52-E43B6FE2A005}"
 EndProject
 Global
-\tGlobalSection(SolutionConfigurationPlatforms) = preSolution
-\t\tDebug|Any CPU = Debug|Any CPU
-\t\tRelease|Any CPU = Release|Any CPU
-\tEndGlobalSection
-\tGlobalSection(ProjectConfigurationPlatforms) = postSolution
-\t\t{D1224CC7-ED56-4E45-B1FA-8E4B4B328D7A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-\t\t{D1224CC7-ED56-4E45-B1FA-8E4B4B328D7A}.Debug|Any CPU.Build.0 = Debug|Any CPU
-\t\t{D1224CC7-ED56-4E45-B1FA-8E4B4B328D7A}.Release|Any CPU.ActiveCfg = Release|Any CPU
-\t\t{D1224CC7-ED56-4E45-B1FA-8E4B4B328D7A}.Release|Any CPU.Build.0 = Release|Any CPU
-\t\t{53A97B22-81AE-4760-BC52-E43B6FE2A005}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-\t\t{53A97B22-81AE-4760-BC52-E43B6FE2A005}.Debug|Any CPU.Build.0 = Debug|Any CPU
-\t\t{53A97B22-81AE-4760-BC52-E43B6FE2A005}.Release|Any CPU.ActiveCfg = Release|Any CPU
-\t\t{53A97B22-81AE-4760-BC52-E43B6FE2A005}.Release|Any CPU.Build.0 = Release|Any CPU
-\tEndGlobalSection
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{D1224CC7-ED56-4E45-B1FA-8E4B4B328D7A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D1224CC7-ED56-4E45-B1FA-8E4B4B328D7A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D1224CC7-ED56-4E45-B1FA-8E4B4B328D7A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D1224CC7-ED56-4E45-B1FA-8E4B4B328D7A}.Release|Any CPU.Build.0 = Release|Any CPU
+		{53A97B22-81AE-4760-BC52-E43B6FE2A005}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{53A97B22-81AE-4760-BC52-E43B6FE2A005}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{53A97B22-81AE-4760-BC52-E43B6FE2A005}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{53A97B22-81AE-4760-BC52-E43B6FE2A005}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
 EndGlobal
