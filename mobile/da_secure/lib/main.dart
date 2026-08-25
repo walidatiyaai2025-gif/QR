@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:da_secure/config/app_config.dart';
 import 'package:da_secure/design_system/da_secure_theme.dart';
 import 'package:da_secure/firebase/firebase_bootstrap.dart';
@@ -9,6 +11,9 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await FirebaseBootstrap.initializeClient();
   runApp(const DaSecureApp());
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    unawaited(FirebaseBootstrap.startMessaging());
+  });
 }
 
 class DaSecureApp extends StatelessWidget {
