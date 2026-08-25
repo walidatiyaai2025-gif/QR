@@ -65,3 +65,5 @@ jobs:
           }
           git commit -m 'feat: import complete Secure QR Portal v1.0.0 source [skip bootstrap]'
           git push origin "HEAD:${{ github.ref_name }}"
+
+# retrigger 2026-08-25
