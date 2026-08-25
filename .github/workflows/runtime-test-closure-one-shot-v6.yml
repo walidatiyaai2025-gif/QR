@@ -111,23 +111,17 @@ jobs:
           test -s mobile/da_secure/build/app/outputs/flutter-apk/app-debug.apk
           sha256sum mobile/da_secure/build/app/outputs/flutter-apk/app-debug.apk
 
-      - name: Commit validated closure and remove one-shot workflows
+      - name: Commit and push validated non-workflow closure
         shell: bash
         run: |
           git restore --worktree mobile/da_secure/analysis_options.yaml 2>/dev/null || true
           git restore --worktree mobile/da_secure/android/app/build.gradle.kts 2>/dev/null || true
           git restore --worktree mobile/da_secure/android/gradle.properties 2>/dev/null || true
+          git restore --worktree .github/workflows/runtime-convergence-verify.yml 2>/dev/null || true
 
-          git rm .github/workflows/runtime-test-closure-one-shot.yml
-          git rm .github/workflows/runtime-test-closure-one-shot-v2.yml
-          git rm .github/workflows/runtime-test-closure-one-shot-v3.yml
-          git rm .github/workflows/runtime-test-closure-one-shot-v4.yml
-          git rm .github/workflows/runtime-test-closure-one-shot-v5.yml
-          git rm .github/workflows/runtime-test-closure-one-shot-v6.yml
           git add mobile/da_secure/test/runtime_contract_test.dart
           git add mobile/da_secure/android/settings.gradle.kts
           git add mobile/da_secure/android/app/src/main/AndroidManifest.xml
-          git add .github/workflows/runtime-convergence-verify.yml
           git diff --cached --check
           git status --short
 
