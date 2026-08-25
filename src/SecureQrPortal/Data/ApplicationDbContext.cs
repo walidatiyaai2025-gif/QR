@@ -26,7 +26,7 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
         base.OnModelCreating(builder);
         builder.Entity<Organization>().HasIndex(x => x.NameArabic);
         builder.Entity<Organization>().HasIndex(x => x.NameEnglish);
-        builder.Entity<Organization>().HasIndex(x => x.MobileNumber).IsUnique();
+        builder.Entity<Organization>().HasIndex(x => x.MobileNumber).IsUnique().HasFilter("[MobileNumber] IS NOT NULL");
         builder.Entity<SecurePage>().HasIndex(x => x.QrReference).IsUnique();
         builder.Entity<SecurePage>().HasIndex(x => x.PublicTokenHash).IsUnique();
         builder.Entity<SecurePage>().HasIndex(x => new { x.OrganizationId, x.CreatedAtUtc });
