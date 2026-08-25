@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "449915834809",
+    "project_id": "daqr-a4a71",
+    "storage_bucket": "daqr-a4a71.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:449915834809:android:ad5e04722baf4348eb2668",
+        "android_client_info": {
+          "package_name": "com.qr.mobile.da"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA-Q5BX8-ZrBWPfwoQ0umVoN9AJ7mTzE2Y"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
