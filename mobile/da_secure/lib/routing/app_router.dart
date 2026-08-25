@@ -74,9 +74,9 @@ GoRouter createAppRouter(AppRuntime runtime) => GoRouter(
   routes: [
     GoRoute(
       path: '/',
-      builder: (_, __) => AnimatedBuilder(
+      builder: (_, _) => AnimatedBuilder(
         animation: runtime,
-        builder: (_, __) => SplashScreen(
+        builder: (_, _) => SplashScreen(
           isLoading: runtime.isBooting,
           errorMessage: runtime.bootFailure?.messageFor(runtime.isArabic),
           onRetry: runtime.bootFailure == null ? null : runtime.bootstrap,
@@ -85,9 +85,9 @@ GoRouter createAppRouter(AppRuntime runtime) => GoRouter(
     ),
     GoRoute(
       path: '/auth/mobile',
-      builder: (context, __) => AnimatedBuilder(
+      builder: (context, _) => AnimatedBuilder(
         animation: runtime,
-        builder: (_, __) => MobileNumberScreen(
+        builder: (_, _) => MobileNumberScreen(
           state: runtime.mobileNumberState,
           onRequestOtp: (mobile) async {
             final success = await runtime.requestOtp(mobile);
@@ -98,9 +98,9 @@ GoRouter createAppRouter(AppRuntime runtime) => GoRouter(
     ),
     GoRoute(
       path: '/auth/otp',
-      builder: (context, __) => AnimatedBuilder(
+      builder: (context, _) => AnimatedBuilder(
         animation: runtime,
-        builder: (_, __) => OtpScreen(
+        builder: (_, _) => OtpScreen(
           state: runtime.otpState,
           onVerify: (otp) async {
             final success = await runtime.verifyOtp(otp);
@@ -114,9 +114,9 @@ GoRouter createAppRouter(AppRuntime runtime) => GoRouter(
     ),
     GoRoute(
       path: '/auth/biometric',
-      builder: (context, __) => AnimatedBuilder(
+      builder: (context, _) => AnimatedBuilder(
         animation: runtime,
-        builder: (_, __) => BiometricScreen(
+        builder: (_, _) => BiometricScreen(
           state: runtime.biometricState,
           onEnable: () async {
             final success = await runtime.enableBiometrics();
@@ -135,7 +135,7 @@ GoRouter createAppRouter(AppRuntime runtime) => GoRouter(
     ),
     GoRoute(
       path: '/inbox',
-      builder: (context, __) => _InboxRuntimeRoute(
+      builder: (context, _) => _InboxRuntimeRoute(
         runtime: runtime,
         onOpenDelivery: (deliveryId) {
           context.go('/delivery/$deliveryId/login');
@@ -160,7 +160,7 @@ GoRouter createAppRouter(AppRuntime runtime) => GoRouter(
       path: '/delivery/:id/message',
       builder: (_, state) => AnimatedBuilder(
         animation: runtime,
-        builder: (_, __) => SecureMessageScreen(
+        builder: (_, _) => SecureMessageScreen(
           deliveryId: state.pathParameters['id']!,
           state: runtime.secureMessageState(state.pathParameters['id']!),
         ),
@@ -200,7 +200,7 @@ class _InboxRuntimeRouteState extends State<_InboxRuntimeRoute> {
   Widget build(BuildContext context) {
     return AnimatedBuilder(
       animation: widget.runtime,
-      builder: (_, __) => InboxScreen(
+      builder: (_, _) => InboxScreen(
         state: widget.runtime.inboxState,
         onRetry: widget.runtime.refreshInbox,
         onRefresh: widget.runtime.refreshInbox,
@@ -243,7 +243,7 @@ class _SecureLoginRuntimeRouteState extends State<_SecureLoginRuntimeRoute> {
   Widget build(BuildContext context) {
     return AnimatedBuilder(
       animation: widget.runtime,
-      builder: (_, __) => SecureLoginScreen(
+      builder: (_, _) => SecureLoginScreen(
         deliveryId: widget.deliveryId,
         state: widget.runtime.secureLoginState(widget.deliveryId),
         onAuthenticate: (deliveryId, username, password) async {
