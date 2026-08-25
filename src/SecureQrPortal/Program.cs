@@ -10,6 +10,7 @@ using SecureQrPortal;
 using SecureQrPortal.Data;
 using SecureQrPortal.Models;
 using SecureQrPortal.Security;
+using SecureQrPortal.Security.Captcha;
 using SecureQrPortal.Services;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -99,6 +100,36 @@ builder.Services.AddRateLimiter(options =>
                 QueueLimit = 0,
                 AutoReplenishment = true
             }));
+    options.AddPolicy("admin-login", httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 5,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0,
+                AutoReplenishment = true
+            }));
+    options.AddPolicy("admin-captcha-generation", httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 20,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0,
+                AutoReplenishment = true
+            }));
+    options.AddPolicy("admin-captcha-image", httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 60,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0,
+                AutoReplenishment = true
+            }));
     options.AddPolicy("mobile-otp-request", httpContext =>
         RateLimitPartition.GetFixedWindowLimiter(
             partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
@@ -166,6 +197,7 @@ builder.Services.AddScoped<MobileOtpService>();
 builder.Services.AddScoped<MobileDeviceService>();
 builder.Services.AddScoped<MobileDeliveryAccessService>();
 builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddCaptchaSecurity();
 
 var app = builder.Build();
 
