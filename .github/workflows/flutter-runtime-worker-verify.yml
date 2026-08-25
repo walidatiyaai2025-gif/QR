@@ -3,7 +3,7 @@ name: DA Secure Flutter Runtime Worker Verify
 on:
   push:
     branches:
-      - worker/da-secure-flutter-real-runtime
+      - worker/da-secure-flutter-runtime-api
   pull_request:
     branches:
       - feat/secure-qr-mobile-app-isolated
