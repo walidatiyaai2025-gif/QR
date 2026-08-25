@@ -215,12 +215,29 @@ public sealed class MobileDeliveryAdminService(
         if (delivery is null) return null;
         var sourceStatus = qrStatus.GetStatus(delivery.SecurePage).ToString();
         var remaining = QrStatusService.RemainingAccesses(delivery.SecurePage);
+        var auditRows = await db.AuditLogs.AsNoTracking()
+            .Where(x => x.EntityType == "MobileDelivery" && x.EntityId == deliveryId.ToString())
+            .OrderByDescending(x => x.TimestampUtc)
+            .Take(100)
+            .ToListAsync(ct);
+        var adminIds = auditRows.Select(x => x.AdminUserId).OfType<string>().Distinct().ToList();
+        var adminNames = await db.Users.AsNoTracking()
+            .Where(x => adminIds.Contains(x.Id))
+            .ToDictionaryAsync(x => x.Id, x => x.DisplayName, ct);
+
         return new MobileDeliveryDetailsVm
         {
             Delivery = ToHistoryItem(delivery),
             SourceStatus = sourceStatus,
             RemainingReveals = remaining,
-            UnlimitedReveals = !remaining.HasValue
+            UnlimitedReveals = !remaining.HasValue,
+            Audit = auditRows.Select(x => new MobileDeliveryAuditItemVm
+            {
+                TimestampUtc = x.TimestampUtc,
+                Action = x.Action,
+                Admin = x.AdminUserId is not null && adminNames.TryGetValue(x.AdminUserId, out var name) && !string.IsNullOrWhiteSpace(name) ? name : "—",
+                Details = x.Details
+            }).ToList()
         };
     }
 
