@@ -1,9 +1,9 @@
 {
   "product": "Secure QR Portal",
   "version": "1.0.0",
-  "sourceSha": "c7c1c2b6da7453023e4c26591923d33011867907",
-  "workflowRun": "32852517197",
-  "generatedUtc": "2026-08-25T13:19:49.7025025Z",
+  "sourceSha": "7281c2f8265954afbe8bfdfd526d5a31e347f43a",
+  "workflowRun": "32854756636",
+  "generatedUtc": "2026-08-25T13:43:43.9300181Z",
   "targetFramework": "net10.0",
   "deploymentPath": "C:\\inetpub\\wwwroot\\QR",
   "iisSite": "API",
