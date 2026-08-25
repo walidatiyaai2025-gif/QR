@@ -1,3 +1,44 @@
 @model GeneralSettingsVm
-@{ViewData["Title"]="General Settings";}
-<div class="page-head"><div><h1>General Settings</h1><p>Application identity, language, QR defaults and public display options.</p></div></div><section class="panel"><div class="panel-body"><form method="post"><div asp-validation-summary="ModelOnly"></div><div class="form-grid"><div class="field"><label>Application name</label><input class="input" asp-for="ApplicationName"></div><div class="field"><label>Default language</label><select class="select" asp-for="DefaultLanguage"><option value="ar">Arabic</option><option value="en">English</option></select></div><div class="field span-2"><label>Login footer text</label><input class="input" asp-for="LoginFooterText"></div><div class="field"><label>Default QR size</label><input class="input" asp-for="DefaultQrSize" type="number"></div><div class="field"><label>Session timeout (minutes)</label><input class="input" asp-for="SessionTimeoutMinutes" type="number"></div><div class="field"><label>Time zone</label><input class="input" asp-for="TimeZone" placeholder="Asia/Kuwait"></div><label class="check"><input asp-for="ShowExpiryPublicly"> Show expiry date on public secure content</label></div><div class="actions" style="margin-top:20px"><button class="btn primary">Save Settings</button></div></form></div></section>
+@{ ViewData["Title"] = T["GeneralSettings"]; }
+<link rel="stylesheet" href="~/css/admin-closure.css" asp-append-version="true" />
+<div class="page-head">
+    <div>
+        <h1>@T["GeneralSettings"]</h1>
+        <p>@T["GeneralSettingsSubtitle"]</p>
+    </div>
+</div>
+<section class="panel">
+    <div class="panel-body">
+        <form method="post">
+            <div asp-validation-summary="ModelOnly"></div>
+            <div class="form-grid">
+                <div class="field">
+                    <label asp-for="ApplicationName">@T["ApplicationName"]</label>
+                    <input class="input" asp-for="ApplicationName" required autocomplete="off" />
+                </div>
+                <div class="field">
+                    <label asp-for="DefaultLanguage">@T["DefaultLanguage"]</label>
+                    <select class="select" asp-for="DefaultLanguage"><option value="ar">@T["ArabicLanguage"]</option><option value="en">@T["EnglishLanguage"]</option></select>
+                </div>
+                <div class="field span-2">
+                    <label asp-for="LoginFooterText">@T["LoginFooterText"]</label>
+                    <input class="input" asp-for="LoginFooterText" autocomplete="off" />
+                </div>
+                <div class="field">
+                    <label asp-for="DefaultQrSize">@T["DefaultQrSize"]</label>
+                    <input class="input" asp-for="DefaultQrSize" type="number" min="4" max="30" inputmode="numeric" />
+                </div>
+                <div class="field">
+                    <label asp-for="SessionTimeoutMinutes">@T["SessionTimeoutMinutes"]</label>
+                    <input class="input" asp-for="SessionTimeoutMinutes" type="number" min="5" max="240" inputmode="numeric" />
+                </div>
+                <div class="field">
+                    <label asp-for="TimeZone">@T["TimeZone"]</label>
+                    <input class="input" asp-for="TimeZone" placeholder="Asia/Kuwait" autocomplete="off" dir="ltr" />
+                </div>
+                <label class="check" asp-for="ShowExpiryPublicly"><input asp-for="ShowExpiryPublicly" /> @T["ShowExpiryPublicly"]</label>
+            </div>
+            <div class="actions mobile-stack" style="margin-top:20px"><button class="btn primary" type="submit">@T["SaveSettings"]</button></div>
+        </form>
+    </div>
+</section>
