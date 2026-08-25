@@ -29,13 +29,27 @@ public sealed class MobileMigrationTests
         Assert.Equal(1L, await ScalarLongAsync(connection,
             "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='MobileRevealGrants';"));
         Assert.Equal(1L, await ScalarLongAsync(connection,
+            "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='MobilePushAttempts';"));
+        Assert.Equal(1L, await ScalarLongAsync(connection,
             "SELECT COUNT(*) FROM pragma_table_info('Organizations') WHERE name='MobileNumber';"));
+        Assert.Equal(1L, await ScalarLongAsync(connection,
+            "SELECT COUNT(*) FROM pragma_table_info('MobileDeliveries') WHERE name='ProcessingLeaseId';"));
+        Assert.Equal(1L, await ScalarLongAsync(connection,
+            "SELECT COUNT(*) FROM pragma_table_info('MobileDeliveries') WHERE name='ProcessingLeaseUntilUtc';"));
+        Assert.Equal(1L, await ScalarLongAsync(connection,
+            "SELECT COUNT(*) FROM pragma_table_info('MobileDeliveries') WHERE name='ReminderSequence';"));
 
         await using var indexCommand = connection.CreateCommand();
         indexCommand.CommandText = "SELECT sql FROM sqlite_master WHERE type='index' AND name='IX_Organizations_MobileNumber';";
         var indexSql = (string?)await indexCommand.ExecuteScalarAsync();
         Assert.NotNull(indexSql);
         Assert.Contains("WHERE \"MobileNumber\" IS NOT NULL", indexSql!, StringComparison.OrdinalIgnoreCase);
+
+        await using var attemptIndexCommand = connection.CreateCommand();
+        attemptIndexCommand.CommandText = "SELECT sql FROM sqlite_master WHERE type='index' AND name='IX_MobilePushAttempts_CorrelationKey';";
+        var attemptIndexSql = (string?)await attemptIndexCommand.ExecuteScalarAsync();
+        Assert.NotNull(attemptIndexSql);
+        Assert.Contains("UNIQUE", attemptIndexSql!, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -52,6 +66,11 @@ public sealed class MobileMigrationTests
         Assert.Contains("CREATE TABLE [MobileDevices]", script, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("CREATE TABLE [MobileDeliveries]", script, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("CREATE TABLE [MobileRevealGrants]", script, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("CREATE TABLE [MobilePushAttempts]", script, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("[ProcessingLeaseId]", script, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("[ProcessingLeaseUntilUtc]", script, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("[ReminderSequence]", script, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("CREATE UNIQUE INDEX [IX_MobilePushAttempts_CorrelationKey]", script, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("CREATE UNIQUE INDEX [IX_Organizations_MobileNumber]", script, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("WHERE [MobileNumber] IS NOT NULL", script, StringComparison.OrdinalIgnoreCase);
     }
