@@ -42,12 +42,29 @@ public sealed class SecurePageAccessService(
         return QrStatus.ACTIVE;
     }
 
-    public async Task<QrShareCredentialResult> VerifyCredentialsWithPolicyAsync(
+    public Task<QrShareCredentialResult> VerifyCredentialsWithPolicyAsync(
         SecurePage page,
         string username,
         string password,
         HttpContext http,
-        CancellationToken ct = default)
+        CancellationToken ct = default) =>
+        VerifyCredentialsInternalAsync(page, username, password, http, allowShareCredentials: true, ct);
+
+    public Task<QrShareCredentialResult> VerifyPrimaryCredentialsAsync(
+        SecurePage page,
+        string username,
+        string password,
+        HttpContext http,
+        CancellationToken ct = default) =>
+        VerifyCredentialsInternalAsync(page, username, password, http, allowShareCredentials: false, ct);
+
+    private async Task<QrShareCredentialResult> VerifyCredentialsInternalAsync(
+        SecurePage page,
+        string username,
+        string password,
+        HttpContext http,
+        bool allowShareCredentials,
+        CancellationToken ct)
     {
         var credentialState = status.GetStatus(page);
         var qrOpenLimitSessionMayProceed = credentialState == QrStatus.LIMIT_REACHED && (page.AccessLimitMode is AccessLimitMode.MaximumQrOpens or AccessLimitMode.ExpiryAndQrOpens);
@@ -66,11 +83,13 @@ public sealed class SecurePageAccessService(
         {
             result = new QrShareCredentialResult(true, null, null);
         }
+        else if (allowShareCredentials && shares is not null)
+        {
+            result = await shares.VerifyCredentialAsync(page.Id, normalizedUsername, password, ct);
+        }
         else
         {
-            result = shares is null
-                ? QrShareCredentialResult.Failed
-                : await shares.VerifyCredentialAsync(page.Id, normalizedUsername, password, ct);
+            result = QrShareCredentialResult.Failed;
         }
 
         if (result.Success)
