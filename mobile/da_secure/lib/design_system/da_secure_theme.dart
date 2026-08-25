@@ -17,12 +17,17 @@ abstract final class DaSecureTheme {
       brightness: Brightness.dark,
       surface: DaSecureColors.deepNavy,
     );
+
     return ThemeData(
       useMaterial3: true,
       brightness: Brightness.dark,
       colorScheme: scheme,
       scaffoldBackgroundColor: DaSecureColors.deepNavy,
-      fontFamily: null,
+      appBarTheme: const AppBarTheme(
+        backgroundColor: DaSecureColors.deepNavy,
+        foregroundColor: DaSecureColors.textPrimary,
+        centerTitle: false,
+      ),
       inputDecorationTheme: const InputDecorationTheme(
         filled: true,
         fillColor: DaSecureColors.navy,
@@ -39,6 +44,21 @@ abstract final class DaSecureTheme {
           backgroundColor: DaSecureColors.gold,
           foregroundColor: DaSecureColors.deepNavy,
           minimumSize: const Size.fromHeight(52),
+          textStyle: const TextStyle(fontWeight: FontWeight.w700),
+        ),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          foregroundColor: DaSecureColors.goldSoft,
+          side: const BorderSide(color: DaSecureColors.gold),
+          minimumSize: const Size.fromHeight(48),
+        ),
+      ),
+      navigationBarTheme: const NavigationBarThemeData(
+        backgroundColor: DaSecureColors.navy,
+        indicatorColor: DaSecureColors.gold,
+        iconTheme: WidgetStatePropertyAll(
+          IconThemeData(color: DaSecureColors.textPrimary),
         ),
       ),
     );
