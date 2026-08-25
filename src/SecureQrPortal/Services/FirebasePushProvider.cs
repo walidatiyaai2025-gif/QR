@@ -151,7 +151,9 @@ public sealed class FirebaseAdminPushProvider(
                     health = new("CREDENTIAL_FAILURE", "CREDENTIAL_FILE_NOT_FOUND");
                     return null;
                 }
-                credential = GoogleCredential.FromFile(fullPath);
+                credential = CredentialFactory.FromFile(
+                    fullPath,
+                    JsonCredentialParameters.ServiceAccountCredentialType);
             }
             else
             {
