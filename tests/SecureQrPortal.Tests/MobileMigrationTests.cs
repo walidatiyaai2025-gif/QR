@@ -9,7 +9,7 @@ namespace SecureQrPortal.Tests;
 public sealed class MobileMigrationTests
 {
     [Fact]
-    public async Task Sqlite_migration_chain_creates_mobile_auth_schema()
+    public async Task Sqlite_migration_chain_creates_mobile_auth_and_push_reminder_schema()
     {
         await using var connection = new SqliteConnection("Data Source=:memory:");
         await connection.OpenAsync();
@@ -27,19 +27,32 @@ public sealed class MobileMigrationTests
         Assert.Equal(1L, await ScalarLongAsync(connection,
             "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='MobileDeliveries';"));
         Assert.Equal(1L, await ScalarLongAsync(connection,
+            "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='MobilePushAttempts';"));
+        Assert.Equal(1L, await ScalarLongAsync(connection,
             "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='MobileRevealGrants';"));
         Assert.Equal(1L, await ScalarLongAsync(connection,
             "SELECT COUNT(*) FROM pragma_table_info('Organizations') WHERE name='MobileNumber';"));
+        Assert.Equal(1L, await ScalarLongAsync(connection,
+            "SELECT COUNT(*) FROM pragma_table_info('MobileDeliveries') WHERE name='FirebaseErrorCode';"));
+        Assert.Equal(1L, await ScalarLongAsync(connection,
+            "SELECT COUNT(*) FROM pragma_table_info('MobileDeliveries') WHERE name='ReminderSequence';"));
+        Assert.Equal(1L, await ScalarLongAsync(connection,
+            "SELECT COUNT(*) FROM pragma_table_info('MobileDeliveries') WHERE name='ProcessingLeaseId';"));
 
         await using var indexCommand = connection.CreateCommand();
         indexCommand.CommandText = "SELECT sql FROM sqlite_master WHERE type='index' AND name='IX_Organizations_MobileNumber';";
         var indexSql = (string?)await indexCommand.ExecuteScalarAsync();
         Assert.NotNull(indexSql);
         Assert.Contains("WHERE \"MobileNumber\" IS NOT NULL", indexSql!, StringComparison.OrdinalIgnoreCase);
+
+        Assert.Equal(1L, await ScalarLongAsync(connection,
+            "SELECT COUNT(*) FROM sqlite_master WHERE type='index' AND name='IX_MobilePushAttempts_CorrelationKey';"));
+        Assert.Equal(1L, await ScalarLongAsync(connection,
+            "SELECT COUNT(*) FROM sqlite_master WHERE type='index' AND name='IX_MobileDeliveries_ReminderEnabled_NextReminderAtUtc_ProcessingLeaseUntilUtc';"));
     }
 
     [Fact]
-    public void SqlServer_provider_can_generate_full_mobile_migration_script_without_connecting()
+    public void SqlServer_provider_can_generate_full_mobile_push_reminder_migration_script_without_connecting()
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()
             .UseSqlServer("Server=(localdb)\\MSSQLLocalDB;Database=DaSecureMigrationScriptOnly;Trusted_Connection=True;TrustServerCertificate=True")
@@ -51,7 +64,12 @@ public sealed class MobileMigrationTests
         Assert.Contains("CREATE TABLE [MobileSessions]", script, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("CREATE TABLE [MobileDevices]", script, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("CREATE TABLE [MobileDeliveries]", script, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("CREATE TABLE [MobilePushAttempts]", script, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("CREATE TABLE [MobileRevealGrants]", script, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("[FirebaseErrorCode]", script, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("[ProcessingLeaseId]", script, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("IX_MobilePushAttempts_CorrelationKey", script, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("IX_MobileDeliveries_ReminderEnabled_NextReminderAtUtc_ProcessingLeaseUntilUtc", script, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("CREATE UNIQUE INDEX [IX_Organizations_MobileNumber]", script, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("WHERE [MobileNumber] IS NOT NULL", script, StringComparison.OrdinalIgnoreCase);
     }

@@ -153,6 +153,7 @@ public sealed class MobileDeliveryAccessService(
         if (state != MobileDeliveryAccessStatus.Success) return new(state);
 
         var now = timeProvider.GetUtcNow().UtcDateTime;
+        var firstRevealStopsReminders = !delivery.FirstRevealedAtUtc.HasValue && delivery.ReminderEnabled;
         var grantHash = tokens.HashToken(revealToken.Trim());
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
         var consumed = await db.MobileRevealGrants
@@ -187,6 +188,11 @@ public sealed class MobileDeliveryAccessService(
             .SingleAsync(ct);
         await audit.WriteAsync("SECURE_MESSAGE_REVEALED", "MobileDelivery", delivery.Id.ToString(),
             $"OrganizationId={organizationId};SuccessfulAccessCount={refreshed.SecurePage.CurrentSuccessfulAccessCount}", ct);
+        if (firstRevealStopsReminders)
+        {
+            await audit.WriteAsync("MOBILE_REMINDER_STOPPED", "MobileDelivery", delivery.Id.ToString(),
+                "Reason=FIRST_SECURE_REVEAL", ct);
+        }
 
         return new MobileRevealOutcome(
             MobileDeliveryAccessStatus.Success,
