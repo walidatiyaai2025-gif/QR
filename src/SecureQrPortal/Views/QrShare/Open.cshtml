@@ -5,6 +5,8 @@
     ViewData["Title"] = ar ? "رابط مشاركة آمن" : "Secure share link";
     var remaining = Math.Max(0, Model.Share.MaxOpenCount - Model.Share.CurrentOpenCount);
     var revealRequestId = (string?)ViewBag.RevealRequestId ?? Guid.NewGuid().ToString("N");
+    var token = ViewContext.RouteData.Values["token"]?.ToString() ?? string.Empty;
+    var revealUrl = Url.Action("Reveal", "QrShare", new { token }) ?? $"/q/share/{token}/reveal";
 }
 <section class="public-center share-shell">
     <div class="premium-card share-card">
@@ -27,7 +29,7 @@
         </dl>
         @if (Model.CanReveal)
         {
-            <form id="revealCredentialsForm" method="post" action="@Context.Request.Path/reveal">
+            <form id="revealCredentialsForm" method="post" action="@revealUrl">
                 @Html.AntiForgeryToken()
                 <input type="hidden" name="revealRequestId" value="@revealRequestId" />
                 <button id="revealCredentialsButton" class="btn primary block" type="submit">@(ar ? "إظهار بيانات الدخول الآن" : "Reveal credentials now")</button>
