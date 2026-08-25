@@ -2,7 +2,7 @@
 
 Status vocabulary: **PASS / FAIL / UNVERIFIED / BLOCKED / WAITING / NOT APPLICABLE**.
 
-This document reports release evidence only. It never promotes source presence or automated tests into live external verification.
+This document reports release evidence only. It never promotes source presence or automated tests into runtime or live external verification.
 
 ## Candidate provenance
 
@@ -11,7 +11,7 @@ This document reports release evidence only. It never promotes source presence o
 - Canonical API: `https://testapi.da.gov.kw`
 - Android package: `com.qr.mobile.da`
 - App label: `DA Secure`
-- Release gate: .NET `10.0.400`, Flutter `3.47.1`, Java `17`
+- Release toolchain: .NET `10.0.400`, Flutter `3.47.1`, Java `17`
 
 ## Evidence categories
 
@@ -23,25 +23,56 @@ This document reports release evidence only. It never promotes source presence o
 | RUNTIME VERIFIED | Code/toolchain executed successfully, without implying external-provider/device success. |
 | LIVE EXTERNAL VERIFIED | Real provider/device outcome was observed with exact provenance. |
 
-## Latest completed evidence before this report update
+## Exact-head release-harness evidence
 
-Release workflow run `32909858702` checked out SHA `91882dca5de110f07f2667735a980b2c2c1a0384` and established:
+Release workflow run `32910456097` checked out SHA `58c09d76635978e8be81378e3481c8cb9da9bf53` and established:
 
-- Backend Release build: PASS, 0 errors.
-- Backend tests: PASS, 111 passed / 0 failed / 0 skipped.
-- Static Security Regression Gate: PASS.
-- Flutter format: PASS.
-- Flutter analyze: PASS.
-- Flutter tests: PASS.
-- Debug APK build command: PASS.
-- APK metadata/upload: NOT VERIFIED in that run because a release-workflow step-id expression defect skipped both steps after a successful build. The harness change following that run fixes the QA workflow and requires a new exact-head run before APK artifact PASS can be claimed.
-- Android source audit: FAIL because committed Gradle wrapper files are missing. Package id, app label, Java 17 source configuration and Firebase client configuration are separately checked.
-- Canonical API safe smoke: BLOCKED by bounded request timeout from the GitHub-hosted runner.
+### Backend
 
-## Active runtime candidates observed separately
+- Restore: PASS.
+- Release build: PASS, **0 errors**.
+- Release tests: PASS, **111 passed / 0 failed / 0 skipped**.
+- Backend TRX artifact: `da-secure-backend-tests-32910456097`.
 
-- `worker/da-secure-flutter-real-runtime` / PR #16 remains owned by the Flutter runtime worker. Its exact-head worker CI has reported refresh/session test failures; release QA does not modify that production implementation.
-- `worker/da-secure-firebase-reminders` / PR #17 remains owned by Firebase/reminder worker. Release static gates accept the canonical reconciled provider/test suite names without duplicating that production implementation.
+### Security
+
+- Secret scan: PASS.
+- TLS static regression: PASS.
+- FCM payload regression: PASS.
+- OPENED semantics writer regression: PASS.
+- Required security-regression suite presence: PASS.
+
+### Flutter / Android runtime
+
+- Java setup: PASS, Temurin `17.0.20`.
+- Flutter setup: PASS, Flutter `3.47.1` / Dart `3.13.1`.
+- `flutter pub get`: PASS.
+- `dart format --output=none --set-exit-if-changed lib test`: **FAIL**; 12 files would be reformatted.
+- `flutter analyze`: **FAIL**; 6 `unnecessary_underscores` lint issues were reported.
+- `flutter test`: PASS, **16 passed**.
+- `flutter build apk --debug`: **FAIL**. The build reports project Gradle `8.11.1`, while Flutter `3.47.1` requires at least Gradle `8.14.0`.
+- APK metadata validation and upload: correctly SKIPPED because the APK build failed. No provenance-qualified APK artifact is claimed.
+
+The release/QA worker does not modify the Flutter production implementation merely to make these gates green.
+
+### Android structural audit
+
+- Package ID `com.qr.mobile.da`: PASS.
+- Java 17 source configuration: PASS.
+- App label `DA Secure`: PASS.
+- Android Firebase client structure: PASS.
+- Gradle wrapper reproducibility: **FAIL** because `gradlew`, `gradlew.bat`, `gradle/wrapper/gradle-wrapper.properties`, and `gradle/wrapper/gradle-wrapper.jar` are not committed on this candidate.
+
+### Canonical API smoke
+
+- Non-destructive HTTPS smoke: **BLOCKED**.
+- Observed result: bounded request to `https://testapi.da.gov.kw/` ended with `TaskCanceledException` and was classified `EXTERNAL SERVICE BLOCKER`.
+- No HTTP downgrade, trust-all certificate override, destructive call, or synthetic PASS is used.
+
+## Active owner candidates observed separately
+
+- `worker/da-secure-flutter-real-runtime` / PR #16 remains owned by the Flutter runtime worker. Its worker CI has unresolved refresh/session behavior failures; release QA does not push into or merge that branch.
+- `worker/da-secure-firebase-reminders` / PR #17 remains owned by the Firebase/reminder worker. Release static gates accept its reconciled canonical provider/test-suite names without duplicating production implementation.
 
 ## Live external evidence
 
@@ -55,6 +86,6 @@ Release workflow run `32909858702` checked out SHA `91882dca5de110f07f2667735a98
 
 ## Release decision
 
-Release/QA infrastructure can be READY-FOR-INTEGRATION when its exact-head gates behave truthfully, including truthful failures for production/external blockers. Final product release remains blocked until runtime convergence, Android source reproducibility, canonical API availability, required live SMS/FCM/device evidence, and official visual evidence are closed.
+The release/QA harness is suitable for integration when it reports the above failures truthfully; the product candidate itself is **not release-green**. Runtime convergence must close Flutter formatting/analyzer defects, Android Gradle reproducibility/version compatibility, and the active runtime branch defects. Final device E2E must then prove canonical API connectivity, live SMS, live FCM receipt/tap behavior, and approved visual branding.
 
-This branch is never authorized to merge mobile work into `main`; no auto-merge and no self-merge.
+This worker is never authorized to merge mobile work into `main`; no auto-merge and no self-merge.
