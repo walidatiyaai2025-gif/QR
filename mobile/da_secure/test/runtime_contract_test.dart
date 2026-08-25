@@ -637,11 +637,14 @@ void main() {
       expect(state.destinationForPush('99'), '/delivery/99/login');
     });
 
-    test('38 unauthenticated push preserves pending delivery and goes to mobile auth', () {
-      final state = AppNavigationState();
-      expect(state.destinationForPush('99'), '/auth/mobile');
-      expect(state.pendingDeliveryId, '99');
-    });
+    test(
+      '38 unauthenticated push preserves pending delivery and goes to mobile auth',
+      () {
+        final state = AppNavigationState();
+        expect(state.destinationForPush('99'), '/auth/mobile');
+        expect(state.pendingDeliveryId, '99');
+      },
+    );
 
     test('39 auth completion resumes pending delivery at secure login', () {
       final state = AppNavigationState()..rememberPendingDelivery('99');
@@ -683,17 +686,20 @@ void main() {
       },
     );
 
-    test('43 foreground push refreshes safe UI without exposing secure body metadata', () async {
-      final source = await _source(
-        'lib/firebase/firebase_messaging_coordinator.dart',
-      );
-      expect(source, contains('await onForegroundDelivery();'));
-      expect(
-        source,
-        contains("data['notificationCategory'] != 'secure_delivery'"),
-      );
-      expect(source, isNot(contains("data['content']")));
-    });
+    test(
+      '43 foreground push refreshes safe UI without exposing secure body metadata',
+      () async {
+        final source = await _source(
+          'lib/firebase/firebase_messaging_coordinator.dart',
+        );
+        expect(source, contains('await onForegroundDelivery();'));
+        expect(
+          source,
+          contains("data['notificationCategory'] != 'secure_delivery'"),
+        );
+        expect(source, isNot(contains("data['content']")));
+      },
+    );
   });
 
   AppRuntime createRuntime() => AppRuntime(
