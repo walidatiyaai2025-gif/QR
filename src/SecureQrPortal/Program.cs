@@ -102,6 +102,7 @@ builder.Services.AddScoped<TokenService>();
 builder.Services.AddScoped<QrCodeService>();
 builder.Services.AddScoped<QrStatusService>();
 builder.Services.AddScoped<QrShareService>();
+builder.Services.AddSingleton<QrShareRuntimeInspector>();
 builder.Services.AddScoped<SecurePageAccessService>();
 builder.Services.AddScoped<AuditService>();
 builder.Services.AddScoped<AdminIdentityService>();
