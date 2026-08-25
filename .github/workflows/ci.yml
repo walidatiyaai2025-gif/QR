@@ -1,0 +1,139 @@
+name: Secure QR Portal CI
+
+on:
+  push:
+    branches:
+      - main
+      - feat/secure-qr-portal-v1.0.0
+    paths-ignore:
+      - 'Last Approved Patch/Build/**'
+      - 'Last Approved Patch/BUILD-MANIFEST.json'
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-test-publish:
+    runs-on: windows-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install .NET 10 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.400'
+
+      - name: SDK information
+        shell: pwsh
+        run: dotnet --info
+
+      - name: Restore
+        shell: pwsh
+        run: dotnet restore SecureQrPortal.sln
+
+      - name: Build Release
+        shell: pwsh
+        run: dotnet build SecureQrPortal.sln --configuration Release --no-restore
+
+      - name: Test Release
+        shell: pwsh
+        run: dotnet test SecureQrPortal.sln --configuration Release --no-build --logger "trx;LogFileName=secure-qr-tests.trx" --results-directory TestResults
+
+      - name: Publish IIS build
+        shell: pwsh
+        run: |
+          Remove-Item artifacts -Recurse -Force -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Path artifacts/publish -Force | Out-Null
+          dotnet publish src/SecureQrPortal/SecureQrPortal.csproj --configuration Release --no-build --output artifacts/publish
+          New-Item -ItemType Directory -Path artifacts/publish/App_Data/keys -Force | Out-Null
+          New-Item -ItemType Directory -Path artifacts/publish/App_Data/backups -Force | Out-Null
+          New-Item -ItemType Directory -Path artifacts/publish/logs -Force | Out-Null
+          if (-not (Test-Path artifacts/publish/SecureQrPortal.dll)) { throw 'Publish output is missing SecureQrPortal.dll.' }
+          if (-not (Test-Path artifacts/publish/web.config)) { throw 'Publish output is missing IIS web.config.' }
+
+      - name: Package approved IIS build
+        shell: pwsh
+        run: |
+          $patchBuild = 'Last Approved Patch/Build'
+          New-Item -ItemType Directory -Path $patchBuild -Force | Out-Null
+          $publishZip = Join-Path $patchBuild 'SecureQrPortal-v1.0.0-publish.zip'
+          Remove-Item $publishZip -Force -ErrorAction SilentlyContinue
+          Compress-Archive -Path 'artifacts/publish/*' -DestinationPath $publishZip -CompressionLevel Optimal
+          $manifest = [ordered]@{
+            product = 'Secure QR Portal'
+            version = '1.0.0'
+            sourceSha = '${{ github.sha }}'
+            workflowRun = '${{ github.run_id }}'
+            generatedUtc = (Get-Date).ToUniversalTime().ToString('o')
+            targetFramework = 'net10.0'
+            deploymentPath = 'C:\inetpub\wwwroot\QR'
+            iisSite = 'API'
+            appPool = 'QR'
+            hostName = 'testapi.da.gov.kw'
+            certificate = '*.da.gov.kw'
+          }
+          $manifest | ConvertTo-Json | Set-Content 'Last Approved Patch/BUILD-MANIFEST.json' -Encoding utf8
+
+      - name: Package source delivery
+        shell: pwsh
+        run: |
+          $stage = Join-Path $env:RUNNER_TEMP 'SecureQrPortal-v1.0.0-source'
+          Remove-Item $stage -Recurse -Force -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Path $stage -Force | Out-Null
+          robocopy . $stage /E /XD .git .vs bin obj artifacts TestResults /XF *.user *.suo *.db *.db-shm *.db-wal *.pfx *.p12 | Out-Null
+          if ($LASTEXITCODE -ge 8) { throw "Source staging failed with robocopy exit code $LASTEXITCODE" }
+          $sourceZip = 'SecureQrPortal-v1.0.0.zip'
+          Remove-Item $sourceZip -Force -ErrorAction SilentlyContinue
+          Compress-Archive -Path "$stage/*" -DestinationPath $sourceZip -CompressionLevel Optimal
+
+      - name: Upload source ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: SecureQrPortal-v1.0.0-source
+          path: SecureQrPortal-v1.0.0.zip
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload published build
+        uses: actions/upload-artifact@v4
+        with:
+          name: SecureQrPortal-v1.0.0-publish
+          path: |
+            Last Approved Patch/Build/SecureQrPortal-v1.0.0-publish.zip
+            Last Approved Patch/Install-QR-IIS.ps1
+            Last Approved Patch/README.md
+            Last Approved Patch/BUILD-MANIFEST.json
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: SecureQrPortal-v1.0.0-test-results
+          path: TestResults/**/*.trx
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Refresh Last Approved Patch build in branch
+        if: github.event_name == 'push' && (github.ref_name == 'feat/secure-qr-portal-v1.0.0' || github.ref_name == 'main')
+        shell: pwsh
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- 'Last Approved Patch/Build/SecureQrPortal-v1.0.0-publish.zip' 'Last Approved Patch/BUILD-MANIFEST.json'
+          if (git diff --cached --quiet) {
+            Write-Host 'Approved build is already current.'
+            exit 0
+          }
+          git commit -m 'chore(release): refresh Last Approved Patch build [skip ci]'
+          git push origin "HEAD:${{ github.ref_name }}"
