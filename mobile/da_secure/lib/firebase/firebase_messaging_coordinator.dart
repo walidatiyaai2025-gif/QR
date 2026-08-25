@@ -1,31 +1,95 @@
 import 'dart:async';
 
-import 'package:da_secure/repositories/device_repository.dart';
 import 'package:da_secure/security/secure_storage_service.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 
 typedef DeliveryPushCallback = Future<void> Function(String deliveryId);
 typedef ForegroundDeliveryCallback = Future<void> Function();
+typedef RegisterDeviceCallback = Future<void> Function({
+  required String fcmToken,
+  required bool pushEnabled,
+});
+
+enum MobilePushAuthorization { denied, authorized, provisional }
+
+abstract interface class MobileMessagingPort {
+  Stream<Map<String, dynamic>> get openedMessages;
+  Stream<Map<String, dynamic>> get foregroundMessages;
+  Stream<String> get tokenRefresh;
+
+  Future<Map<String, dynamic>?> getInitialMessageData();
+  Future<MobilePushAuthorization> requestPermission();
+  Future<MobilePushAuthorization> getAuthorizationStatus();
+  Future<String?> getToken();
+}
+
+class FlutterFireMessagingPort implements MobileMessagingPort {
+  FlutterFireMessagingPort(this.messaging);
+
+  final FirebaseMessaging messaging;
+
+  @override
+  Stream<Map<String, dynamic>> get openedMessages =>
+      FirebaseMessaging.onMessageOpenedApp.map((message) => message.data);
+
+  @override
+  Stream<Map<String, dynamic>> get foregroundMessages =>
+      FirebaseMessaging.onMessage.map((message) => message.data);
+
+  @override
+  Stream<String> get tokenRefresh => messaging.onTokenRefresh;
+
+  @override
+  Future<Map<String, dynamic>?> getInitialMessageData() async =>
+      (await messaging.getInitialMessage())?.data;
+
+  @override
+  Future<MobilePushAuthorization> requestPermission() async =>
+      _mapAuthorization(
+        (await messaging.requestPermission(
+          alert: true,
+          badge: true,
+          sound: true,
+        )).authorizationStatus,
+      );
+
+  @override
+  Future<MobilePushAuthorization> getAuthorizationStatus() async =>
+      _mapAuthorization(
+        (await messaging.getNotificationSettings()).authorizationStatus,
+      );
+
+  @override
+  Future<String?> getToken() => messaging.getToken();
+
+  static MobilePushAuthorization _mapAuthorization(
+    AuthorizationStatus status,
+  ) => switch (status) {
+    AuthorizationStatus.authorized => MobilePushAuthorization.authorized,
+    AuthorizationStatus.provisional => MobilePushAuthorization.provisional,
+    _ => MobilePushAuthorization.denied,
+  };
+}
 
 class FirebaseMessagingCoordinator {
   FirebaseMessagingCoordinator({
     required this.messaging,
-    required this.devices,
+    required this.registerDevice,
     required this.storage,
     required this.isAuthenticated,
     required this.onDeliveryOpened,
     required this.onForegroundDelivery,
   });
 
-  final FirebaseMessaging messaging;
-  final DeviceRepository devices;
+  final MobileMessagingPort messaging;
+  final RegisterDeviceCallback registerDevice;
   final SecureStorageService storage;
   final bool Function() isAuthenticated;
   final DeliveryPushCallback onDeliveryOpened;
   final ForegroundDeliveryCallback onForegroundDelivery;
 
-  StreamSubscription<RemoteMessage>? _openedSubscription;
-  StreamSubscription<RemoteMessage>? _foregroundSubscription;
+  StreamSubscription<Map<String, dynamic>>? _openedSubscription;
+  StreamSubscription<Map<String, dynamic>>? _foregroundSubscription;
   StreamSubscription<String>? _tokenSubscription;
   bool _started = false;
 
@@ -33,13 +97,11 @@ class FirebaseMessagingCoordinator {
     if (_started) return;
     _started = true;
 
-    _openedSubscription = FirebaseMessaging.onMessageOpenedApp.listen(
-      _handleOpenedMessage,
+    _openedSubscription = messaging.openedMessages.listen(_handleOpenedData);
+    _foregroundSubscription = messaging.foregroundMessages.listen(
+      _handleForegroundData,
     );
-    _foregroundSubscription = FirebaseMessaging.onMessage.listen(
-      _handleForegroundMessage,
-    );
-    _tokenSubscription = messaging.onTokenRefresh.listen((token) async {
+    _tokenSubscription = messaging.tokenRefresh.listen((token) async {
       if (!isAuthenticated()) return;
       try {
         await _registerToken(token, requestPermission: false);
@@ -48,9 +110,9 @@ class FirebaseMessagingCoordinator {
       }
     });
 
-    final initial = await messaging.getInitialMessage();
+    final initial = await messaging.getInitialMessageData();
     if (initial != null) {
-      await _handleOpenedMessage(initial);
+      await _handleOpenedData(initial);
     }
   }
 
@@ -59,26 +121,22 @@ class FirebaseMessagingCoordinator {
   }) async {
     if (!isAuthenticated()) return false;
 
-    NotificationSettings settings;
+    MobilePushAuthorization authorization;
     final prompted = await storage.notificationPermissionPrompted();
     if (requestPermissionIfNeeded && !prompted) {
-      settings = await messaging.requestPermission(
-        alert: true,
-        badge: true,
-        sound: true,
-      );
+      authorization = await messaging.requestPermission();
       await storage.markNotificationPermissionPrompted();
     } else {
-      settings = await messaging.getNotificationSettings();
+      authorization = await messaging.getAuthorizationStatus();
     }
 
     final token = await messaging.getToken();
     if (token == null || token.trim().isEmpty) return false;
 
-    final pushEnabled =
-        settings.authorizationStatus == AuthorizationStatus.authorized ||
-        settings.authorizationStatus == AuthorizationStatus.provisional;
-    await devices.register(fcmToken: token, pushEnabled: pushEnabled);
+    await registerDevice(
+      fcmToken: token.trim(),
+      pushEnabled: _pushEnabled(authorization),
+    );
     return true;
   }
 
@@ -87,37 +145,25 @@ class FirebaseMessagingCoordinator {
     required bool requestPermission,
   }) async {
     if (!isAuthenticated() || token.trim().isEmpty) return;
-    final settings = requestPermission
-        ? await messaging.requestPermission(
-            alert: true,
-            badge: true,
-            sound: true,
-          )
-        : await messaging.getNotificationSettings();
-    final pushEnabled =
-        settings.authorizationStatus == AuthorizationStatus.authorized ||
-        settings.authorizationStatus == AuthorizationStatus.provisional;
-    await devices.register(fcmToken: token, pushEnabled: pushEnabled);
+    final authorization = requestPermission
+        ? await messaging.requestPermission()
+        : await messaging.getAuthorizationStatus();
+    await registerDevice(
+      fcmToken: token.trim(),
+      pushEnabled: _pushEnabled(authorization),
+    );
   }
 
-  Future<void> _handleOpenedMessage(RemoteMessage message) async {
-    final deliveryId = _validatedDeliveryId(message.data);
+  Future<void> _handleOpenedData(Map<String, dynamic> data) async {
+    final deliveryId = validatedSecureDeliveryId(data);
     if (deliveryId == null) return;
     await onDeliveryOpened(deliveryId);
   }
 
-  Future<void> _handleForegroundMessage(RemoteMessage message) async {
-    if (_validatedDeliveryId(message.data) == null) return;
+  Future<void> _handleForegroundData(Map<String, dynamic> data) async {
+    if (validatedSecureDeliveryId(data) == null) return;
     if (!isAuthenticated()) return;
     await onForegroundDelivery();
-  }
-
-  String? _validatedDeliveryId(Map<String, dynamic> data) {
-    if (data['notificationCategory'] != 'secure_delivery') return null;
-    if (data['version']?.toString() != '1') return null;
-    final id = int.tryParse(data['deliveryId']?.toString() ?? '');
-    if (id == null || id <= 0) return null;
-    return id.toString();
   }
 
   Future<void> dispose() async {
@@ -125,4 +171,16 @@ class FirebaseMessagingCoordinator {
     await _foregroundSubscription?.cancel();
     await _tokenSubscription?.cancel();
   }
+}
+
+bool _pushEnabled(MobilePushAuthorization authorization) =>
+    authorization == MobilePushAuthorization.authorized ||
+    authorization == MobilePushAuthorization.provisional;
+
+String? validatedSecureDeliveryId(Map<String, dynamic> data) {
+  if (data['notificationCategory'] != 'secure_delivery') return null;
+  if (data['version']?.toString() != '1') return null;
+  final id = int.tryParse(data['deliveryId']?.toString() ?? '');
+  if (id == null || id <= 0) return null;
+  return id.toString();
 }
