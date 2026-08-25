@@ -68,9 +68,8 @@ int _requiredPositiveInt(dynamic value) {
     final num number
         when number.isFinite && number == number.truncateToDouble() =>
       number.toInt(),
-    final String text when RegExp(r'^\d+$').hasMatch(text.trim()) => int.tryParse(
-      text.trim(),
-    ),
+    final String text when RegExp(r'^\d+$').hasMatch(text.trim()) =>
+      int.tryParse(text.trim()),
     _ => null,
   };
   if (parsed == null || parsed <= 0) {
