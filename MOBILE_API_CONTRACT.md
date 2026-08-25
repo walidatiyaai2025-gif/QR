@@ -22,6 +22,10 @@ Input: challenge id + OTP. On success issue authenticated mobile session/refresh
 
 Rotates/refreshes mobile session according to server policy. Revoked/expired refresh material must fail closed.
 
+### POST `/api/mobile/auth/logout`
+
+Authenticated. Revokes the current mobile bearer session server-side. Subsequent use of that access token or its associated refresh material must fail closed.
+
 ## Device
 
 ### POST `/api/mobile/devices/register`
