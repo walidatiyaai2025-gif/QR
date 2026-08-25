@@ -14,6 +14,7 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
     public DbSet<ApplicationSetting> ApplicationSettings => Set<ApplicationSetting>();
     public DbSet<QrTokenHistory> QrTokenHistories => Set<QrTokenHistory>();
+    public DbSet<QrShareLink> QrShareLinks => Set<QrShareLink>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -31,6 +32,8 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
         builder.Entity<AuditLog>().HasIndex(x => x.TimestampUtc);
         builder.Entity<ApplicationSetting>().HasIndex(x => x.Key).IsUnique();
         builder.Entity<QrTokenHistory>().HasIndex(x => new { x.SecurePageId, x.RevokedAtUtc });
+        builder.Entity<QrShareLink>().HasIndex(x => x.TokenHash).IsUnique();
+        builder.Entity<QrShareLink>().HasIndex(x => new { x.SecurePageId, x.CreatedAtUtc });
         builder.Entity<SecurePage>()
             .HasOne(x => x.Credential).WithOne(x => x.SecurePage)
             .HasForeignKey<PageCredential>(x => x.SecurePageId).OnDelete(DeleteBehavior.Cascade);
@@ -39,6 +42,9 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             .HasForeignKey(x => x.SecurePageId).OnDelete(DeleteBehavior.SetNull);
         builder.Entity<SecurePage>()
             .HasMany(x => x.TokenHistory).WithOne(x => x.SecurePage)
+            .HasForeignKey(x => x.SecurePageId).OnDelete(DeleteBehavior.Cascade);
+        builder.Entity<SecurePage>()
+            .HasMany(x => x.ShareLinks).WithOne(x => x.SecurePage)
             .HasForeignKey(x => x.SecurePageId).OnDelete(DeleteBehavior.Cascade);
         builder.Entity<Organization>()
             .HasMany(x => x.SecurePages).WithOne(x => x.Organization)

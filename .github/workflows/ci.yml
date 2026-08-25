@@ -36,6 +36,19 @@ jobs:
         shell: pwsh
         run: dotnet --info
 
+      - name: Validate approved IIS installer syntax
+        shell: powershell
+        run: |
+          $path = 'Last Approved Patch/Install-QR-IIS.ps1'
+          $tokens = $null
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile($path, [ref]$tokens, [ref]$errors) | Out-Null
+          if ($errors.Count -gt 0) {
+            $errors | Format-List Message,Extent
+            throw "IIS installer contains $($errors.Count) PowerShell syntax error(s)."
+          }
+          Write-Host 'IIS installer syntax OK.'
+
       - name: Restore
         shell: pwsh
         run: dotnet restore SecureQrPortal.sln
@@ -57,6 +70,7 @@ jobs:
           New-Item -ItemType Directory -Path artifacts/publish/App_Data/keys -Force | Out-Null
           New-Item -ItemType Directory -Path artifacts/publish/App_Data/backups -Force | Out-Null
           New-Item -ItemType Directory -Path artifacts/publish/logs -Force | Out-Null
+          New-Item -ItemType Directory -Path artifacts/publish/wwwroot/uploads/logos -Force | Out-Null
           if (-not (Test-Path artifacts/publish/SecureQrPortal.dll)) { throw 'Publish output is missing SecureQrPortal.dll.' }
           if (-not (Test-Path artifacts/publish/web.config)) { throw 'Publish output is missing IIS web.config.' }
 
