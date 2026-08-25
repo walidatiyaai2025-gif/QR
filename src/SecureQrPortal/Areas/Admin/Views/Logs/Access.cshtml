@@ -1,5 +1,106 @@
 @model AccessLogIndexVm
-@{ViewData["Title"]="Access Logs";var orgs=(List<Organization>)ViewBag.Organizations;var pages=(IEnumerable<dynamic>)ViewBag.Pages;}
-<div class="page-head"><div><h1>Access Logs</h1><p>QR scans, authentication attempts, content views and invalid-token activity.</p></div><a class="btn secondary" asp-action="ExportAccess" asp-route-from="@Model.From?.ToString("yyyy-MM-dd")" asp-route-to="@Model.To?.ToString("yyyy-MM-dd")" asp-route-organizationId="@Model.OrganizationId" asp-route-securePageId="@Model.SecurePageId" asp-route-eventType="@Model.EventType" asp-route-success="@Model.Success" asp-route-ip="@Model.Ip">Export CSV</a></div>
-<section class="panel"><div class="panel-body"><form method="get" class="filter-grid"><div class="field"><label>From (UTC)</label><input class="input" type="date" name="from" value="@Model.From?.ToString("yyyy-MM-dd")"></div><div class="field"><label>To (UTC)</label><input class="input" type="date" name="to" value="@Model.To?.ToString("yyyy-MM-dd")"></div><div class="field"><label>Organization</label><select class="select" name="organizationId"><option value="">All</option>@foreach(var o in orgs){<option value="@o.Id" selected="@(Model.OrganizationId==o.Id?"selected":null)">@o.NameEnglish</option>}</select></div><div class="field"><label>Secure Page</label><select class="select" name="securePageId"><option value="">All</option>@foreach(var p in pages){<option value="@p.Id" selected="@(Model.SecurePageId==(long)p.Id?"selected":null)">@p.QrReference — @p.TitleEnglish</option>}</select></div><div class="field"><label>Event</label><select class="select" name="eventType"><option value="">All events</option>@foreach(var e in Enum.GetNames<AccessEventType>()){<option value="@e" selected="@(Model.EventType==e?"selected":null)">@e</option>}</select></div><div class="field"><label>Result</label><select class="select" name="success"><option value="">All</option><option value="true" selected="@(Model.Success==true?"selected":null)">Success</option><option value="false" selected="@(Model.Success==false?"selected":null)">Failure</option></select></div><div class="field"><label>IP contains</label><input class="input" name="ip" placeholder="IP search" value="@Model.Ip"></div><div class="actions align-end"><button class="btn primary">Filter</button><a class="btn secondary" asp-action="Access">Reset</a></div></form></div></section>
-<section class="panel"><div class="panel-head"><h2>@Model.Total events</h2></div><div class="table-wrap"><table class="data-table"><thead><tr><th>Timestamp</th><th>Event</th><th>QR</th><th>Organization / Page</th><th>Result</th><th>IP</th><th>Browser / Device</th><th>Country</th><th>Internal reason</th></tr></thead><tbody>@foreach(var x in Model.Items){<tr><td>@x.TimestampUtc.ToLocalTime().ToString("dd MMM yyyy HH:mm:ss")</td><td>@x.EventType</td><td>@(x.SecurePage?.QrReference??"—")</td><td>@(x.SecurePage?.Organization?.NameEnglish??"—")<br><span class="muted">@(x.SecurePage?.TitleEnglish??"Unknown token")</span></td><td>@(x.WasSuccessful?"SUCCESS":"FAILED")</td><td>@(x.IpAddress??"—")</td><td>@x.Browser / @x.DeviceType</td><td>@(x.Country??"—")</td><td>@x.FailureReasonInternal</td></tr>}@if(Model.Items.Count==0){<tr><td colspan="9" class="muted">No matching access events.</td></tr>}</tbody></table></div><div class="pagination">@if(Model.Page>1){<a asp-action="Access" asp-route-from="@Model.From?.ToString("yyyy-MM-dd")" asp-route-to="@Model.To?.ToString("yyyy-MM-dd")" asp-route-organizationId="@Model.OrganizationId" asp-route-securePageId="@Model.SecurePageId" asp-route-eventType="@Model.EventType" asp-route-success="@Model.Success" asp-route-ip="@Model.Ip" asp-route-page="@(Model.Page-1)">‹</a>}<span>@Model.Page / @Model.TotalPages</span>@if(Model.Page<Model.TotalPages){<a asp-action="Access" asp-route-from="@Model.From?.ToString("yyyy-MM-dd")" asp-route-to="@Model.To?.ToString("yyyy-MM-dd")" asp-route-organizationId="@Model.OrganizationId" asp-route-securePageId="@Model.SecurePageId" asp-route-eventType="@Model.EventType" asp-route-success="@Model.Success" asp-route-ip="@Model.Ip" asp-route-page="@(Model.Page+1)">›</a>}</div></section>
+@{
+    var ar = CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "ar";
+    var orgs = (List<Organization>)ViewBag.Organizations;
+    var pages = (IEnumerable<dynamic>)ViewBag.Pages;
+    var previousArrow = ar ? "›" : "‹";
+    var nextArrow = ar ? "‹" : "›";
+    ViewData["Title"] = T["AccessLogs"];
+}
+<link rel="stylesheet" href="~/css/admin-closure.css" asp-append-version="true" />
+<div class="page-head">
+    <div>
+        <h1>@T["AccessLogs"]</h1>
+        <p>@T["AccessLogsSubtitle"]</p>
+    </div>
+    <a class="btn secondary" asp-action="ExportAccess" asp-route-from="@Model.From?.ToString("yyyy-MM-dd")" asp-route-to="@Model.To?.ToString("yyyy-MM-dd")" asp-route-organizationId="@Model.OrganizationId" asp-route-securePageId="@Model.SecurePageId" asp-route-eventType="@Model.EventType" asp-route-success="@Model.Success" asp-route-ip="@Model.Ip">@T["ExportCsv"]</a>
+</div>
+<section class="panel">
+    <div class="panel-body">
+        <form method="get" class="filter-grid" role="search">
+            <div class="field"><label for="access-from">@T["FromUtc"]</label><input class="input" id="access-from" type="date" name="from" value="@Model.From?.ToString("yyyy-MM-dd")" /></div>
+            <div class="field"><label for="access-to">@T["ToUtc"]</label><input class="input" id="access-to" type="date" name="to" value="@Model.To?.ToString("yyyy-MM-dd")" /></div>
+            <div class="field">
+                <label for="access-organization">@T["Organization"]</label>
+                <select class="select" id="access-organization" name="organizationId">
+                    <option value="">@T["All"]</option>
+                    @foreach (var o in orgs)
+                    {
+                        <option value="@o.Id" selected="@(Model.OrganizationId == o.Id ? "selected" : null)">@(ar ? o.NameArabic : o.NameEnglish)</option>
+                    }
+                </select>
+            </div>
+            <div class="field">
+                <label for="access-page">@T["SecurePage"]</label>
+                <select class="select" id="access-page" name="securePageId">
+                    <option value="">@T["All"]</option>
+                    @foreach (var p in pages)
+                    {
+                        <option value="@p.Id" selected="@(Model.SecurePageId == (long)p.Id ? "selected" : null)">@p.QrReference — @(ar ? p.TitleArabic : p.TitleEnglish)</option>
+                    }
+                </select>
+            </div>
+            <div class="field">
+                <label for="access-event">@T["Event"]</label>
+                <select class="select" id="access-event" name="eventType">
+                    <option value="">@T["AllEvents"]</option>
+                    @foreach (var e in Enum.GetNames<AccessEventType>())
+                    {
+                        <option value="@e" selected="@(Model.EventType == e ? "selected" : null)">@T[e]</option>
+                    }
+                </select>
+            </div>
+            <div class="field">
+                <label for="access-result">@T["Result"]</label>
+                <select class="select" id="access-result" name="success">
+                    <option value="">@T["All"]</option>
+                    <option value="true" selected="@(Model.Success == true ? "selected" : null)">@T["Success"]</option>
+                    <option value="false" selected="@(Model.Success == false ? "selected" : null)">@T["Failure"]</option>
+                </select>
+            </div>
+            <div class="field"><label for="access-ip">@T["IpContains"]</label><input class="input" id="access-ip" name="ip" placeholder="@T["IpSearch"]" value="@Model.Ip" inputmode="decimal" autocomplete="off" dir="ltr" /></div>
+            <div class="actions align-end"><button class="btn primary" type="submit">@T["Filter"]</button><a class="btn secondary" asp-action="Access">@T["Reset"]</a></div>
+        </form>
+    </div>
+</section>
+<section class="panel">
+    <div class="panel-head"><h2><span class="numeric">@Model.Total</span> @T["Events"]</h2></div>
+    <div class="table-wrap admin-stack">
+        <table class="data-table admin-responsive-table">
+            <thead><tr><th>@T["Timestamp"]</th><th>@T["Event"]</th><th>@T["QR"]</th><th>@T["OrganizationPage"]</th><th>@T["Result"]</th><th>@T["IP"]</th><th>@T["BrowserDevice"]</th><th>@T["Country"]</th><th>@T["InternalReason"]</th></tr></thead>
+            <tbody>
+            @foreach (var x in Model.Items)
+            {
+                var organizationName = x.SecurePage?.Organization is null ? "—" : (ar ? x.SecurePage.Organization.NameArabic : x.SecurePage.Organization.NameEnglish);
+                var pageTitle = x.SecurePage is null ? T["UnknownToken"] : (ar ? x.SecurePage.TitleArabic : x.SecurePage.TitleEnglish);
+                <tr>
+                    <td data-label="@T["Timestamp"]"><span class="numeric">@x.TimestampUtc.ToLocalTime().ToString(ar ? "dd/MM/yyyy HH:mm:ss" : "dd MMM yyyy HH:mm:ss")</span></td>
+                    <td data-label="@T["Event"]">@T[x.EventType]</td>
+                    <td data-label="@T["QR"]"><span class="code" dir="ltr">@(x.SecurePage?.QrReference ?? "—")</span></td>
+                    <td data-label="@T["OrganizationPage"]">@organizationName<br /><span class="muted">@pageTitle</span></td>
+                    <td data-label="@T["Result"]"><span class="badge @(x.WasSuccessful ? "ACTIVE" : "REVOKED")">@(x.WasSuccessful ? T["Success"] : T["Failure"])</span></td>
+                    <td data-label="@T["IP"]"><span class="numeric">@(x.IpAddress ?? "—")</span></td>
+                    <td data-label="@T["BrowserDevice"]">@x.Browser / @x.DeviceType</td>
+                    <td data-label="@T["Country"]">@(x.Country ?? "—")</td>
+                    <td data-label="@T["InternalReason"]">@x.FailureReasonInternal</td>
+                </tr>
+            }
+            @if (Model.Items.Count == 0)
+            {
+                <tr><td colspan="9" class="muted">@T["NoAccessEvents"]</td></tr>
+            }
+            </tbody>
+        </table>
+    </div>
+    <nav class="pagination" aria-label="@T["Pagination"]">
+        @if (Model.Page > 1)
+        {
+            <a aria-label="@T["PreviousPage"]" asp-action="Access" asp-route-from="@Model.From?.ToString("yyyy-MM-dd")" asp-route-to="@Model.To?.ToString("yyyy-MM-dd")" asp-route-organizationId="@Model.OrganizationId" asp-route-securePageId="@Model.SecurePageId" asp-route-eventType="@Model.EventType" asp-route-success="@Model.Success" asp-route-ip="@Model.Ip" asp-route-page="@(Model.Page - 1)">@previousArrow</a>
+        }
+        <span><span class="numeric">@Model.Page / @Model.TotalPages</span></span>
+        @if (Model.Page < Model.TotalPages)
+        {
+            <a aria-label="@T["NextPage"]" asp-action="Access" asp-route-from="@Model.From?.ToString("yyyy-MM-dd")" asp-route-to="@Model.To?.ToString("yyyy-MM-dd")" asp-route-organizationId="@Model.OrganizationId" asp-route-securePageId="@Model.SecurePageId" asp-route-eventType="@Model.EventType" asp-route-success="@Model.Success" asp-route-ip="@Model.Ip" asp-route-page="@(Model.Page + 1)">@nextArrow</a>
+        }
+    </nav>
+</section>
