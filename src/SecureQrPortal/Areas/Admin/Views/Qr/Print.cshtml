@@ -4,7 +4,6 @@
     Layout = null;
     var ar = CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "ar";
     var org = ar ? Model.Organization.NameArabic : Model.Organization.NameEnglish;
-    var title = ar ? Model.TitleArabic : Model.TitleEnglish;
     var brandName = Branding.Name(ar);
 }
 <!doctype html>
@@ -22,9 +21,7 @@
     <img class="print-diwan-logo" src="@Branding.LogoPath" alt="@brandName">
     <h1 class="print-brand-name">@brandName</h1>
     <div class="qr-org-title print-org-title">@org</div>
-    <h2>@title</h2>
     <div class="qr-print-block">
-        <div class="qr-above-title">@org</div>
         <img src="@Url.Action("Code",new{id=Model.Id,size=12})" alt="QR">
     </div>
     <p><strong>@Model.QrReference</strong></p>
