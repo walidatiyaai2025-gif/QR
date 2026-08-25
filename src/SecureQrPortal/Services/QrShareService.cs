@@ -69,29 +69,81 @@ public sealed class QrShareService(ApplicationDbContext db, IDataProtectionProvi
             .SingleOrDefaultAsync(x => x.TokenHash == hash, ct);
     }
 
-    public async Task<QrShareRevealResult?> RevealAsync(string rawToken, CancellationToken ct = default)
+    public Task<QrShareRevealResult?> RevealAsync(string rawToken, CancellationToken ct = default) =>
+        RevealAsync(rawToken, GenerateToken(), ct);
+
+    public async Task<QrShareRevealResult?> RevealAsync(
+        string rawToken,
+        string revealRequestId,
+        CancellationToken ct = default)
     {
-        var hash = TokenService.HashToken(rawToken);
+        if (string.IsNullOrWhiteSpace(revealRequestId) || revealRequestId.Length > 200)
+            return null;
+
+        var tokenHash = TokenService.HashToken(rawToken);
+        var requestHash = TokenService.HashToken(revealRequestId.Trim());
         var now = DateTime.UtcNow;
-        var candidate = await db.QrShareLinks.AsNoTracking().SingleOrDefaultAsync(x => x.TokenHash == hash, ct);
-        if (candidate is null || candidate.RevokedAtUtc != null || candidate.ExpiresAtUtc <= now || candidate.CurrentOpenCount >= candidate.MaxOpenCount)
+        var candidate = await db.QrShareLinks
+            .AsNoTracking()
+            .SingleOrDefaultAsync(x => x.TokenHash == tokenHash, ct);
+
+        if (candidate is null || candidate.RevokedAtUtc is not null || candidate.ExpiresAtUtc <= now)
+            return null;
+
+        // Idempotency: the same browser/form submission may be retried by a proxy,
+        // browser, security gateway, or double-submit. The exact same reveal request
+        // must return the same credentials without consuming another allowed opening.
+        if (string.Equals(candidate.LastRevealRequestHash, requestHash, StringComparison.Ordinal) &&
+            candidate.CurrentOpenCount > 0 &&
+            candidate.AccessWindowEndsAtUtc is DateTime existingEnd &&
+            existingEnd > now)
+        {
+            return await LoadRevealResultAsync(candidate.Id, ct);
+        }
+
+        if (candidate.CurrentOpenCount >= candidate.MaxOpenCount)
             return null;
 
         var hardEnd = now.AddMinutes(candidate.SessionDurationMinutes);
         var affected = await db.QrShareLinks
-            .Where(x => x.Id == candidate.Id && x.RevokedAtUtc == null && x.ExpiresAtUtc > now && x.CurrentOpenCount < x.MaxOpenCount)
+            .Where(x => x.Id == candidate.Id &&
+                        x.RevokedAtUtc == null &&
+                        x.ExpiresAtUtc > now &&
+                        x.CurrentOpenCount < x.MaxOpenCount)
             .ExecuteUpdateAsync(s => s
                 .SetProperty(x => x.CurrentOpenCount, x => x.CurrentOpenCount + 1)
                 .SetProperty(x => x.FirstOpenedAtUtc, x => x.FirstOpenedAtUtc ?? now)
                 .SetProperty(x => x.LastOpenedAtUtc, now)
-                .SetProperty(x => x.AccessWindowEndsAtUtc, hardEnd), ct);
+                .SetProperty(x => x.AccessWindowEndsAtUtc, hardEnd)
+                .SetProperty(x => x.LastRevealRequestHash, requestHash), ct);
 
-        if (affected == 0) return null;
+        if (affected > 0)
+            return await LoadRevealResultAsync(candidate.Id, ct);
 
+        // A retry can race the first successful request. Re-read the row and accept
+        // only the identical request id while its hard access window is still alive.
+        var raced = await db.QrShareLinks
+            .AsNoTracking()
+            .SingleOrDefaultAsync(x => x.Id == candidate.Id, ct);
+        if (raced is not null &&
+            raced.RevokedAtUtc is null &&
+            raced.CurrentOpenCount > 0 &&
+            raced.AccessWindowEndsAtUtc is DateTime racedEnd &&
+            racedEnd > DateTime.UtcNow &&
+            string.Equals(raced.LastRevealRequestHash, requestHash, StringComparison.Ordinal))
+        {
+            return await LoadRevealResultAsync(candidate.Id, ct);
+        }
+
+        return null;
+    }
+
+    private async Task<QrShareRevealResult> LoadRevealResultAsync(long shareId, CancellationToken ct)
+    {
         var share = await db.QrShareLinks
             .Include(x => x.SecurePage).ThenInclude(x => x.Organization)
             .AsNoTracking()
-            .SingleAsync(x => x.Id == candidate.Id, ct);
+            .SingleAsync(x => x.Id == shareId, ct);
         return new QrShareRevealResult(share, GetPassword(share));
     }
 
