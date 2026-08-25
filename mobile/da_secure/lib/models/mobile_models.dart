@@ -11,7 +11,7 @@ class OrganizationProfile {
 
   factory OrganizationProfile.fromJson(Map<String, dynamic> json) {
     return OrganizationProfile(
-      id: _asInt(json['id']),
+      id: _requiredInt(json['id'], 'organization.id', minimum: 1),
       nameArabic: (json['nameArabic'] as String?)?.trim() ?? '',
       nameEnglish: (json['nameEnglish'] as String?)?.trim() ?? '',
     );
@@ -127,7 +127,11 @@ class CurrentUser {
         session['refreshExpiresAtUtc'],
         'session.refreshExpiresAtUtc',
       ),
-      registeredDeviceCount: _asInt(json['registeredDeviceCount']),
+      registeredDeviceCount: _requiredInt(
+        json['registeredDeviceCount'],
+        'registeredDeviceCount',
+        minimum: 0,
+      ),
     );
   }
 }
@@ -150,12 +154,19 @@ class InboxItem {
   final String status;
 
   factory InboxItem.fromJson(Map<String, dynamic> json) => InboxItem(
-    deliveryId: _asInt(json['deliveryId']),
-    sentAtUtc: _optionalDate(json['sentAtUtc']),
-    expiresAtUtc: _optionalDate(json['expiresAtUtc']),
-    firstRevealedAtUtc: _optionalDate(json['firstRevealedAtUtc']),
-    remainingReveals: _optionalInt(json['remainingReveals']),
-    status: (json['status'] as String?)?.trim().toUpperCase() ?? 'UNKNOWN',
+    deliveryId: _requiredInt(json['deliveryId'], 'deliveryId', minimum: 1),
+    sentAtUtc: _optionalDate(json['sentAtUtc'], 'sentAtUtc'),
+    expiresAtUtc: _optionalDate(json['expiresAtUtc'], 'expiresAtUtc'),
+    firstRevealedAtUtc: _optionalDate(
+      json['firstRevealedAtUtc'],
+      'firstRevealedAtUtc',
+    ),
+    remainingReveals: _optionalInt(
+      json['remainingReveals'],
+      'remainingReveals',
+      minimum: 0,
+    ),
+    status: _requiredString(json['status'], 'status').toUpperCase(),
   );
 }
 
@@ -177,14 +188,15 @@ class InboxPage {
   final List<InboxItem> items;
 
   factory InboxPage.fromJson(Map<String, dynamic> json) {
-    final rawItems = json['items'] as List<dynamic>? ?? const <dynamic>[];
+    final value = json['items'];
+    if (value is! List) throw const FormatException('Invalid items.');
     return InboxPage(
       headingArabic: (json['headingArabic'] as String?)?.trim() ?? '',
       headingEnglish: (json['headingEnglish'] as String?)?.trim() ?? '',
-      page: _asInt(json['page']),
-      pageSize: _asInt(json['pageSize']),
-      totalCount: _asInt(json['totalCount']),
-      items: rawItems.map((item) => InboxItem.fromJson(_asMap(item))).toList(),
+      page: _requiredInt(json['page'], 'page', minimum: 1),
+      pageSize: _requiredInt(json['pageSize'], 'pageSize', minimum: 1),
+      totalCount: _requiredInt(json['totalCount'], 'totalCount', minimum: 0),
+      items: value.map((item) => InboxItem.fromJson(_asMap(item))).toList(),
     );
   }
 }
@@ -208,12 +220,23 @@ class DeliveryDetails {
 
   factory DeliveryDetails.fromJson(Map<String, dynamic> json) =>
       DeliveryDetails(
-        deliveryId: _asInt(json['deliveryId']),
-        sentAtUtc: _optionalDate(json['sentAtUtc']),
-        expiresAtUtc: _optionalDate(json['expiresAtUtc']),
-        firstRevealedAtUtc: _optionalDate(json['firstRevealedAtUtc']),
-        remainingReveals: _optionalInt(json['remainingReveals']),
-        status: (json['status'] as String?)?.trim().toUpperCase() ?? 'UNKNOWN',
+        deliveryId: _requiredInt(
+          json['deliveryId'],
+          'deliveryId',
+          minimum: 1,
+        ),
+        sentAtUtc: _optionalDate(json['sentAtUtc'], 'sentAtUtc'),
+        expiresAtUtc: _optionalDate(json['expiresAtUtc'], 'expiresAtUtc'),
+        firstRevealedAtUtc: _optionalDate(
+          json['firstRevealedAtUtc'],
+          'firstRevealedAtUtc',
+        ),
+        remainingReveals: _optionalInt(
+          json['remainingReveals'],
+          'remainingReveals',
+          minimum: 0,
+        ),
+        status: _requiredString(json['status'], 'status').toUpperCase(),
       );
 }
 
@@ -256,17 +279,26 @@ class SecureMessage {
   final List<Map<String, dynamic>> attachments;
 
   factory SecureMessage.fromJson(Map<String, dynamic> json) {
-    final rawAttachments =
-        json['attachments'] as List<dynamic>? ?? const <dynamic>[];
+    final rawAttachments = json['attachments'];
+    if (rawAttachments is! List) {
+      throw const FormatException('Invalid attachments.');
+    }
     return SecureMessage(
       headingArabic: (json['headingArabic'] as String?)?.trim() ?? '',
       headingEnglish: (json['headingEnglish'] as String?)?.trim() ?? '',
       contentArabicHtml: (json['contentArabicHtml'] as String?) ?? '',
       contentEnglishHtml: (json['contentEnglishHtml'] as String?) ?? '',
-      sentAtUtc: _optionalDate(json['sentAtUtc']),
-      expiresAtUtc: _optionalDate(json['expiresAtUtc']),
-      remainingReveals: _optionalInt(json['remainingReveals']),
-      firstRevealedAtUtc: _optionalDate(json['firstRevealedAtUtc']),
+      sentAtUtc: _optionalDate(json['sentAtUtc'], 'sentAtUtc'),
+      expiresAtUtc: _optionalDate(json['expiresAtUtc'], 'expiresAtUtc'),
+      remainingReveals: _optionalInt(
+        json['remainingReveals'],
+        'remainingReveals',
+        minimum: 0,
+      ),
+      firstRevealedAtUtc: _optionalDate(
+        json['firstRevealedAtUtc'],
+        'firstRevealedAtUtc',
+      ),
       attachments: rawAttachments.map(_asMap).toList(),
     );
   }
@@ -293,23 +325,45 @@ String _requiredString(dynamic value, String field) {
 }
 
 DateTime _requiredDate(dynamic value, String field) {
-  final parsed = _optionalDate(value);
+  final parsed = _optionalDate(value, field);
   if (parsed == null) throw FormatException('Missing $field.');
   return parsed;
 }
 
-DateTime? _optionalDate(dynamic value) {
-  if (value is! String || value.trim().isEmpty) return null;
-  return DateTime.tryParse(value)?.toUtc();
-}
-
-int _asInt(dynamic value) {
-  if (value is int) return value;
-  if (value is num) return value.toInt();
-  return int.tryParse(value?.toString() ?? '') ?? 0;
-}
-
-int? _optionalInt(dynamic value) {
+DateTime? _optionalDate(dynamic value, String field) {
   if (value == null) return null;
-  return _asInt(value);
+  if (value is! String || value.trim().isEmpty) {
+    throw FormatException('Invalid $field.');
+  }
+  final parsed = DateTime.tryParse(value);
+  if (parsed == null) throw FormatException('Invalid $field.');
+  return parsed.toUtc();
+}
+
+int _requiredInt(dynamic value, String field, {required int minimum}) {
+  final parsed = _parseInt(value);
+  if (parsed == null || parsed < minimum) {
+    throw FormatException('Invalid $field.');
+  }
+  return parsed;
+}
+
+int? _optionalInt(dynamic value, String field, {required int minimum}) {
+  if (value == null) return null;
+  final parsed = _parseInt(value);
+  if (parsed == null || parsed < minimum) {
+    throw FormatException('Invalid $field.');
+  }
+  return parsed;
+}
+
+int? _parseInt(dynamic value) {
+  if (value is int) return value;
+  if (value is num && value.isFinite && value == value.truncateToDouble()) {
+    return value.toInt();
+  }
+  if (value is String && RegExp(r'^-?\d+$').hasMatch(value.trim())) {
+    return int.tryParse(value.trim());
+  }
+  return null;
 }
