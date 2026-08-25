@@ -1,0 +1,49 @@
+name: DA Secure Flutter FCM Verify
+
+on:
+  push:
+    branches:
+      - worker/da-secure-firebase-flutter-fcm-closure
+      - worker/da-secure-firebase-reminders
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  flutter-fcm:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Install Flutter stable
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Flutter doctor
+        run: flutter doctor -v
+      - name: Pub get
+        working-directory: mobile/da_secure
+        run: flutter pub get
+      - name: Format check
+        working-directory: mobile/da_secure
+        run: dart format --output=none --set-exit-if-changed lib test
+      - name: Analyze
+        working-directory: mobile/da_secure
+        run: flutter analyze
+      - name: Test
+        working-directory: mobile/da_secure
+        run: flutter test
+      - name: Debug APK
+        working-directory: mobile/da_secure
+        run: flutter build apk --debug
+      - name: Upload debug APK
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: da-secure-debug-apk
+          path: mobile/da_secure/build/app/outputs/flutter-apk/app-debug.apk
+          if-no-files-found: error
+          retention-days: 7
