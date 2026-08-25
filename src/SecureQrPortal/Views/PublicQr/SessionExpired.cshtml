@@ -1,0 +1,7 @@
+@using System.Globalization
+@model SecurePage
+@{
+    var ar = CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "ar";
+    ViewData["Title"] = ar ? "انتهت الجلسة" : "Session expired";
+}
+<section class="public-center"><div class="premium-card error-card"><div class="error-code">⏱</div><h1>@(ar ? "انتهت جلسة الوصول" : "Access session expired")</h1><p class="muted">@(ar ? "انتهت المدة المحددة لبيانات المشاركة وتم إغلاق الوصول من الخادم. اطلب رابط مشاركة جديد إذا كنت ما زلت تحتاج إلى الوصول." : "The configured shared-access window has ended and the server has closed this session. Request a new share link if access is still required.")</p></div></section>
