@@ -1,6 +1,9 @@
 @model Organization
+@using SecureQrPortal.ViewModels
 @{
     var creating = Model.Id == 0;
+    var ar = CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "ar";
+    var devices = ViewBag.MobileDevices as IEnumerable<MobileDeviceAdminVm> ?? Array.Empty<MobileDeviceAdminVm>();
     ViewData["Title"] = creating ? T["CreateOrganization"] : T["EditOrganization"];
 }
 <link rel="stylesheet" href="~/css/admin-closure.css" asp-append-version="true" />
@@ -30,10 +33,10 @@
                     <input class="input" asp-for="NameArabic" dir="rtl" autocomplete="off" required />
                 </div>
                 <div class="field span-2">
-                    <label asp-for="MobileNumber">رقم الجوال / Mobile number</label>
+                    <label asp-for="MobileNumber">@(ar ? "رقم الجوال المسجل للتطبيق" : "Registered Mobile Number")</label>
                     <input class="input" asp-for="MobileNumber" dir="ltr" type="tel" inputmode="tel" autocomplete="tel" placeholder="+965 5000 0000" />
                     <span asp-validation-for="MobileNumber"></span>
-                    <small>يستخدم لتسجيل دخول DA Secure عبر OTP. يقبل 8 أرقام كويتية أو صيغة +965.</small>
+                    <small>@(ar ? "يُستخدم لتسجيل الدخول إلى DA Secure عبر OTP. يقبل 8 أرقام كويتية أو صيغة +965." : "Used for DA Secure OTP sign-in. Enter 8 Kuwait digits or a +965 number.")</small>
                 </div>
                 <label class="check span-2" asp-for="IsActive"><input asp-for="IsActive" /> @T["ActiveOrganization"]</label>
             </div>
@@ -44,3 +47,46 @@
         </form>
     </div>
 </section>
+
+@if (!creating)
+{
+    <section class="panel" style="margin-top:16px">
+        <div class="panel-head">
+            <div>
+                <h2>@(ar ? "أجهزة DA Secure المسجلة" : "Registered DA Secure Devices")</h2>
+                <p class="muted">@(ar ? "يتم عرض الحالة التشغيلية الآمنة فقط. رموز FCM وبيانات الجلسات غير معروضة." : "Only safe operational state is shown. FCM and session secrets are never displayed.")</p>
+            </div>
+        </div>
+        <div class="table-wrap admin-stack">
+            <table class="data-table admin-responsive-table">
+                <thead>
+                    <tr>
+                        <th>@(ar ? "المنصة" : "Platform")</th>
+                        <th>@(ar ? "إصدار التطبيق" : "App Version")</th>
+                        <th>@(ar ? "الإشعارات" : "Push")</th>
+                        <th>@(ar ? "تاريخ التسجيل" : "Registered")</th>
+                        <th>@(ar ? "آخر ظهور" : "Last Seen")</th>
+                        <th>@T["Status"]</th>
+                    </tr>
+                </thead>
+                <tbody>
+                @foreach (var device in devices)
+                {
+                    <tr>
+                        <td data-label="@(ar ? "المنصة" : "Platform")">@device.Platform</td>
+                        <td data-label="@(ar ? "إصدار التطبيق" : "App Version")"><span class="numeric">@device.AppVersion</span></td>
+                        <td data-label="@(ar ? "الإشعارات" : "Push")">@(device.PushEnabled ? (ar ? "مفعلة" : "Enabled") : (ar ? "معطلة" : "Disabled"))</td>
+                        <td data-label="@(ar ? "تاريخ التسجيل" : "Registered")"><span class="numeric">@device.RegisteredAtUtc.ToLocalTime().ToString(ar ? "dd/MM/yyyy HH:mm" : "dd MMM yyyy HH:mm")</span></td>
+                        <td data-label="@(ar ? "آخر ظهور" : "Last Seen")"><span class="numeric">@device.LastSeenAtUtc.ToLocalTime().ToString(ar ? "dd/MM/yyyy HH:mm" : "dd MMM yyyy HH:mm")</span></td>
+                        <td data-label="@T["Status"]"><span class="badge @(device.IsActive ? "ACTIVE" : "DISABLED")">@(device.IsActive ? T["ACTIVE"] : T["DISABLED"])</span></td>
+                    </tr>
+                }
+                @if (!devices.Any())
+                {
+                    <tr><td colspan="6" class="muted">@(ar ? "لا يوجد جهاز DA Secure مسجل" : "No registered DA Secure device")</td></tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    </section>
+}

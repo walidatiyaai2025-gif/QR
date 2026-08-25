@@ -5,6 +5,7 @@ using SecureQrPortal.Data;
 using SecureQrPortal.Models;
 using SecureQrPortal.Security;
 using SecureQrPortal.Services;
+using SecureQrPortal.ViewModels;
 
 namespace SecureQrPortal.Areas.Admin.Controllers;
 
@@ -15,8 +16,28 @@ public sealed class OrganizationsController(ApplicationDbContext db, AuditServic
     {
         var query = db.Organizations.AsNoTracking();
         if (!string.IsNullOrWhiteSpace(q))
-            query = query.Where(o => o.NameArabic.Contains(q) || o.NameEnglish.Contains(q));
-        return View(await query.OrderBy(o => o.NameEnglish).ToListAsync(ct));
+        {
+            var search = q.Trim();
+            query = query.Where(o => o.NameArabic.Contains(search) || o.NameEnglish.Contains(search) ||
+                                     (o.MobileNumber != null && o.MobileNumber.Contains(search)));
+        }
+
+        var rows = await query.OrderBy(o => o.NameEnglish)
+            .Select(o => new OrganizationMobileAdminRowVm
+            {
+                Id = o.Id,
+                NameArabic = o.NameArabic,
+                NameEnglish = o.NameEnglish,
+                MobileNumber = o.MobileNumber,
+                IsActive = o.IsActive,
+                IsDemo = o.IsDemo,
+                CreatedAtUtc = o.CreatedAtUtc,
+                RegisteredDeviceCount = db.MobileDevices.Count(d => d.OrganizationId == o.Id),
+                ActiveDeviceCount = db.MobileDevices.Count(d => d.OrganizationId == o.Id && d.DeactivatedAtUtc == null)
+            })
+            .ToListAsync(ct);
+
+        return View(rows);
     }
 
     [HttpGet]
@@ -26,7 +47,9 @@ public sealed class OrganizationsController(ApplicationDbContext db, AuditServic
     public async Task<IActionResult> Edit(long id, CancellationToken ct)
     {
         var organization = await db.Organizations.FindAsync([id], ct);
-        return organization is null ? NotFound() : View(organization);
+        if (organization is null) return NotFound();
+        ViewBag.MobileDevices = await LoadDeviceRowsAsync(id, ct);
+        return View(organization);
     }
 
     [HttpPost]
@@ -64,10 +87,12 @@ public sealed class OrganizationsController(ApplicationDbContext db, AuditServic
         if (!ModelState.IsValid)
         {
             ModelState.AddModelError("", text["ValidationCorrectFields"]);
+            ViewBag.MobileDevices = model.Id == 0 ? Array.Empty<MobileDeviceAdminVm>() : await LoadDeviceRowsAsync(model.Id, ct);
             return View(model);
         }
 
         Organization entity;
+        string? oldMobile = null;
         if (model.Id == 0)
         {
             entity = new Organization { CreatedAtUtc = DateTime.UtcNow };
@@ -76,6 +101,7 @@ public sealed class OrganizationsController(ApplicationDbContext db, AuditServic
         else
         {
             entity = await db.Organizations.FindAsync([model.Id], ct) ?? throw new InvalidOperationException("Organization not found");
+            oldMobile = entity.MobileNumber;
         }
 
         entity.NameArabic = model.NameArabic.Trim();
@@ -95,6 +121,16 @@ public sealed class OrganizationsController(ApplicationDbContext db, AuditServic
 
         await db.SaveChangesAsync(ct);
         await audit.WriteAsync(model.Id == 0 ? "ORGANIZATION_CREATE" : "ORGANIZATION_EDIT", "Organization", entity.Id.ToString(), entity.NameEnglish, ct);
+        if (!string.Equals(oldMobile, entity.MobileNumber, StringComparison.Ordinal))
+        {
+            await audit.WriteAsync(
+                "ORGANIZATION_MOBILE_CHANGED",
+                "Organization",
+                entity.Id.ToString(),
+                $"MobileConfigured={!string.IsNullOrWhiteSpace(entity.MobileNumber)}",
+                ct);
+        }
+
         return RedirectToAction(nameof(Index));
     }
 
@@ -122,6 +158,21 @@ public sealed class OrganizationsController(ApplicationDbContext db, AuditServic
         await audit.WriteAsync("ORGANIZATION_DELETE", "Organization", id.ToString(), organization.NameEnglish, ct);
         return RedirectToAction(nameof(Index));
     }
+
+    private Task<List<MobileDeviceAdminVm>> LoadDeviceRowsAsync(long organizationId, CancellationToken ct) =>
+        db.MobileDevices.AsNoTracking()
+            .Where(d => d.OrganizationId == organizationId)
+            .OrderByDescending(d => d.LastSeenAtUtc)
+            .Select(d => new MobileDeviceAdminVm
+            {
+                Platform = d.Platform,
+                AppVersion = d.AppVersion,
+                PushEnabled = d.PushEnabled,
+                RegisteredAtUtc = d.RegisteredAtUtc,
+                LastSeenAtUtc = d.LastSeenAtUtc,
+                DeactivatedAtUtc = d.DeactivatedAtUtc
+            })
+            .ToListAsync(ct);
 
     private void DeleteOwnedLogo(string? path)
     {
