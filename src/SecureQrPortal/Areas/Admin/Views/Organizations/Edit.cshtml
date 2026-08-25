@@ -1,4 +1,4 @@
-@model Organization
+@model SecureQrPortal.ViewModels.OrganizationAdminEditVm
 @{
     var creating = Model.Id == 0;
     ViewData["Title"] = creating ? T["CreateOrganization"] : T["EditOrganization"];
@@ -30,10 +30,10 @@
                     <input class="input" asp-for="NameArabic" dir="rtl" autocomplete="off" required />
                 </div>
                 <div class="field span-2">
-                    <label asp-for="MobileNumber">رقم الجوال / Mobile number</label>
+                    <label asp-for="MobileNumber">رقم الجوال المسجل للتطبيق / Registered Mobile Number</label>
                     <input class="input" asp-for="MobileNumber" dir="ltr" type="tel" inputmode="tel" autocomplete="tel" placeholder="+965 5000 0000" />
                     <span asp-validation-for="MobileNumber"></span>
-                    <small>يستخدم لتسجيل دخول DA Secure عبر OTP. يقبل 8 أرقام كويتية أو صيغة +965.</small>
+                    <small>يستخدم لتسجيل دخول DA Secure عبر OTP. يقبل 8 أرقام كويتية أو صيغة +965. / Used for DA Secure OTP sign-in. Enter 8 Kuwait digits or +965 format.</small>
                 </div>
                 <label class="check span-2" asp-for="IsActive"><input asp-for="IsActive" /> @T["ActiveOrganization"]</label>
             </div>
@@ -44,3 +44,48 @@
         </form>
     </div>
 </section>
+@if (!creating)
+{
+    <section class="panel" style="margin-top:20px">
+        <div class="panel-head">
+            <div>
+                <h2>جاهزية DA Secure / DA Secure Readiness</h2>
+                <p class="muted">حالة التسجيل والإشعارات دون عرض رموز الجهاز السرية. / Registration and push state without exposing device tokens.</p>
+            </div>
+            <span class="badge @(Model.IsMobileReady ? "ACTIVE" : "DISABLED")">@(Model.IsMobileReady ? "جاهز / Ready" : "غير جاهز / Not ready")</span>
+        </div>
+        <div class="panel-body">
+            <div class="metrics">
+                <div class="metric"><div class="label">رقم مسجل / Mobile configured</div><div class="value">@(Model.HasRegisteredMobile ? "نعم / Yes" : "لا / No")</div></div>
+                <div class="metric"><div class="label">جهاز نشط / Active device</div><div class="value">@(Model.HasActiveDevice ? "نعم / Yes" : "لا / No")</div></div>
+                <div class="metric"><div class="label">الإشعارات / Push enabled</div><div class="value">@(Model.HasPushDevice ? "نعم / Yes" : "لا / No")</div></div>
+                <div class="metric"><div class="label">الجهة نشطة / Organization active</div><div class="value">@(Model.IsActive ? "نعم / Yes" : "لا / No")</div></div>
+            </div>
+            @if (Model.Devices.Count == 0)
+            {
+                <p class="muted" style="margin-top:20px;text-align:center">لا يوجد جهاز مسجل لتطبيق DA Secure / No registered DA Secure device</p>
+            }
+            else
+            {
+                <div class="table-wrap admin-stack" style="margin-top:20px">
+                    <table class="data-table admin-responsive-table">
+                        <thead><tr><th>الجهاز / Device</th><th>النظام / Platform</th><th>الإصدار / Version</th><th>Push</th><th>آخر ظهور / Last seen</th><th>الحالة / Status</th></tr></thead>
+                        <tbody>
+                        @foreach (var device in Model.Devices)
+                        {
+                            <tr>
+                                <td data-label="الجهاز / Device" class="numeric">@device.MaskedDeviceId</td>
+                                <td data-label="النظام / Platform">@device.Platform</td>
+                                <td data-label="الإصدار / Version" class="numeric">@device.AppVersion</td>
+                                <td data-label="Push">@(device.PushEnabled ? "Enabled" : "Disabled")</td>
+                                <td data-label="آخر ظهور / Last seen" class="numeric">@device.LastSeenAtUtc.ToLocalTime().ToString("g")</td>
+                                <td data-label="الحالة / Status"><span class="badge @(device.IsActive ? "ACTIVE" : "DISABLED")">@(device.IsActive ? "Active" : "Deactivated")</span></td>
+                            </tr>
+                        }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
+    </section>
+}
