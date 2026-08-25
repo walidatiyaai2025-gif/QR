@@ -64,10 +64,11 @@ class DeviceRepository {
 
 int _requiredPositiveInt(dynamic value) {
   final parsed = switch (value) {
-    int number => number,
-    num number when number.isFinite && number == number.truncateToDouble() =>
+    final int number => number,
+    final num number
+        when number.isFinite && number == number.truncateToDouble() =>
       number.toInt(),
-    String text when RegExp(r'^\d+$').hasMatch(text.trim()) => int.tryParse(
+    final String text when RegExp(r'^\d+$').hasMatch(text.trim()) => int.tryParse(
       text.trim(),
     ),
     _ => null,
