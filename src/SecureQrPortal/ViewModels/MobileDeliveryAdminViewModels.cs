@@ -1,3 +1,5 @@
+using SecureQrPortal.Models;
+
 namespace SecureQrPortal.ViewModels;
 
 public sealed class OrganizationMobileAdminRowVm
@@ -81,6 +83,12 @@ public sealed class MobileDeliveryDetailsVm
 public sealed class QrMobileDeliveryPanelVm
 {
     public long SecurePageId { get; init; }
+    public string QrReference { get; init; } = string.Empty;
+    public QrStatus SecurePageStatus { get; init; }
+    public DateTime? SecurePageExpiresAtUtc { get; init; }
+    public AccessLimitMode AccessLimitMode { get; init; }
+    public long? MaxAccessCount { get; init; }
+    public long? RemainingAccesses { get; init; }
     public bool OrganizationActive { get; init; }
     public string? OrganizationMobileNumber { get; init; }
     public int RegisteredDeviceCount { get; init; }
