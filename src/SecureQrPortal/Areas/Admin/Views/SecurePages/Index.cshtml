@@ -1,6 +1,123 @@
 @inject QrStatusService Statuses
 @model SecurePageIndexVm
-@{ViewData["Title"]="Secure Pages";var orgs=(List<Organization>)ViewBag.Organizations;}
-<div class="page-head"><div><h1>Secure Pages</h1><p>Content, credentials, validity, status and access policies.</p></div><a class="btn primary" asp-action="Create">+ Secure Page</a></div>
-<section class="panel"><div class="panel-body"><form method="get" class="filter-grid"><div class="field span-2"><label>Search</label><input class="input" name="q" value="@Model.Search" placeholder="Reference, organization or title"></div><div class="field"><label>Status</label><select class="select" name="statusFilter"><option value="">All</option>@foreach(var s in Enum.GetNames<QrStatus>()){<option value="@s" selected="@(Model.Status==s?"selected":null)">@s</option>}</select></div><div class="field"><label>Organization</label><select class="select" name="organizationId"><option value="">All</option>@foreach(var o in orgs){<option value="@o.Id" selected="@(Model.OrganizationId==o.Id?"selected":null)">@o.NameEnglish</option>}</select></div><div class="field"><label>Page size</label><select class="select" name="pageSize">@foreach(var n in new[]{10,20,50,100}){<option value="@n" selected="@(Model.PageSize==n?"selected":null)">@n</option>}</select></div><div class="actions align-end"><button class="btn primary">Apply</button><a class="btn secondary" asp-action="Index">Reset</a></div></form></div></section>
-<section class="panel"><div class="panel-head"><h2>@Model.Total Secure Pages</h2><div class="actions"><a class="muted" asp-action="Index" asp-route-q="@Model.Search" asp-route-statusFilter="@Model.Status" asp-route-organizationId="@Model.OrganizationId" asp-route-pageSize="@Model.PageSize" asp-route-sort="created_desc">Newest</a><a class="muted" asp-action="Index" asp-route-q="@Model.Search" asp-route-statusFilter="@Model.Status" asp-route-organizationId="@Model.OrganizationId" asp-route-pageSize="@Model.PageSize" asp-route-sort="expiry">Expiry</a><a class="muted" asp-action="Index" asp-route-q="@Model.Search" asp-route-statusFilter="@Model.Status" asp-route-organizationId="@Model.OrganizationId" asp-route-pageSize="@Model.PageSize" asp-route-sort="ref">Reference</a></div></div><div class="table-wrap"><table class="data-table"><thead><tr><th>Reference</th><th>Organization</th><th>Page</th><th>Status</th><th>Usage</th><th>Expiry</th><th>Updated</th><th>Actions</th></tr></thead><tbody>@foreach(var p in Model.Items){var s=Statuses.GetStatus(p);<tr><td><a class="code" asp-controller="Qr" asp-action="Details" asp-route-id="@p.Id">@p.QrReference</a></td><td>@p.Organization.NameEnglish</td><td>@p.TitleEnglish</td><td><span class="badge @s">@s</span></td><td>@p.CurrentSuccessfulAccessCount / @(p.MaxAccessCount?.ToString()??"∞")<br><span class="muted">@p.CurrentQrOpenCount opens</span></td><td>@(p.ExpiresAtUtc?.ToLocalTime().ToString("dd MMM yyyy")??"—")</td><td>@p.UpdatedAtUtc.ToLocalTime().ToString("dd MMM yy HH:mm")</td><td><div class="actions"><a class="btn secondary" asp-action="Edit" asp-route-id="@p.Id">Edit</a><a class="btn secondary" asp-action="Preview" asp-route-id="@p.Id" target="_blank">Preview</a><a class="btn secondary" asp-controller="Qr" asp-action="Details" asp-route-id="@p.Id">QR</a><form asp-action="Duplicate" asp-route-id="@p.Id" method="post"><button class="btn secondary">Duplicate</button></form><form asp-action="Toggle" asp-route-id="@p.Id" method="post"><button class="btn secondary">@(p.IsActive?"Disable":"Enable")</button></form><form asp-action="Delete" asp-route-id="@p.Id" method="post" class="actions"><input class="input" name="confirmation" placeholder="DELETE" style="width:86px"><button class="btn danger">Delete</button></form></div></td></tr>}@if(Model.Items.Count==0){<tr><td colspan="8" class="muted">No secure pages match the selected criteria.</td></tr>}</tbody></table></div><div class="pagination">@if(Model.Page>1){<a asp-action="Index" asp-route-q="@Model.Search" asp-route-statusFilter="@Model.Status" asp-route-organizationId="@Model.OrganizationId" asp-route-page="@(Model.Page-1)" asp-route-pageSize="@Model.PageSize" asp-route-sort="@Model.Sort">‹</a>}<span>@Model.Page / @Model.TotalPages</span>@if(Model.Page<Model.TotalPages){<a asp-action="Index" asp-route-q="@Model.Search" asp-route-statusFilter="@Model.Status" asp-route-organizationId="@Model.OrganizationId" asp-route-page="@(Model.Page+1)" asp-route-pageSize="@Model.PageSize" asp-route-sort="@Model.Sort">›</a>}</div></section>
+@{
+    var ar = CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "ar";
+    var orgs = (List<Organization>)ViewBag.Organizations;
+    var previousArrow = ar ? "›" : "‹";
+    var nextArrow = ar ? "‹" : "›";
+    ViewData["Title"] = T["SecurePages"];
+}
+<link rel="stylesheet" href="~/css/admin-closure.css" asp-append-version="true" />
+<div class="page-head">
+    <div>
+        <h1>@T["SecurePages"]</h1>
+        <p>@T["SecurePagesSubtitle"]</p>
+    </div>
+    <a class="btn primary" asp-action="Create">+ @T["NewSecurePage"]</a>
+</div>
+<section class="panel">
+    <div class="panel-body">
+        <form method="get" class="filter-grid" role="search">
+            <div class="field span-2">
+                <label for="secure-page-search">@T["Search"]</label>
+                <input class="input" id="secure-page-search" name="q" value="@Model.Search" placeholder="@T["SearchSecurePages"]" autocomplete="off" />
+            </div>
+            <div class="field">
+                <label for="secure-page-status">@T["Status"]</label>
+                <select class="select" id="secure-page-status" name="statusFilter">
+                    <option value="">@T["All"]</option>
+                    @foreach (var s in Enum.GetNames<QrStatus>())
+                    {
+                        <option value="@s" selected="@(Model.Status == s ? "selected" : null)">@T[s]</option>
+                    }
+                </select>
+            </div>
+            <div class="field">
+                <label for="secure-page-organization">@T["Organization"]</label>
+                <select class="select" id="secure-page-organization" name="organizationId">
+                    <option value="">@T["All"]</option>
+                    @foreach (var o in orgs)
+                    {
+                        <option value="@o.Id" selected="@(Model.OrganizationId == o.Id ? "selected" : null)">@(ar ? o.NameArabic : o.NameEnglish)</option>
+                    }
+                </select>
+            </div>
+            <div class="field">
+                <label for="secure-page-size">@T["PageSize"]</label>
+                <select class="select" id="secure-page-size" name="pageSize">
+                    @foreach (var n in new[] { 10, 20, 50, 100 })
+                    {
+                        <option value="@n" selected="@(Model.PageSize == n ? "selected" : null)">@n</option>
+                    }
+                </select>
+            </div>
+            <div class="actions align-end">
+                <button class="btn primary" type="submit">@T["Apply"]</button>
+                <a class="btn secondary" asp-action="Index">@T["Reset"]</a>
+            </div>
+        </form>
+    </div>
+</section>
+<section class="panel">
+    <div class="panel-head">
+        <h2><span class="numeric">@Model.Total</span> @T["SecurePages"]</h2>
+        <div class="actions">
+            <a class="muted" asp-action="Index" asp-route-q="@Model.Search" asp-route-statusFilter="@Model.Status" asp-route-organizationId="@Model.OrganizationId" asp-route-pageSize="@Model.PageSize" asp-route-sort="created_desc">@T["Newest"]</a>
+            <a class="muted" asp-action="Index" asp-route-q="@Model.Search" asp-route-statusFilter="@Model.Status" asp-route-organizationId="@Model.OrganizationId" asp-route-pageSize="@Model.PageSize" asp-route-sort="expiry">@T["Expiry"]</a>
+            <a class="muted" asp-action="Index" asp-route-q="@Model.Search" asp-route-statusFilter="@Model.Status" asp-route-organizationId="@Model.OrganizationId" asp-route-pageSize="@Model.PageSize" asp-route-sort="ref">@T["Reference"]</a>
+        </div>
+    </div>
+    <div class="table-wrap admin-stack">
+        <table class="data-table admin-responsive-table">
+            <thead>
+                <tr><th>@T["Reference"]</th><th>@T["Organization"]</th><th>@T["Page"]</th><th>@T["Status"]</th><th>@T["Usage"]</th><th>@T["Expiry"]</th><th>@T["Updated"]</th><th>@T["Actions"]</th></tr>
+            </thead>
+            <tbody>
+            @foreach (var p in Model.Items)
+            {
+                var s = Statuses.GetStatus(p);
+                var organizationName = ar ? p.Organization.NameArabic : p.Organization.NameEnglish;
+                var pageTitle = ar ? p.TitleArabic : p.TitleEnglish;
+                <tr>
+                    <td data-label="@T["Reference"]"><a class="code" asp-controller="Qr" asp-action="Details" asp-route-id="@p.Id" dir="ltr">@p.QrReference</a></td>
+                    <td data-label="@T["Organization"]">@organizationName</td>
+                    <td data-label="@T["Page"]">@pageTitle</td>
+                    <td data-label="@T["Status"]"><span class="badge @s">@T[s.ToString()]</span></td>
+                    <td data-label="@T["Usage"]"><span class="numeric">@p.CurrentSuccessfulAccessCount / @(p.MaxAccessCount?.ToString() ?? "∞")</span><br /><span class="muted"><span class="numeric">@p.CurrentQrOpenCount</span> @T["Opens"]</span></td>
+                    <td data-label="@T["Expiry"]"><span class="numeric">@(p.ExpiresAtUtc?.ToLocalTime().ToString(ar ? "dd/MM/yyyy" : "dd MMM yyyy") ?? "—")</span></td>
+                    <td data-label="@T["Updated"]"><span class="numeric">@p.UpdatedAtUtc.ToLocalTime().ToString(ar ? "dd/MM/yy HH:mm" : "dd MMM yy HH:mm")</span></td>
+                    <td data-label="@T["Actions"]" data-actions>
+                        <div class="actions">
+                            <a class="btn secondary" asp-action="Edit" asp-route-id="@p.Id">@T["Edit"]</a>
+                            <a class="btn secondary" asp-action="Preview" asp-route-id="@p.Id" target="_blank" rel="noopener">@T["Preview"]</a>
+                            <a class="btn secondary" asp-controller="Qr" asp-action="Details" asp-route-id="@p.Id">@T["QR"]</a>
+                            <form asp-action="Duplicate" asp-route-id="@p.Id" method="post"><button class="btn secondary" type="submit">@T["Duplicate"]</button></form>
+                            <form asp-action="Toggle" asp-route-id="@p.Id" method="post"><button class="btn secondary" type="submit">@(p.IsActive ? T["Disable"] : T["Enable"])</button></form>
+                            <form asp-action="Delete" asp-route-id="@p.Id" method="post" class="actions" onsubmit="return confirm('@T["ConfirmSecurePageDelete"]');">
+                                <label class="sr-only" for="secure-page-delete-@p.Id">@T["TypeDelete"]</label>
+                                <input class="input confirmation-input" id="secure-page-delete-@p.Id" name="confirmation" placeholder="@T["TypeDelete"]" autocomplete="off" required pattern="DELETE" />
+                                <button class="btn danger" type="submit">@T["Delete"]</button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+            }
+            @if (Model.Items.Count == 0)
+            {
+                <tr><td colspan="8" class="muted">@T["NoSecurePages"]</td></tr>
+            }
+            </tbody>
+        </table>
+    </div>
+    <nav class="pagination" aria-label="@T["Pagination"]">
+        @if (Model.Page > 1)
+        {
+            <a aria-label="@T["PreviousPage"]" asp-action="Index" asp-route-q="@Model.Search" asp-route-statusFilter="@Model.Status" asp-route-organizationId="@Model.OrganizationId" asp-route-page="@(Model.Page - 1)" asp-route-pageSize="@Model.PageSize" asp-route-sort="@Model.Sort">@previousArrow</a>
+        }
+        <span><span class="numeric">@Model.Page / @Model.TotalPages</span></span>
+        @if (Model.Page < Model.TotalPages)
+        {
+            <a aria-label="@T["NextPage"]" asp-action="Index" asp-route-q="@Model.Search" asp-route-statusFilter="@Model.Status" asp-route-organizationId="@Model.OrganizationId" asp-route-page="@(Model.Page + 1)" asp-route-pageSize="@Model.PageSize" asp-route-sort="@Model.Sort">@nextArrow</a>
+        }
+    </nav>
+</section>
