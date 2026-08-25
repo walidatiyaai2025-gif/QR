@@ -97,7 +97,7 @@ public sealed class SecurePageAccessService(
     {
         var current = status.GetStatus(page);
         var openLimitSession = allowQrOpenLimitSession && current == QrStatus.LIMIT_REACHED &&
-            page.AccessLimitMode is AccessLimitMode.MaximumQrOpens or AccessLimitMode.ExpiryAndQrOpens;
+            (page.AccessLimitMode is AccessLimitMode.MaximumQrOpens or AccessLimitMode.ExpiryAndQrOpens);
         if (current != QrStatus.ACTIVE && !openLimitSession) return current;
 
         if ((page.AccessLimitMode is AccessLimitMode.MaximumSuccessfulAccesses or AccessLimitMode.ExpiryAndSuccessfulAccesses) && page.MaxAccessCount.HasValue)
