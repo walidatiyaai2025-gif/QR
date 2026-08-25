@@ -1,0 +1,3 @@
+@using System.Globalization
+@{var ar=CultureInfo.CurrentUICulture.TwoLetterISOLanguageName=="ar";ViewData["Title"]=ar?"الرابط غير صالح":"Invalid link";}
+<section class="public-center"><div class="premium-card error-card"><div class="brand-mark" style="margin:auto">!</div><h1>@(ar?"الرابط غير صالح":"This link is no longer valid")</h1><p>@(ar?"تعذر فتح هذا الرابط. قد يكون منتهي الصلاحية أو غير مفعّل أو تم إلغاؤه أو وصل إلى حد الاستخدام.":"The link cannot be opened. It may be expired, disabled, revoked, or have reached its access limit.")</p><p class="muted" style="font-size:12px">@(ar?"لأسباب أمنية لا يتم عرض تفاصيل إضافية.":"For security, no additional internal details are disclosed.")</p></div></section>

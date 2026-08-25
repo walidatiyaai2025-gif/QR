@@ -1,0 +1,3 @@
+@model ValueTuple<string,string,string>
+@{ViewData["Title"]=Model.Item2;}
+<section class="public-center"><div class="premium-card error-card"><div class="error-code">@Model.Item1</div><h1>@Model.Item2</h1><p>@Model.Item3</p><a class="btn primary" href="/">Home</a></div></section>

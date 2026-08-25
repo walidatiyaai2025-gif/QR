@@ -1,0 +1,36 @@
+# Visual Studio / Rider
+.vs/
+.idea/
+*.user
+*.suo
+
+# .NET build output
+**/bin/
+**/obj/
+artifacts/
+TestResults/
+
+# Runtime data / logs
+src/SecureQrPortal/App_Data/*.db
+src/SecureQrPortal/App_Data/*.db-*
+src/SecureQrPortal/App_Data/keys/
+src/SecureQrPortal/App_Data/backups/
+src/SecureQrPortal/logs/
+*.log
+
+# Secrets / local overrides
+appsettings.Local.json
+appsettings.*.Local.json
+*.pfx
+*.p12
+*.snk
+.env
+
+# OS
+.DS_Store
+Thumbs.db
+
+# The approved deployment ZIP is intentionally committed by CI.
+!Last Approved Patch/Build/
+!Last Approved Patch/Build/*.zip
+!Last Approved Patch/BUILD-MANIFEST.json

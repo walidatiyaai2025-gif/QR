@@ -1,0 +1,4 @@
+@using System.Globalization
+@model SecurePage
+@{Layout="/Views/Shared/_Layout.cshtml";ViewData["Title"]="Admin Preview";var ar=CultureInfo.CurrentUICulture.TwoLetterISOLanguageName=="ar";var title=ar?Model.TitleArabic:Model.TitleEnglish;var content=ar?Model.ContentArabicHtml:Model.ContentEnglishHtml;}
+<section class="content-shell"><div class="content-card"><div class="preview-banner">ADMIN PREVIEW — counters are not consumed</div>@if(!string.IsNullOrWhiteSpace(Model.Organization.LogoPath)){<img class="org-logo" src="@Model.Organization.LogoPath" alt="logo">}<div class="eyebrow">@(ar?Model.Organization.NameArabic:Model.Organization.NameEnglish)</div><h1>@title</h1><article class="secure-content">@Html.Raw(content)</article></div></section>
