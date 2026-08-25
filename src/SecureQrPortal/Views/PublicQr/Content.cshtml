@@ -1,0 +1,4 @@
+@using System.Globalization
+@model SecurePage
+@{var ar=CultureInfo.CurrentUICulture.TwoLetterISOLanguageName=="ar";var org=ar?Model.Organization.NameArabic:Model.Organization.NameEnglish;var title=ar?Model.TitleArabic:Model.TitleEnglish;var html=ar?Model.ContentArabicHtml:Model.ContentEnglishHtml;ViewData["Title"]=title;}
+<section class="public-center" style="align-items:start"><article class="premium-card" style="width:min(100%,820px)">@if(!string.IsNullOrWhiteSpace(Model.Organization.LogoPath)){<img class="org-logo" src="@Model.Organization.LogoPath" alt="@org">}<div class="public-title"><h1>@org</h1><p>@title</p>@if(ViewBag.ShowExpiry==true&&Model.ExpiresAtUtc.HasValue){<span class="validity-pill">@(ar?"صالح حتى":"Valid until") @Model.ExpiresAtUtc.Value.ToLocalTime().ToString("dd MMM yyyy HH:mm")</span>}</div><div class="secure-content">@Html.Raw(html)</div></article></section>

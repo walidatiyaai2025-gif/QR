@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="420" height="180" viewBox="0 0 420 180" role="img" aria-label="Al Diwan Al Amiri demo logo">
+  <rect width="420" height="180" rx="24" fill="#f8f5ec"/>
+  <circle cx="90" cy="90" r="56" fill="#c9a45c"/>
+  <path d="M55 105h70l-10 28H65z" fill="#0b1d33"/>
+  <path d="M65 86h50l-25-34z" fill="#0b1d33"/>
+  <text x="170" y="78" font-family="Arial, sans-serif" font-size="28" font-weight="700" fill="#0b1d33">الديوان الأميري</text>
+  <text x="170" y="116" font-family="Arial, sans-serif" font-size="24" fill="#6b5a33">AL DIWAN AL AMIRI</text>
+  <text x="170" y="145" font-family="Arial, sans-serif" font-size="13" fill="#777">DEMO ASSET</text>
+</svg>
