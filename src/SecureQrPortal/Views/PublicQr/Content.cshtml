@@ -23,8 +23,9 @@
             <div class="security-kicker">@Model.QrReference</div>
             <h1>@org</h1>
             <p class="secure-page-title">@title</p>
-            @if (ViewBag.ShowExpiry == true && pageExpiry is DateTime expiry)
+            @if (ViewBag.ShowExpiry == true && pageExpiry.HasValue)
             {
+                var expiry = pageExpiry.GetValueOrDefault();
                 <span class="validity-pill">@(ar ? "صالح حتى" : "Valid until") @expiry.ToLocalTime().ToString("dd MMM yyyy HH:mm")</span>
             }
         </div>
@@ -32,8 +33,9 @@
             <span>@(ar ? "الرابط الآمن" : "Secure address")</span>
             <strong class="url">@secureUrl</strong>
         </div>
-        @if (hardExpiry is DateTime hardEnd)
+        @if (hardExpiry.HasValue)
         {
+            var hardEnd = hardExpiry.GetValueOrDefault();
             <div class="session-expiry-banner">
                 <strong>@(ar ? "جلسة مشاركة مؤقتة" : "Temporary shared session")</strong>
                 <span>@(ar ? "سيتم إنهاء الوصول تلقائياً في" : "Access will close automatically at") @hardEnd.ToLocalTime().ToString("dd MMM yyyy HH:mm:ss")</span>
@@ -44,8 +46,9 @@
 </section>
 
 @section Scripts {
-@if (hardExpiry is DateTime hardEndForScript)
+@if (hardExpiry.HasValue)
 {
+    var hardEndForScript = hardExpiry.GetValueOrDefault();
 <script>
 (function(){
   const expires = Date.parse('@hardEndForScript.ToUniversalTime().ToString("O")');
