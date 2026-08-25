@@ -18,13 +18,13 @@
         <div class="share-warning">
             <strong>@(ar ? "تنبيه أمني" : "Security notice")</strong>
             <p>@(ar
-                ? $"هذا الرابط يسمح بإظهار بيانات الدخول {Model.Share.MaxOpenCount} مرة فقط كحد أقصى. المتبقي: {remaining}. لا ترسل الرابط إلى شخص غير مصرح له."
-                : $"This link can reveal the access credentials a maximum of {Model.Share.MaxOpenCount} time(s). Remaining: {remaining}. Do not forward it to an unauthorized person.")</p>
-            <p>@(ar ? "بعد إظهار البيانات تبدأ مدة الوصول المحددة، وبعد انتهائها يتم رفض بيانات المشاركة حتى لو بقيت الصفحة مفتوحة." : "After credentials are revealed, the configured access window starts. When it expires, the shared credentials are rejected even if the page was left open.")</p>
+                ? $"هذا الرابط يسمح بإظهار بيانات الدخول الحالية الخاصة بالـ QR بحد أقصى {Model.Share.MaxOpenCount} مرة. المتبقي: {remaining}. لا ترسل الرابط إلى شخص غير مصرح له."
+                : $"This link can reveal the QR page's current credentials a maximum of {Model.Share.MaxOpenCount} time(s). Remaining: {remaining}. Do not forward it to an unauthorized person.")</p>
+            <p>@(ar ? "الرابط نفسه له مدة إظهار محددة. اسم المستخدم وكلمة المرور الظاهرين هما نفس بيانات دخول الـ QR الأصلية ولا يقوم النظام بتغيير كلمة المرور عند المشاركة." : "The share link has a limited reveal window. The username and password shown are the same existing QR credentials; sharing does not rotate or replace the QR password.")</p>
         </div>
         <dl class="share-facts">
             <dt>@(ar ? "انتهاء الرابط" : "Link expires")</dt><dd>@Model.Share.ExpiresAtUtc.ToLocalTime().ToString("dd MMM yyyy HH:mm")</dd>
-            <dt>@(ar ? "مدة الجلسة" : "Access session")</dt><dd>@Model.Share.SessionDurationMinutes @(ar ? "دقيقة" : "minutes")</dd>
+            <dt>@(ar ? "مدة عرض المشاركة" : "Share display window")</dt><dd>@Model.Share.SessionDurationMinutes @(ar ? "دقيقة" : "minutes")</dd>
             <dt>@(ar ? "عدد مرات الإظهار" : "Reveal limit")</dt><dd>@Model.Share.CurrentOpenCount / @Model.Share.MaxOpenCount</dd>
         </dl>
         @if (Model.CanReveal)
@@ -36,7 +36,7 @@
                 {
                     <input type="hidden" name="inspect" value="true" />
                 }
-                <button id="revealCredentialsButton" class="btn primary block" type="submit">@(ar ? "إظهار بيانات الدخول الآن" : "Reveal credentials now")</button>
+                <button id="revealCredentialsButton" class="btn primary block" type="submit">@(ar ? "إظهار بيانات الدخول الحالية" : "Reveal current QR credentials")</button>
             </form>
             <p class="share-hint">@(ar ? "لا يتم احتساب زيارة هذه الصفحة وحدها. يتم احتساب الفتح عند الضغط على زر إظهار بيانات الدخول، وأي إعادة إرسال لنفس الطلب لا تُحتسب مرة ثانية." : "Simply visiting this landing page does not consume an opening. The opening is consumed only when you reveal credentials, and an automatic retry of the same request is not counted twice.")</p>
         }
