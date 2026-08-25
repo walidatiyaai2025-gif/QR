@@ -1,4 +1,6 @@
+import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:da_secure/config/app_config.dart';
 import 'package:da_secure/models/mobile_models.dart';
@@ -21,8 +23,8 @@ void main() {
   late SecureStorageService storage;
   late Dio apiDio;
   late Dio refreshDio;
-  late _QueueApiInterceptor api;
-  late _QueueApiInterceptor refresh;
+  late _QueueHttpClientAdapter api;
+  late _QueueHttpClientAdapter refresh;
   late ApiClient client;
   late AuthRepository auth;
   late InboxRepository inbox;
@@ -33,11 +35,11 @@ void main() {
     storage = const SecureStorageService(FlutterSecureStorage());
     apiDio = Dio(BaseOptions(baseUrl: AppConfig.apiBaseUrl));
     refreshDio = Dio(BaseOptions(baseUrl: AppConfig.apiBaseUrl));
+    api = _QueueHttpClientAdapter();
+    refresh = _QueueHttpClientAdapter();
+    apiDio.httpClientAdapter = api;
+    refreshDio.httpClientAdapter = refresh;
     client = ApiClient(storage: storage, dio: apiDio, refreshDio: refreshDio);
-    api = _QueueApiInterceptor();
-    refresh = _QueueApiInterceptor();
-    apiDio.interceptors.add(api);
-    refreshDio.interceptors.add(refresh);
     auth = AuthRepository(client: client, storage: storage);
     inbox = InboxRepository(client);
     devices = DeviceRepository(client: client, storage: storage);
@@ -711,7 +713,7 @@ void main() {
   });
 }
 
-class _QueueApiInterceptor extends Interceptor {
+class _QueueHttpClientAdapter implements HttpClientAdapter {
   final Map<String, List<_QueuedReply>> _replies = {};
   final List<RequestOptions> history = [];
 
@@ -721,40 +723,31 @@ class _QueueApiInterceptor extends Interceptor {
   }
 
   @override
-  void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
+  Future<ResponseBody> fetch(
+    RequestOptions options,
+    Stream<Uint8List>? requestStream,
+    Future<void>? cancelFuture,
+  ) async {
     history.add(options);
     final key = '${options.method.toUpperCase()} ${options.path}';
     final queue = _replies[key];
     if (queue == null || queue.isEmpty) {
-      handler.reject(
-        DioException(
-          requestOptions: options,
-          error: StateError('No queued response for $key'),
-          type: DioExceptionType.unknown,
-        ),
-      );
-      return;
+      throw StateError('No queued response for $key');
     }
 
     final reply = queue.removeAt(0);
-    final response = Response<dynamic>(
-      requestOptions: options,
-      statusCode: reply.statusCode,
-      data: reply.data,
-    );
-    if (reply.statusCode >= 200 && reply.statusCode < 300) {
-      handler.resolve(response);
-      return;
-    }
-
-    handler.reject(
-      DioException(
-        requestOptions: options,
-        response: response,
-        type: DioExceptionType.badResponse,
-      ),
+    final body = reply.data == null ? '' : jsonEncode(reply.data);
+    return ResponseBody.fromString(
+      body,
+      reply.statusCode,
+      headers: {
+        Headers.contentTypeHeader: ['application/json; charset=utf-8'],
+      },
     );
   }
+
+  @override
+  void close({bool force = false}) {}
 }
 
 class _QueuedReply {
