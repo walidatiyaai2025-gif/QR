@@ -6,7 +6,12 @@ using SecureQrPortal.Security;
 
 namespace SecureQrPortal.Services;
 
-public sealed class SecurePageAccessService(ApplicationDbContext db, TokenService tokens, QrStatusService status, DeviceInfoService devices)
+public sealed class SecurePageAccessService(
+    ApplicationDbContext db,
+    TokenService tokens,
+    QrStatusService status,
+    DeviceInfoService devices,
+    QrShareService shares)
 {
     public async Task<SecurePage?> FindByTokenAsync(string token, CancellationToken ct = default)
     {
@@ -37,24 +42,52 @@ public sealed class SecurePageAccessService(ApplicationDbContext db, TokenServic
         return QrStatus.ACTIVE;
     }
 
-    public async Task<bool> VerifyCredentialsAsync(SecurePage page, string username, string password, HttpContext http, CancellationToken ct = default)
+    public async Task<QrShareCredentialResult> VerifyCredentialsWithPolicyAsync(
+        SecurePage page,
+        string username,
+        string password,
+        HttpContext http,
+        CancellationToken ct = default)
     {
         var credentialState = status.GetStatus(page);
         var qrOpenLimitSessionMayProceed = credentialState == QrStatus.LIMIT_REACHED && (page.AccessLimitMode is AccessLimitMode.MaximumQrOpens or AccessLimitMode.ExpiryAndQrOpens);
-        if ((credentialState != QrStatus.ACTIVE && !qrOpenLimitSessionMayProceed) || page.Credential is null) return false;
-        var okUser = string.Equals(page.Credential.Username, username.Trim(), StringComparison.OrdinalIgnoreCase);
-        var hasher = new PasswordHasher<PageCredential>();
-        var okPassword = okUser && hasher.VerifyHashedPassword(page.Credential, page.Credential.PasswordHash, password) != PasswordVerificationResult.Failed;
-        if (okPassword)
+        if (credentialState != QrStatus.ACTIVE && !qrOpenLimitSessionMayProceed) return QrShareCredentialResult.Failed;
+
+        var normalizedUsername = username.Trim();
+        var pageCredentialAccepted = false;
+        if (page.Credential is not null && string.Equals(page.Credential.Username, normalizedUsername, StringComparison.OrdinalIgnoreCase))
         {
-            await db.SecurePages.Where(x => x.Id == page.Id).ExecuteUpdateAsync(s => s.SetProperty(x => x.CurrentSuccessfulLoginCount, x => x.CurrentSuccessfulLoginCount + 1), ct);
-            await AddLogAsync(page.Id, AccessEventType.LOGIN_SUCCESS, true, null, http, ct);
-            return true;
+            var hasher = new PasswordHasher<PageCredential>();
+            pageCredentialAccepted = hasher.VerifyHashedPassword(page.Credential, page.Credential.PasswordHash, password) != PasswordVerificationResult.Failed;
         }
-        await db.SecurePages.Where(x => x.Id == page.Id).ExecuteUpdateAsync(s => s.SetProperty(x => x.CurrentFailedLoginCount, x => x.CurrentFailedLoginCount + 1), ct);
+
+        QrShareCredentialResult result;
+        if (pageCredentialAccepted)
+        {
+            result = new QrShareCredentialResult(true, null, null);
+        }
+        else
+        {
+            result = await shares.VerifyCredentialAsync(page.Id, normalizedUsername, password, ct);
+        }
+
+        if (result.Success)
+        {
+            await db.SecurePages.Where(x => x.Id == page.Id)
+                .ExecuteUpdateAsync(s => s.SetProperty(x => x.CurrentSuccessfulLoginCount, x => x.CurrentSuccessfulLoginCount + 1), ct);
+            await AddLogAsync(page.Id, AccessEventType.LOGIN_SUCCESS, true,
+                result.ShareId.HasValue ? $"Temporary share credential {result.ShareId.Value}" : null, http, ct);
+            return result;
+        }
+
+        await db.SecurePages.Where(x => x.Id == page.Id)
+            .ExecuteUpdateAsync(s => s.SetProperty(x => x.CurrentFailedLoginCount, x => x.CurrentFailedLoginCount + 1), ct);
         await AddLogAsync(page.Id, AccessEventType.LOGIN_FAILURE, false, "Invalid page credential", http, ct);
-        return false;
+        return QrShareCredentialResult.Failed;
     }
+
+    public async Task<bool> VerifyCredentialsAsync(SecurePage page, string username, string password, HttpContext http, CancellationToken ct = default) =>
+        (await VerifyCredentialsWithPolicyAsync(page, username, password, http, ct)).Success;
 
     public async Task<QrStatus> RegisterSuccessfulAccessAsync(SecurePage page, HttpContext http, CancellationToken ct = default)
     {
