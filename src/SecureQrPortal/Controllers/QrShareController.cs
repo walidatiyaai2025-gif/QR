@@ -24,7 +24,10 @@ public sealed class QrShareController(
         if (share is null) return View("Unavailable");
 
         if (TryGetValidCookieReceipt(share, out _))
+        {
+            PrepareSensitiveResponse();
             return View("Reveal", BuildRevealVm(share));
+        }
 
         var now = DateTime.UtcNow;
         var canReveal = share.RevokedAtUtc is null &&
@@ -45,8 +48,11 @@ public sealed class QrShareController(
     public async Task<IActionResult> Reveal(string token, CancellationToken ct)
     {
         var existing = await shares.FindByTokenAsync(token, ct);
-        if (existing is not null && TryGetValidCookieReceipt(existing, out var existingReceipt))
-            return RedirectToAction(nameof(Credentials), new { token, receipt = existingReceipt });
+        if (existing is not null && TryGetValidCookieReceipt(existing, out _))
+        {
+            PrepareSensitiveResponse();
+            return View("Reveal", BuildRevealVm(existing));
+        }
 
         var result = await shares.RevealAsync(token, ct);
         if (result is null) return View("Unavailable");
@@ -54,9 +60,12 @@ public sealed class QrShareController(
         var receipt = CreateRevealReceipt(result.Share);
         WriteRevealReceiptCookie(result.Share, receipt);
 
-        // Use a protected resume receipt in the redirect as the primary continuation proof.
-        // This avoids depending on browser cookie timing after a one-time reveal.
-        return RedirectToAction(nameof(Credentials), new { token, receipt });
+        // Render the credential screen in this same successful POST response.
+        // The one-time reveal has already been consumed, so there must be no
+        // redirect dependency between consuming the reveal and showing the
+        // credentials to the recipient.
+        PrepareSensitiveResponse();
+        return View("Reveal", BuildRevealVm(result.Share));
     }
 
     [HttpGet("{token}/credentials")]
@@ -72,6 +81,7 @@ public sealed class QrShareController(
         }
 
         WriteRevealReceiptCookie(share, receipt!);
+        PrepareSensitiveResponse();
         return View("Reveal", BuildRevealVm(share));
     }
 
@@ -164,6 +174,13 @@ public sealed class QrShareController(
         {
             return false;
         }
+    }
+
+    private void PrepareSensitiveResponse()
+    {
+        Response.Headers.CacheControl = "no-store, no-cache, must-revalidate";
+        Response.Headers.Pragma = "no-cache";
+        Response.Headers.Expires = "0";
     }
 
     private static string ReceiptCookieName(long shareId) => $"SecureQrPortal.ShareReceipt.{shareId}";
