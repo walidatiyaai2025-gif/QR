@@ -4,6 +4,8 @@ using Microsoft.EntityFrameworkCore;
 using SecureQrPortal.Data;
 using SecureQrPortal.Models;
 using SecureQrPortal.Services;
+using SecureQrPortal.Security;
+using Microsoft.AspNetCore.DataProtection;
 
 namespace SecureQrPortal.Tests;
 
@@ -86,7 +88,7 @@ public sealed class CounterTests
         }
     }
 
-    private static SecurePageAccessService Service(ApplicationDbContext db) => new(db, new QrStatusService(TimeProvider.System), new DeviceInfoService());
+    private static SecurePageAccessService Service(ApplicationDbContext db) => new(db, null!, new QrStatusService(TimeProvider.System), new DeviceInfoService());
 
     private static async Task<SecurePage> SeedPageAsync(ApplicationDbContext db, AccessLimitMode mode, long max)
     {
