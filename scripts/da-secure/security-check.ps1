@@ -15,7 +15,9 @@ try {
             [Parameter(Mandatory=$true)][string[]]$Paths,
             [Parameter(Mandatory=$true)][string]$Code
         )
-        $args = @('grep','-Il','-E',$Pattern,'--') + $Paths
+        # -e is mandatory here because security signatures such as PEM headers
+        # begin with '-' and must never be parsed as command-line options.
+        $args = @('grep','-I','-l','-E','-e',$Pattern,'--') + $Paths
         $matches = & git @args 2>$null
         if ($LASTEXITCODE -eq 0 -and $matches) {
             $files = @($matches | ForEach-Object { $_.Trim() } | Where-Object { $_ })
