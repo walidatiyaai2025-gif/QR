@@ -89,10 +89,17 @@ public sealed class SecurePageAccessService(
     public async Task<bool> VerifyCredentialsAsync(SecurePage page, string username, string password, HttpContext http, CancellationToken ct = default) =>
         (await VerifyCredentialsWithPolicyAsync(page, username, password, http, ct)).Success;
 
-    public async Task<QrStatus> RegisterSuccessfulAccessAsync(SecurePage page, HttpContext http, CancellationToken ct = default)
+    public async Task<QrStatus> RegisterSuccessfulAccessAsync(
+        SecurePage page,
+        HttpContext http,
+        bool allowQrOpenLimitSession = false,
+        CancellationToken ct = default)
     {
         var current = status.GetStatus(page);
-        if (current != QrStatus.ACTIVE) return current;
+        var openLimitSession = allowQrOpenLimitSession && current == QrStatus.LIMIT_REACHED &&
+            page.AccessLimitMode is AccessLimitMode.MaximumQrOpens or AccessLimitMode.ExpiryAndQrOpens;
+        if (current != QrStatus.ACTIVE && !openLimitSession) return current;
+
         if ((page.AccessLimitMode is AccessLimitMode.MaximumSuccessfulAccesses or AccessLimitMode.ExpiryAndSuccessfulAccesses) && page.MaxAccessCount.HasValue)
         {
             var max = page.MaxAccessCount.Value;
@@ -108,7 +115,7 @@ public sealed class SecurePageAccessService(
                 .SetProperty(x => x.LastSuccessfulAccessAtUtc, DateTime.UtcNow), ct);
         }
         await AddLogAsync(page.Id, AccessEventType.PAGE_VIEW, true, null, http, ct);
-        return QrStatus.ACTIVE;
+        return openLimitSession ? QrStatus.LIMIT_REACHED : QrStatus.ACTIVE;
     }
 
     private async Task LogStatusAsync(SecurePage page, QrStatus state, HttpContext http, CancellationToken ct)
