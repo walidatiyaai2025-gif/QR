@@ -1,3 +1,66 @@
 @model DatabaseSettingsVm
-@{ViewData["Title"]="Database Settings";}
-<div class="page-head"><div><h1>Database</h1><p>Current provider: <span class="badge ACTIVE">@Model.CurrentProvider</span>. Provider changes become active after restart.</p></div></div>@if(Model.Message is not null){<div class="alert @(Model.TestOk==false?"danger":"success")">@Model.Message</div>}<div class="details-grid"><section class="panel"><div class="panel-head"><h2>SQLite — Local Default</h2><span class="badge ACTIVE">Immediate deployment</span></div><div class="panel-body"><p class="muted">Default file: <span class="code">App_Data/SecureQrPortal.db</span>. The existing SQLite database is never deleted when switching providers.</p><form method="post"><input type="hidden" name="command" value="sqlite"><button class="btn secondary">Select SQLite (restart required)</button></form></div></section><section class="panel"><div class="panel-head"><h2>SQL Server 2022</h2><span class="muted">Encrypted configuration</span></div><div class="panel-body"><form method="post"><div asp-validation-summary="ModelOnly"></div><div class="field"><label>Server / Instance</label><input class="input" asp-for="Server" placeholder="SQLSERVER01\INSTANCE"></div><div class="field"><label>Database name</label><input class="input" asp-for="Database"></div><div class="field"><label>Authentication</label><select class="select" asp-for="AuthenticationMode"><option value="Windows">Windows / Integrated</option><option value="Sql">SQL Login</option></select></div><div class="form-grid"><div class="field"><label>Username</label><input class="input" asp-for="Username" autocomplete="off"></div><div class="field"><label>Password</label><input class="input" asp-for="Password" type="password" autocomplete="new-password" placeholder="Never displayed after save"></div></div><div class="form-grid"><label class="check"><input asp-for="Encrypt"> Encrypt</label><label class="check"><input asp-for="TrustServerCertificate"> Trust server certificate</label></div><div class="field"><label>Connection timeout (seconds)</label><input class="input" asp-for="ConnectionTimeout" type="number" min="3" max="120"></div><div class="actions"><button class="btn secondary" name="command" value="test">Test Connection</button><button class="btn secondary" name="command" value="initialize">Initialize SQL Server Database</button><button class="btn primary" name="command" value="save">Save SQL Server Configuration</button></div></form><div class="alert" style="margin-top:18px">Cross-provider data copy is intentionally not performed blindly. Export administrative data and use a controlled migration runbook before production cutover.</div></div></section></div>
+@{ ViewData["Title"] = T["DatabaseSettings"]; }
+<link rel="stylesheet" href="~/css/admin-closure.css" asp-append-version="true" />
+<div class="page-head">
+    <div>
+        <h1>@T["Database"]</h1>
+        <p>@T["CurrentProvider"]: <span class="badge ACTIVE" dir="ltr">@Model.CurrentProvider</span>. @T["RestartRequired"]</p>
+    </div>
+</div>
+@if (Model.Message is not null)
+{
+    <div class="alert @(Model.TestOk == false ? "danger" : "success")" role="status" aria-live="polite">@Model.Message</div>
+}
+<div class="details-grid">
+    <section class="panel">
+        <div class="panel-head"><h2>@T["SQLiteLocalDefault"]</h2><span class="badge ACTIVE">@T["ImmediateDeployment"]</span></div>
+        <div class="panel-body">
+            <p class="muted">@T["SQLiteDefaultFile"]</p>
+            <form method="post"><input type="hidden" name="command" value="sqlite" /><button class="btn secondary" type="submit">@T["SelectSQLite"]</button></form>
+        </div>
+    </section>
+    <section class="panel">
+        <div class="panel-head"><h2>@T["SqlServer2022"]</h2><span class="muted">@T["EncryptedConfiguration"]</span></div>
+        <div class="panel-body">
+            <form method="post">
+                <div asp-validation-summary="ModelOnly"></div>
+                <div class="field">
+                    <label asp-for="Server">@T["ServerInstance"]</label>
+                    <input class="input" asp-for="Server" placeholder="SQLSERVER01\INSTANCE" autocomplete="off" required dir="ltr" />
+                </div>
+                <div class="field">
+                    <label asp-for="Database">@T["DatabaseName"]</label>
+                    <input class="input" asp-for="Database" autocomplete="off" required dir="ltr" />
+                </div>
+                <div class="field">
+                    <label asp-for="AuthenticationMode">@T["Authentication"]</label>
+                    <select class="select" asp-for="AuthenticationMode"><option value="Windows">@T["WindowsIntegrated"]</option><option value="Sql">@T["SqlLogin"]</option></select>
+                </div>
+                <div class="form-grid">
+                    <div class="field">
+                        <label asp-for="Username">@T["Username"]</label>
+                        <input class="input" asp-for="Username" autocomplete="off" dir="ltr" />
+                    </div>
+                    <div class="field">
+                        <label asp-for="Password">@T["Password"]</label>
+                        <input class="input" asp-for="Password" type="password" autocomplete="new-password" placeholder="@T["NeverDisplayedAfterSave"]" dir="ltr" />
+                    </div>
+                </div>
+                <div class="form-grid">
+                    <label class="check" asp-for="Encrypt"><input asp-for="Encrypt" /> @T["Encrypt"]</label>
+                    <label class="check" asp-for="TrustServerCertificate"><input asp-for="TrustServerCertificate" /> @T["TrustServerCertificate"]</label>
+                </div>
+                <div class="field">
+                    <label asp-for="ConnectionTimeout">@T["ConnectionTimeoutSeconds"]</label>
+                    <input class="input" asp-for="ConnectionTimeout" type="number" min="3" max="120" inputmode="numeric" />
+                </div>
+                <div class="actions mobile-stack">
+                    <button class="btn secondary" type="submit" name="command" value="test">@T["TestConnection"]</button>
+                    <button class="btn secondary" type="submit" name="command" value="initialize">@T["InitializeSqlServerDatabase"]</button>
+                    <button class="btn primary" type="submit" name="command" value="save">@T["SaveSqlServerConfiguration"]</button>
+                </div>
+            </form>
+            <div class="alert" style="margin-top:18px">@T["DatabaseCutoverWarning"]</div>
+        </div>
+    </section>
+</div>
