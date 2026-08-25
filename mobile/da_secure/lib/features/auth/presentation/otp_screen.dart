@@ -37,17 +37,17 @@ class _OtpScreenState extends State<OtpScreen> {
     final otp = _otpController.text.trim();
 
     if (otp.length != 6) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(strings.otpPrompt)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(strings.otpPrompt)));
       return;
     }
 
     final callback = widget.onVerify;
     if (callback == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(strings.serviceUnavailable)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(strings.serviceUnavailable)));
       return;
     }
 
@@ -68,10 +68,7 @@ class _OtpScreenState extends State<OtpScreen> {
           children: [
             Text(
               strings.verifyCode,
-              style: const TextStyle(
-                fontSize: 28,
-                fontWeight: FontWeight.w700,
-              ),
+              style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w700),
             ),
             const SizedBox(height: 8),
             Text(

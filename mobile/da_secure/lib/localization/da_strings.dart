@@ -15,11 +15,13 @@ class DaStrings {
   String get appName => 'DA Secure';
 
   String get signIn => isArabic ? 'تسجيل الدخول' : 'Sign in';
+  String get signOut => isArabic ? 'تسجيل الخروج' : 'Sign out';
   String get mobilePrompt => isArabic
       ? 'أدخل رقم الجوال المسجل لتسجيل الدخول'
       : 'Enter the registered mobile number to sign in.';
   String get mobileNumber => isArabic ? 'رقم الجوال' : 'Mobile number';
-  String get requestOtp => isArabic ? 'طلب رمز التحقق' : 'Request verification code';
+  String get requestOtp =>
+      isArabic ? 'طلب رمز التحقق' : 'Request verification code';
   String get verifyCode => isArabic ? 'تحقق من الرمز' : 'Verify code';
   String get otpPrompt => isArabic
       ? 'أدخل رمز التحقق المكوّن من 6 أرقام'
@@ -58,12 +60,13 @@ class DaStrings {
   String get password => isArabic ? 'كلمة المرور' : 'Password';
   String get revealMessage =>
       isArabic ? 'استعراض الرسالة' : 'View secure message';
-  String get secureMessage =>
-      isArabic ? 'الرسالة الآمنة' : 'Secure message';
+  String get secureMessage => isArabic ? 'الرسالة الآمنة' : 'Secure message';
   String get attachments => isArabic ? 'المرفقات' : 'Attachments';
 
-  String get expired => isArabic ? 'انتهت صلاحية الرسالة.' : 'This message has expired.';
-  String get revoked => isArabic ? 'تم إلغاء الرسالة.' : 'This message was revoked.';
+  String get expired =>
+      isArabic ? 'انتهت صلاحية الرسالة.' : 'This message has expired.';
+  String get revoked =>
+      isArabic ? 'تم إلغاء الرسالة.' : 'This message was revoked.';
   String get limitReached => isArabic
       ? 'تم الوصول إلى الحد المسموح للمشاهدة.'
       : 'The reveal limit has been reached.';
