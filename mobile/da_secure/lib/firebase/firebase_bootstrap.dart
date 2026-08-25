@@ -1,15 +1,10 @@
 import 'package:firebase_core/firebase_core.dart';
 
 abstract final class FirebaseBootstrap {
-  static Future<void> initializeClientIfConfigured() async {
-    // Android google-services.json is present. FlutterFire generated options and
-    // runtime token/message handlers must be produced/verified in a Flutter-capable
-    // environment; do not fabricate successful FCM delivery during bootstrap.
-    try {
-      await Firebase.initializeApp();
-    } catch (_) {
-      // Bootstrap must remain honest: platform generation/runtime is unverified.
-      // Worker 3 will replace this with explicit, observable initialization handling.
-    }
+  static Future<void> initializeClient() async {
+    // Android google-services.json is present. Initialization failures must remain
+    // visible to the runtime/QA path; never silently convert a broken Firebase
+    // configuration into an apparently healthy application state.
+    await Firebase.initializeApp();
   }
 }
