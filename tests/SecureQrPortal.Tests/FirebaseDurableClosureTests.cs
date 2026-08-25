@@ -28,7 +28,9 @@ public sealed class FirebaseDurableClosureTests
             new TestEnvironment(),
             NullLogger<FirebaseAdminPushProvider>.Instance);
 
-        var result = await provider.SendAsync("non-empty-token", new FirebasePushEnvelope(1, MobilePushConstants.InitialCategory));
+        var result = await provider.SendAsync(
+            "non-empty-token",
+            new FirebasePushEnvelope(1, MobilePushConstants.InitialCategory));
 
         Assert.False(result.Accepted);
         Assert.Equal(FirebasePushOutcome.CredentialFailure, result.Outcome);
@@ -40,13 +42,15 @@ public sealed class FirebaseDurableClosureTests
     public async Task Disabled_and_deactivated_devices_are_not_selected()
     {
         await using var f = await Fixture.CreateAsync();
-        var disabled = await f.SeedDeliveryAsync(addDevice: true, pushEnabled: false);
+        var disabled = await f.SeedDeliveryAsync(pushEnabled: false);
+        f.Db.ChangeTracker.Clear();
         var disabledResult = await f.Dispatch.DispatchAsync(new MobilePushDispatchRequest(disabled.Id));
         Assert.Equal("NO_REGISTERED_DEVICE", disabledResult.ErrorCode);
         Assert.Empty(f.Provider.Calls);
 
         await f.ResetDomainAsync();
-        var deactivated = await f.SeedDeliveryAsync(addDevice: true, deactivated: true);
+        var deactivated = await f.SeedDeliveryAsync(deactivated: true);
+        f.Db.ChangeTracker.Clear();
         var deactivatedResult = await f.Dispatch.DispatchAsync(new MobilePushDispatchRequest(deactivated.Id));
         Assert.Equal("NO_REGISTERED_DEVICE", deactivatedResult.ErrorCode);
         Assert.Empty(f.Provider.Calls);
@@ -67,6 +71,7 @@ public sealed class FirebaseDurableClosureTests
         f.Db.Organizations.Add(other);
         await f.Db.SaveChangesAsync();
         await f.AddDeviceAsync(other.Id, "other-device", "other-fcm-token");
+        f.Db.ChangeTracker.Clear();
 
         var result = await f.Dispatch.DispatchAsync(new MobilePushDispatchRequest(delivery.Id));
 
@@ -75,7 +80,7 @@ public sealed class FirebaseDurableClosureTests
     }
 
     [Fact]
-    public async Task Push_envelope_contains_only_safe_routing_fields()
+    public void Push_envelope_contains_only_safe_routing_fields()
     {
         var properties = typeof(FirebasePushEnvelope).GetProperties().Select(x => x.Name).ToArray();
         Assert.Equal(new[] { "DeliveryId", "Category", "Version" }, properties);
@@ -91,6 +96,7 @@ public sealed class FirebaseDurableClosureTests
     {
         await using var f = await Fixture.CreateAsync();
         var delivery = await f.SeedDeliveryAsync();
+        f.Db.ChangeTracker.Clear();
 
         var first = await f.Dispatch.DispatchAsync(new MobilePushDispatchRequest(delivery.Id));
         var second = await f.Dispatch.DispatchAsync(new MobilePushDispatchRequest(delivery.Id));
@@ -98,7 +104,7 @@ public sealed class FirebaseDurableClosureTests
         Assert.True(first.ProviderAccepted);
         Assert.True(second.ProviderAccepted);
         Assert.Single(f.Provider.Calls);
-        var attempt = await f.Db.MobilePushAttempts.SingleAsync();
+        var attempt = await f.Db.MobilePushAttempts.AsNoTracking().SingleAsync();
         Assert.Equal("INITIAL", attempt.Kind);
         Assert.Equal("PROVIDER_ACCEPTED", attempt.Outcome);
     }
@@ -114,16 +120,18 @@ public sealed class FirebaseDurableClosureTests
             "INVALID_TOKEN",
             ErrorCode: "UNREGISTERED",
             PermanentFailure: true));
+        f.Db.ChangeTracker.Clear();
 
         var result = await f.Dispatch.DispatchAsync(new MobilePushDispatchRequest(delivery.Id));
 
         Assert.Equal("INVALID_TOKEN", result.ErrorCode);
         Assert.Single(f.Provider.Calls);
-        var device = await f.Db.MobileDevices.SingleAsync();
+        f.Db.ChangeTracker.Clear();
+        var device = await f.Db.MobileDevices.AsNoTracking().SingleAsync();
         Assert.False(device.PushEnabled);
         Assert.NotNull(device.DeactivatedAtUtc);
         Assert.Equal(string.Empty, device.FcmTokenProtected);
-        var auditText = string.Join('|', await f.Db.AuditLogs.Select(x => x.Details).ToListAsync());
+        var auditText = string.Join('|', await f.Db.AuditLogs.AsNoTracking().Select(x => x.Details).ToListAsync());
         Assert.DoesNotContain(rawToken, auditText, StringComparison.Ordinal);
     }
 
@@ -138,33 +146,45 @@ public sealed class FirebaseDurableClosureTests
             FirebasePushOutcome.ProviderUnavailable, "PROVIDER_UNAVAILABLE", ErrorCode: "INTERNAL"));
         f.Provider.Results.Enqueue(new FirebasePushProviderResult(
             FirebasePushOutcome.Accepted, "PROVIDER_ACCEPTED", "message-3"));
+        f.Db.ChangeTracker.Clear();
 
         var result = await f.Dispatch.DispatchAsync(new MobilePushDispatchRequest(delivery.Id));
 
         Assert.True(result.ProviderAccepted);
         Assert.Equal(3, f.Provider.Calls.Count);
-        Assert.Equal(3, await f.Db.MobilePushAttempts.CountAsync());
-        Assert.Equal(new[] { 0, 1, 2 }, await f.Db.MobilePushAttempts.OrderBy(x => x.RetryNumber).Select(x => x.RetryNumber).ToArrayAsync());
+        Assert.Equal(3, await f.Db.MobilePushAttempts.AsNoTracking().CountAsync());
+        Assert.Equal(
+            new[] { 0, 1, 2 },
+            await f.Db.MobilePushAttempts.AsNoTracking()
+                .OrderBy(x => x.RetryNumber)
+                .Select(x => x.RetryNumber)
+                .ToArrayAsync());
     }
 
     [Fact]
     public async Task Due_unread_delivery_sends_one_reminder_and_schedules_next()
     {
         await using var f = await Fixture.CreateAsync();
-        var delivery = await f.SeedDeliveryAsync(reminderEnabled: true, nextReminderAtUtc: f.Now.AddMinutes(-1));
+        var delivery = await f.SeedDeliveryAsync(
+            reminderEnabled: true,
+            nextReminderAtUtc: f.Now.AddMinutes(-1));
+        f.Db.ChangeTracker.Clear();
 
         var processed = await f.Processor.ProcessDueAsync();
 
         Assert.Equal(1, processed);
         Assert.Single(f.Provider.Calls);
-        var stored = await f.Db.MobileDeliveries.SingleAsync(x => x.Id == delivery.Id);
+        f.Db.ChangeTracker.Clear();
+        var stored = await f.Db.MobileDeliveries.AsNoTracking().SingleAsync(x => x.Id == delivery.Id);
         Assert.Equal(1, stored.ReminderCount);
         Assert.Equal(1, stored.ReminderSequence);
         Assert.NotNull(stored.LastReminderAtUtc);
         Assert.True(stored.NextReminderAtUtc > f.Now);
         Assert.Null(stored.ProcessingLeaseId);
         Assert.Null(stored.ProcessingLeaseUntilUtc);
-        Assert.Contains(await f.Db.MobilePushAttempts.ToListAsync(), x => x.Kind == "REMINDER" && x.Sequence == 1);
+        Assert.Contains(
+            await f.Db.MobilePushAttempts.AsNoTracking().ToListAsync(),
+            x => x.Kind == "REMINDER" && x.Sequence == 1);
     }
 
     [Theory]
@@ -176,6 +196,7 @@ public sealed class FirebaseDurableClosureTests
         await f.SeedDeliveryAsync(
             reminderEnabled: scenario != "disabled",
             nextReminderAtUtc: f.Now.AddMinutes(scenario == "future" ? 10 : -1));
+        f.Db.ChangeTracker.Clear();
 
         var processed = await f.Processor.ProcessDueAsync();
 
@@ -188,6 +209,8 @@ public sealed class FirebaseDurableClosureTests
     [InlineData("revoked")]
     [InlineData("expired")]
     [InlineData("organization-disabled")]
+    [InlineData("page-disabled")]
+    [InlineData("page-revoked")]
     public async Task Stop_conditions_clear_future_reminder_without_send(string scenario)
     {
         await using var f = await Fixture.CreateAsync();
@@ -197,22 +220,30 @@ public sealed class FirebaseDurableClosureTests
             firstRevealedAtUtc: scenario == "revealed" ? f.Now.AddMinutes(-2) : null,
             revokedAtUtc: scenario == "revoked" ? f.Now.AddMinutes(-2) : null,
             expiresAtUtc: scenario == "expired" ? f.Now.AddSeconds(-1) : f.Now.AddHours(1),
-            organizationActive: scenario != "organization-disabled");
+            organizationActive: scenario != "organization-disabled",
+            pageActive: scenario != "page-disabled",
+            pageRevoked: scenario == "page-revoked");
+        f.Db.ChangeTracker.Clear();
 
         var processed = await f.Processor.ProcessDueAsync();
 
         Assert.Equal(1, processed);
         Assert.Empty(f.Provider.Calls);
-        var stored = await f.Db.MobileDeliveries.SingleAsync(x => x.Id == delivery.Id);
+        f.Db.ChangeTracker.Clear();
+        var stored = await f.Db.MobileDeliveries.AsNoTracking().SingleAsync(x => x.Id == delivery.Id);
         Assert.Null(stored.NextReminderAtUtc);
-        Assert.Contains(await f.Db.AuditLogs.ToListAsync(), x => x.Action == "MOBILE_REMINDER_STOPPED");
+        Assert.Contains(
+            await f.Db.AuditLogs.AsNoTracking().ToListAsync(),
+            x => x.Action == "MOBILE_REMINDER_STOPPED");
     }
 
     [Fact]
     public async Task Authoritative_secure_reveal_clears_schedule_and_audits_stop()
     {
         await using var f = await Fixture.CreateAsync();
-        var delivery = await f.SeedDeliveryAsync(reminderEnabled: true, nextReminderAtUtc: f.Now.AddMinutes(15));
+        var delivery = await f.SeedDeliveryAsync(
+            reminderEnabled: true,
+            nextReminderAtUtc: f.Now.AddMinutes(15));
         var organization = await f.Db.Organizations.SingleAsync(x => x.Id == delivery.OrganizationId);
         var mobileTokens = new MobileTokenService();
         var sessions = new MobileSessionService(f.Db, mobileTokens, f.Clock);
@@ -228,54 +259,42 @@ public sealed class FirebaseDurableClosureTests
             ExpiresAtUtc = f.Now.AddMinutes(2)
         });
         await f.Db.SaveChangesAsync();
+        var organizationId = organization.Id;
+        var sessionId = session.Id;
+        f.Db.ChangeTracker.Clear();
         var http = new DefaultHttpContext();
         var access = new SecurePageAccessService(f.Db, null!, f.QrStatus, new DeviceInfoService());
-        var reveal = new MobileDeliveryAccessService(f.Db, access, f.QrStatus, mobileTokens, f.Audit, f.Clock);
+        var reveal = new MobileDeliveryAccessService(
+            f.Db,
+            access,
+            f.QrStatus,
+            mobileTokens,
+            f.Audit,
+            f.Clock);
 
-        var result = await reveal.RevealAsync(organization.Id, session.Id, delivery.Id, revealToken, http);
+        var result = await reveal.RevealAsync(
+            organizationId,
+            sessionId,
+            delivery.Id,
+            revealToken,
+            http);
 
         Assert.Equal(MobileDeliveryAccessStatus.Success, result.Status);
-        var stored = await f.Db.MobileDeliveries.SingleAsync(x => x.Id == delivery.Id);
+        f.Db.ChangeTracker.Clear();
+        var stored = await f.Db.MobileDeliveries.AsNoTracking().SingleAsync(x => x.Id == delivery.Id);
         Assert.NotNull(stored.FirstRevealedAtUtc);
         Assert.Null(stored.NextReminderAtUtc);
-        Assert.Contains(await f.Db.AuditLogs.ToListAsync(), x =>
-            x.Action == "MOBILE_REMINDER_STOPPED" && x.Details == "Reason=FIRST_SECURE_REVEAL");
+        Assert.Contains(
+            await f.Db.AuditLogs.AsNoTracking().ToListAsync(),
+            x => x.Action == "MOBILE_REMINDER_STOPPED" && x.Details == "Reason=FIRST_SECURE_REVEAL");
     }
 
     [Fact]
     public async Task Restart_recreates_context_and_due_schedule_remains_executable()
     {
-        var path = Path.Combine(Path.GetTempPath(), $"da-secure-reminder-restart-{Guid.NewGuid():N}.db");
-        var connectionString = $"Data Source={path};Default Timeout=30";
-        var protection = new EphemeralDataProtectionProvider();
-        var provider = new FakeProvider();
-        var clock = new TestClock(new DateTimeOffset(2026, 8, 25, 20, 0, 0, TimeSpan.Zero));
-        try
-        {
-            await using (var db = CreateFileDb(connectionString))
-            {
-                await db.Database.EnsureCreatedAsync();
-                await SeedFileDeliveryAsync(db, protection, clock.GetUtcNow().UtcDateTime);
-            }
-
-            await using var restartedDb = CreateFileDb(connectionString);
-            var processor = BuildProcessor(restartedDb, provider, protection, clock);
-            var processed = await processor.ProcessDueAsync();
-
-            Assert.Equal(1, processed);
-            Assert.Single(provider.Calls);
-            Assert.Equal(1, (await restartedDb.MobileDeliveries.SingleAsync()).ReminderCount);
-        }
-        finally
-        {
-            if (File.Exists(path)) File.Delete(path);
-        }
-    }
-
-    [Fact]
-    public async Task Concurrent_processors_claim_due_occurrence_once()
-    {
-        var path = Path.Combine(Path.GetTempPath(), $"da-secure-reminder-concurrency-{Guid.NewGuid():N}.db");
+        var path = Path.Combine(
+            Path.GetTempPath(),
+            $"da-secure-reminder-restart-{Guid.NewGuid():N}.db");
         var connectionString = $"Data Source={path};Default Timeout=30;Pooling=False";
         var protection = new EphemeralDataProtectionProvider();
         var provider = new FakeProvider();
@@ -288,18 +307,57 @@ public sealed class FirebaseDurableClosureTests
                 await SeedFileDeliveryAsync(db, protection, clock.GetUtcNow().UtcDateTime);
             }
 
-            await using var db1 = CreateFileDb(connectionString);
-            await using var db2 = CreateFileDb(connectionString);
-            var p1 = BuildProcessor(db1, provider, protection, clock);
-            var p2 = BuildProcessor(db2, provider, protection, clock);
+            await using (var restartedDb = CreateFileDb(connectionString))
+            {
+                var processor = BuildProcessor(restartedDb, provider, protection, clock);
+                var processed = await processor.ProcessDueAsync();
 
-            await Task.WhenAll(p1.ProcessDueAsync(), p2.ProcessDueAsync());
+                Assert.Equal(1, processed);
+                Assert.Single(provider.Calls);
+                restartedDb.ChangeTracker.Clear();
+                Assert.Equal(
+                    1,
+                    (await restartedDb.MobileDeliveries.AsNoTracking().SingleAsync()).ReminderCount);
+            }
+        }
+        finally
+        {
+            SqliteConnection.ClearAllPools();
+            if (File.Exists(path)) File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public async Task Concurrent_processors_claim_due_occurrence_once()
+    {
+        var path = Path.Combine(
+            Path.GetTempPath(),
+            $"da-secure-reminder-concurrency-{Guid.NewGuid():N}.db");
+        var connectionString = $"Data Source={path};Default Timeout=30;Pooling=False";
+        var protection = new EphemeralDataProtectionProvider();
+        var provider = new FakeProvider();
+        var clock = new TestClock(new DateTimeOffset(2026, 8, 25, 20, 0, 0, TimeSpan.Zero));
+        try
+        {
+            await using (var db = CreateFileDb(connectionString))
+            {
+                await db.Database.EnsureCreatedAsync();
+                await SeedFileDeliveryAsync(db, protection, clock.GetUtcNow().UtcDateTime);
+            }
+
+            await using (var db1 = CreateFileDb(connectionString))
+            await using (var db2 = CreateFileDb(connectionString))
+            {
+                var p1 = BuildProcessor(db1, provider, protection, clock);
+                var p2 = BuildProcessor(db2, provider, protection, clock);
+                await Task.WhenAll(p1.ProcessDueAsync(), p2.ProcessDueAsync());
+            }
 
             Assert.Single(provider.Calls);
             await using var verify = CreateFileDb(connectionString);
-            var delivery = await verify.MobileDeliveries.SingleAsync();
-            Assert.Equal(1, delivery.ReminderCount);
-            Assert.Equal(1, delivery.ReminderSequence);
+            var stored = await verify.MobileDeliveries.AsNoTracking().SingleAsync();
+            Assert.Equal(1, stored.ReminderCount);
+            Assert.Equal(1, stored.ReminderSequence);
         }
         finally
         {
@@ -309,7 +367,9 @@ public sealed class FirebaseDurableClosureTests
     }
 
     private static ApplicationDbContext CreateFileDb(string connectionString) =>
-        new(new DbContextOptionsBuilder<ApplicationDbContext>().UseSqlite(connectionString).Options);
+        new(new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseSqlite(connectionString)
+            .Options);
 
     private static async Task SeedFileDeliveryAsync(
         ApplicationDbContext db,
@@ -374,12 +434,28 @@ public sealed class FirebaseDurableClosureTests
             RetryBaseMilliseconds = 100,
             LeaseSeconds = 120
         });
-        var devices = new MobilePushDeviceStore(db, new MobileSecretProtector(protection), tokens, audit, clock);
+        var devices = new MobilePushDeviceStore(
+            db,
+            new MobileSecretProtector(protection),
+            tokens,
+            audit,
+            clock);
         var attempts = new MobilePushAttemptService(db, provider, devices, options, clock);
-        return new MobileReminderProcessor(db, new QrStatusService(clock), devices, attempts, audit, options, clock);
+        return new MobileReminderProcessor(
+            db,
+            new QrStatusService(clock),
+            devices,
+            attempts,
+            audit,
+            options,
+            clock);
     }
 
-    private static SecurePage NewPage(Organization org, DateTime now) => new()
+    private static SecurePage NewPage(
+        Organization org,
+        DateTime now,
+        bool isActive = true,
+        bool revoked = false) => new()
     {
         OrganizationId = org.Id,
         Organization = org,
@@ -390,9 +466,10 @@ public sealed class FirebaseDurableClosureTests
         TitleEnglish = "Message",
         ContentArabicHtml = "<p>محتوى آمن</p>",
         ContentEnglishHtml = "<p>Secure content</p>",
-        IsActive = true,
+        IsActive = isActive,
         ValidFromUtc = now.AddHours(-1),
         ExpiresAtUtc = now.AddHours(2),
+        RevokedAtUtc = revoked ? now.AddMinutes(-1) : null,
         AccessLimitMode = AccessLimitMode.MaximumSuccessfulAccesses,
         MaxAccessCount = 5
     };
@@ -400,7 +477,6 @@ public sealed class FirebaseDurableClosureTests
     private sealed class Fixture : IAsyncDisposable
     {
         private readonly SqliteConnection connection;
-        private readonly IDataProtectionProvider protection;
         private int seedCounter;
 
         private Fixture(
@@ -412,7 +488,6 @@ public sealed class FirebaseDurableClosureTests
             IOptions<FirebasePushOptions> options)
         {
             this.connection = connection;
-            this.protection = protection;
             Db = db;
             Clock = clock;
             Provider = provider;
@@ -445,9 +520,12 @@ public sealed class FirebaseDurableClosureTests
             var connection = new SqliteConnection("Data Source=:memory:");
             await connection.OpenAsync();
             var db = new ApplicationDbContext(
-                new DbContextOptionsBuilder<ApplicationDbContext>().UseSqlite(connection).Options);
+                new DbContextOptionsBuilder<ApplicationDbContext>()
+                    .UseSqlite(connection)
+                    .Options);
             await db.Database.EnsureCreatedAsync();
-            var clock = new TestClock(new DateTimeOffset(2026, 8, 25, 20, 0, 0, TimeSpan.Zero));
+            var clock = new TestClock(
+                new DateTimeOffset(2026, 8, 25, 20, 0, 0, TimeSpan.Zero));
             var protection = new EphemeralDataProtectionProvider();
             var provider = new FakeProvider();
             var options = Options.Create(new FirebasePushOptions
@@ -469,6 +547,8 @@ public sealed class FirebaseDurableClosureTests
             DateTime? revokedAtUtc = null,
             DateTime? expiresAtUtc = null,
             bool organizationActive = true,
+            bool pageActive = true,
+            bool pageRevoked = false,
             string fcmToken = "test-fcm-token")
         {
             seedCounter++;
@@ -481,12 +561,17 @@ public sealed class FirebaseDurableClosureTests
             };
             Db.Organizations.Add(org);
             await Db.SaveChangesAsync();
-            var page = NewPage(org, Now);
+            var page = NewPage(org, Now, pageActive, pageRevoked);
             Db.SecurePages.Add(page);
             await Db.SaveChangesAsync();
             if (addDevice)
             {
-                await AddDeviceAsync(org.Id, $"device-{seedCounter}", fcmToken, pushEnabled, deactivated);
+                await AddDeviceAsync(
+                    org.Id,
+                    $"device-{seedCounter}",
+                    fcmToken,
+                    pushEnabled,
+                    deactivated);
             }
 
             var delivery = new MobileDelivery
@@ -535,12 +620,14 @@ public sealed class FirebaseDurableClosureTests
 
         public async Task ResetDomainAsync()
         {
+            Db.ChangeTracker.Clear();
             Db.MobilePushAttempts.RemoveRange(Db.MobilePushAttempts);
             Db.MobileDeliveries.RemoveRange(Db.MobileDeliveries);
             Db.MobileDevices.RemoveRange(Db.MobileDevices);
             Db.SecurePages.RemoveRange(Db.SecurePages);
             Db.Organizations.RemoveRange(Db.Organizations);
             await Db.SaveChangesAsync();
+            Db.ChangeTracker.Clear();
             Provider.Calls.Clear();
             while (Provider.Results.TryDequeue(out _)) { }
         }
@@ -566,15 +653,17 @@ public sealed class FirebaseDurableClosureTests
             FirebasePushEnvelope envelope,
             CancellationToken ct = default)
         {
+            int count;
             lock (gate)
             {
                 Calls.Add((fcmToken, envelope));
+                count = Calls.Count;
             }
             if (Results.TryDequeue(out var result)) return Task.FromResult(result);
             return Task.FromResult(new FirebasePushProviderResult(
                 FirebasePushOutcome.Accepted,
                 "PROVIDER_ACCEPTED",
-                $"message-{Calls.Count}"));
+                $"message-{count}"));
         }
     }
 
