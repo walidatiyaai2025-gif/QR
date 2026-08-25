@@ -1,0 +1,98 @@
+@model SecureQrPortal.ViewModels.MobileDeliveryHistoryVm
+@{
+    var ar = CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "ar";
+    ViewData["Title"] = ar ? "سجل إرسال DA Secure" : "DA Secure Delivery History";
+    var organizations = ViewBag.Organizations as IEnumerable<Organization> ?? Array.Empty<Organization>();
+    string Local(DateTime? utc) => utc.HasValue ? utc.Value.ToLocalTime().ToString(ar ? "dd/MM/yyyy HH:mm" : "dd MMM yyyy HH:mm") : "—";
+}
+<link rel="stylesheet" href="~/css/admin-closure.css" asp-append-version="true" />
+<div class="page-head">
+    <div><h1>@ViewData["Title"]</h1><p>@(ar ? "حالة الإرسال، Firebase، الفتح والتذكيرات من السجل الدائم." : "Persistent delivery, Firebase, opened and reminder evidence.")</p></div>
+</div>
+<section class="panel">
+    <div class="panel-body">
+        <form method="get" class="form-grid mobile-delivery-filters">
+            <div class="field">
+                <label for="organizationId">@T["Organization"]</label>
+                <select class="input" id="organizationId" name="organizationId">
+                    <option value="">@(ar ? "كل الجهات" : "All organizations")</option>
+                    @foreach (var org in organizations)
+                    {
+                        <option value="@org.Id" selected="@(Model.OrganizationId == org.Id)">@(ar ? org.NameArabic : org.NameEnglish)</option>
+                    }
+                </select>
+            </div>
+            <div class="field">
+                <label for="securePageId">@(ar ? "معرف الصفحة الآمنة" : "Secure Page ID")</label>
+                <input class="input" id="securePageId" name="securePageId" type="number" min="1" value="@Model.SecurePageId" />
+            </div>
+            <div class="field">
+                <label for="status">@T["Status"]</label>
+                <select class="input" id="status" name="status">
+                    <option value="">@(ar ? "كل الحالات" : "All statuses")</option>
+                    @foreach (var value in new[] { "CREATED", "PROVIDER_ACCEPTED", "SEND_FAILED", "REVEALED", "REVOKED" })
+                    {
+                        <option value="@value" selected="@(Model.Status == value)">@value</option>
+                    }
+                </select>
+            </div>
+            <div class="field">
+                <label for="opened">@(ar ? "حالة الفتح" : "Opened State")</label>
+                <select class="input" id="opened" name="opened">
+                    <option value="">@(ar ? "الكل" : "All")</option>
+                    <option value="true" selected="@(Model.Opened == true)">@(ar ? "تم فتح الرسالة" : "Message Opened")</option>
+                    <option value="false" selected="@(Model.Opened == false)">@(ar ? "غير مفتوحة" : "Unread")</option>
+                </select>
+            </div>
+            <div class="field">
+                <label for="sort">@(ar ? "الترتيب" : "Sort")</label>
+                <select class="input" id="sort" name="sort">
+                    <option value="created_desc" selected="@(Model.Sort == "created_desc")">@(ar ? "الأحدث إنشاءً" : "Newest created")</option>
+                    <option value="created" selected="@(Model.Sort == "created")">@(ar ? "الأقدم إنشاءً" : "Oldest created")</option>
+                    <option value="sent_desc" selected="@(Model.Sort == "sent_desc")">@(ar ? "الأحدث إرسالاً" : "Newest sent")</option>
+                    <option value="sent" selected="@(Model.Sort == "sent")">@(ar ? "الأقدم إرسالاً" : "Oldest sent")</option>
+                </select>
+            </div>
+            <div class="field actions"><button class="btn primary" type="submit">@T["Search"]</button></div>
+        </form>
+    </div>
+    <div class="table-wrap admin-stack">
+        <table class="data-table admin-responsive-table mobile-delivery-table">
+            <thead><tr>
+                <th>ID</th><th>@(ar ? "QR" : "QR")</th><th>@T["Organization"]</th><th>@(ar ? "الإنشاء" : "Created")</th><th>@(ar ? "الإرسال" : "Sent")</th><th>@T["Status"]</th><th>Firebase</th><th>@(ar ? "الفتح" : "Opened")</th><th>@(ar ? "التذكيرات" : "Reminders")</th><th>@T["Actions"]</th>
+            </tr></thead>
+            <tbody>
+            @foreach (var item in Model.Items)
+            {
+                <tr>
+                    <td data-label="ID"><span class="numeric">@item.Id</span></td>
+                    <td data-label="QR"><a asp-area="Admin" asp-controller="Qr" asp-action="Details" asp-route-id="@item.SecurePageId">@item.QrReference</a></td>
+                    <td data-label="@T["Organization"]">@(ar ? item.OrganizationArabic : item.OrganizationEnglish)</td>
+                    <td data-label="@(ar ? "الإنشاء" : "Created")"><span class="numeric">@Local(item.CreatedAtUtc)</span></td>
+                    <td data-label="@(ar ? "الإرسال" : "Sent")"><span class="numeric">@Local(item.SentAtUtc)</span></td>
+                    <td data-label="@T["Status"]"><span class="badge">@item.DeliveryStatus</span></td>
+                    <td data-label="Firebase">@(item.FirebaseStatus ?? "—")</td>
+                    <td data-label="@(ar ? "الفتح" : "Opened")">@(item.FirstRevealedAtUtc.HasValue ? (ar ? "تم فتح الرسالة" : "Message Opened") : (ar ? "غير مفتوحة" : "Unread"))</td>
+                    <td data-label="@(ar ? "التذكيرات" : "Reminders")"><span class="numeric">@item.ReminderCount</span></td>
+                    <td data-label="@T["Actions"]" data-actions><a class="btn secondary" asp-action="Details" asp-route-id="@item.Id">@T["Details"]</a></td>
+                </tr>
+            }
+            @if (Model.Items.Count == 0)
+            {
+                <tr><td colspan="10" class="muted">@(ar ? "لا توجد عمليات إرسال مطابقة." : "No matching mobile deliveries.")</td></tr>
+            }
+            </tbody>
+        </table>
+    </div>
+    <div class="panel-body actions mobile-stack">
+        @if (Model.Page > 1)
+        {
+            <a class="btn secondary" asp-route-page="@(Model.Page - 1)" asp-route-pageSize="@Model.PageSize" asp-route-organizationId="@Model.OrganizationId" asp-route-securePageId="@Model.SecurePageId" asp-route-status="@Model.Status" asp-route-opened="@Model.Opened" asp-route-sort="@Model.Sort">@T["PreviousPage"]</a>
+        }
+        <span class="muted">@(ar ? "صفحة" : "Page") @Model.Page / @Model.TotalPages — @Model.Total</span>
+        @if (Model.Page < Model.TotalPages)
+        {
+            <a class="btn secondary" asp-route-page="@(Model.Page + 1)" asp-route-pageSize="@Model.PageSize" asp-route-organizationId="@Model.OrganizationId" asp-route-securePageId="@Model.SecurePageId" asp-route-status="@Model.Status" asp-route-opened="@Model.Opened" asp-route-sort="@Model.Sort">@T["NextPage"]</a>
+        }
+    </div>
+</section>

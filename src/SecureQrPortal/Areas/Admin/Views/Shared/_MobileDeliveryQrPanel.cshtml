@@ -1,0 +1,80 @@
+@model SecureQrPortal.ViewModels.QrMobileDeliveryPanelVm
+@{
+    var ar = CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "ar";
+    var ready = Model.OrganizationActive && Model.SecurePageStatus == QrStatus.ACTIVE && !string.IsNullOrWhiteSpace(Model.OrganizationMobileNumber) && Model.ActiveDeviceCount > 0;
+    var pageExpiryLocal = Model.SecurePageExpiresAtUtc?.ToLocalTime();
+    var latest = Model.LatestDelivery;
+    string Local(DateTime? utc) => utc.HasValue ? utc.Value.ToLocalTime().ToString(ar ? "dd/MM/yyyy HH:mm" : "dd MMM yyyy HH:mm") : "—";
+    string Mobile(string? value) => string.IsNullOrWhiteSpace(value) ? "—" : value.Length == 11 && value.StartsWith("965", StringComparison.Ordinal) ? $"+965 {value.Substring(3, 4)} {value.Substring(7, 4)}" : value;
+}
+<section class="panel mobile-delivery-panel" aria-labelledby="da-secure-delivery-title">
+    <div class="panel-head">
+        <div>
+            <h2 id="da-secure-delivery-title">@(ar ? "إرسال إلى تطبيق DA Secure" : "Send to DA Secure")</h2>
+            <p class="muted">@(ar ? "إدارة إرسال هذه الصفحة الآمنة فقط. محتوى الرسالة المحمي يبقى محتوى Text Editor الحالي ولا يتم نسخه إلى الإشعار." : "Operate delivery of this Secure Page only. Protected Text Editor content remains server-side and is never copied into the push notification.")</p>
+        </div>
+        <a class="btn secondary" asp-area="Admin" asp-controller="MobileDelivery" asp-action="History" asp-route-securePageId="@Model.SecurePageId">@(ar ? "سجل الإرسالات" : "Delivery History")</a>
+    </div>
+    <div class="panel-body">
+        <div class="mobile-delivery-readiness">
+            <div><span class="muted">@(ar ? "مرجع QR" : "QR Reference")</span><strong class="mobile-delivery-reference">@Model.QrReference</strong></div>
+            <div><span class="muted">@(ar ? "حالة الصفحة المصدر" : "Source Secure Page")</span><strong><span class="badge @Model.SecurePageStatus">@Model.SecurePageStatus</span></strong></div>
+            <div><span class="muted">@(ar ? "رقم الجوال المسجل للتطبيق" : "Registered Mobile Number")</span><strong class="numeric">@Mobile(Model.OrganizationMobileNumber)</strong></div>
+            <div><span class="muted">@(ar ? "الأجهزة" : "Devices")</span><strong class="numeric">@Model.ActiveDeviceCount / @Model.RegisteredDeviceCount</strong><small>@(ar ? "نشط للإشعارات / مسجل" : "push-ready / registered")</small></div>
+            <div><span class="muted">@(ar ? "انتهاء الصفحة" : "Secure Page Expiry")</span><strong class="numeric">@Local(Model.SecurePageExpiresAtUtc)</strong></div>
+            <div><span class="muted">@(ar ? "سياسة الوصول الحالية" : "Authoritative Access Policy")</span><strong>@Model.AccessLimitMode</strong><small>@(Model.RemainingAccesses.HasValue ? $"{(ar ? "المتبقي" : "Remaining")}: {Model.RemainingAccesses}" : (ar ? "غير محدود" : "Unlimited"))</small></div>
+        </div>
+
+        @if (!ready)
+        {
+            <div class="alert danger" style="margin-top:16px">
+                @(ar ? "الإرسال الحقيقي غير جاهز. يجب أن تكون الجهة والصفحة نشطتين، ورقم الجوال مهيأ، ويوجد جهاز DA Secure نشط ومفعّل للإشعارات." : "Real send is not ready. Organization and Secure Page must be active, the mobile number must be configured, and at least one DA Secure device must be active with push enabled.")
+            </div>
+        }
+
+        <form method="post" asp-area="Admin" asp-controller="MobileDelivery" asp-action="Send" class="mobile-delivery-send-form" style="margin-top:18px">
+            <input type="hidden" name="SecurePageId" value="@Model.SecurePageId" />
+            <div class="form-grid">
+                <div class="field">
+                    <label for="mobile-delivery-expiry-@Model.SecurePageId">@(ar ? "انتهاء الإرسال" : "Delivery Expiry")</label>
+                    <input class="input" id="mobile-delivery-expiry-@Model.SecurePageId" name="ExpiresAtLocal" type="datetime-local" max="@(pageExpiryLocal?.ToString("yyyy-MM-ddTHH:mm"))" />
+                    <small>@(ar ? "اختياري. لا يمكن أن يتجاوز انتهاء الصفحة الآمنة المبكر." : "Optional. Cannot extend access past an earlier Secure Page expiry.")</small>
+                </div>
+                <div class="field">
+                    <label class="check"><input type="checkbox" name="ReminderEnabled" value="true" /> @(ar ? "تفعيل التذكير" : "Enable Reminder")</label>
+                    <small>@(ar ? "Worker #3 ينفذ الجدولة؛ هذه الشاشة تخزن الإعداد فقط." : "Worker #3 owns scheduler execution; this control persists configuration only.")</small>
+                </div>
+                <div class="field">
+                    <label for="mobile-reminder-interval-@Model.SecurePageId">@(ar ? "فاصل التذكير" : "Reminder Interval")</label>
+                    <input class="input" id="mobile-reminder-interval-@Model.SecurePageId" name="ReminderInterval" type="number" min="1" max="10080" inputmode="numeric" />
+                </div>
+                <div class="field">
+                    <label for="mobile-reminder-unit-@Model.SecurePageId">@(ar ? "وحدة التذكير" : "Reminder Unit")</label>
+                    <select class="input" id="mobile-reminder-unit-@Model.SecurePageId" name="ReminderUnit">
+                        <option value="Minutes">@(ar ? "دقائق" : "Minutes")</option>
+                        <option value="Hours">@(ar ? "ساعات" : "Hours")</option>
+                    </select>
+                </div>
+            </div>
+            <div class="actions mobile-stack" style="margin-top:16px">
+                <button class="btn primary" type="submit" disabled="@(!ready)">@(ar ? "إرسال إلى تطبيق DA Secure" : "Send to DA Secure")</button>
+            </div>
+        </form>
+    </div>
+
+    @if (latest is not null)
+    {
+        <div class="panel-body mobile-delivery-latest">
+            <h3>@(ar ? "آخر إرسال" : "Latest Delivery")</h3>
+            <div class="mobile-delivery-readiness">
+                <div><span class="muted">ID</span><strong class="numeric">@latest.Id</strong></div>
+                <div><span class="muted">@(ar ? "الحالة" : "Status")</span><strong>@latest.DeliveryStatus</strong></div>
+                <div><span class="muted">Firebase</span><strong>@(latest.FirebaseStatus ?? "—")</strong></div>
+                <div><span class="muted">@(ar ? "الفتح" : "Opened")</span><strong>@(latest.FirstRevealedAtUtc.HasValue ? (ar ? "تم فتح الرسالة" : "Message Opened") : (ar ? "غير مفتوحة" : "Unread"))</strong></div>
+                <div><span class="muted">@(ar ? "التذكيرات" : "Reminders")</span><strong class="numeric">@latest.ReminderCount</strong></div>
+                <div><span class="muted">@(ar ? "التالي" : "Next")</span><strong class="numeric">@Local(latest.NextReminderAtUtc)</strong></div>
+            </div>
+            <div class="actions" style="margin-top:14px"><a class="btn secondary" asp-area="Admin" asp-controller="MobileDelivery" asp-action="Details" asp-route-id="@latest.Id">@(ar ? "تفاصيل الإرسال" : "Delivery Details")</a></div>
+        </div>
+    }
+</section>
