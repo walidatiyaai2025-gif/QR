@@ -42,9 +42,11 @@ public sealed class QrShareRuntimeInspector(IWebHostEnvironment environment)
             $"shareId={(share?.Id.ToString() ?? "null")}",
             $"pageId={(share?.SecurePageId.ToString() ?? "null")}",
             $"count={(share is null ? "null" : $"{share.CurrentOpenCount}/{share.MaxOpenCount}")}",
-            $"expiresUtc={(share?.ExpiresAtUtc.ToUniversalTime().ToString("O") ?? "null")}",
-            $"revokedUtc={(share?.RevokedAtUtc?.ToUniversalTime().ToString("O") ?? "null")}",
-            $"windowEndsUtc={(share?.AccessWindowEndsAtUtc?.ToUniversalTime().ToString("O") ?? "null")}",
+            $"expiresUtc={FormatStoredUtc(share?.ExpiresAtUtc)}",
+            $"revokedUtc={FormatStoredUtc(share?.RevokedAtUtc)}",
+            $"windowEndsUtc={FormatStoredUtc(share?.AccessWindowEndsAtUtc)}",
+            $"expiresKind={(share is null ? "null" : share.ExpiresAtUtc.Kind.ToString())}",
+            $"windowKind={(share?.AccessWindowEndsAtUtc?.Kind.ToString() ?? "null")}",
             $"lastRevealHash={(string.IsNullOrWhiteSpace(share?.LastRevealRequestHash) ? "null" : share!.LastRevealRequestHash![..Math.Min(16, share.LastRevealRequestHash.Length)])}",
             $"revealReqFp={requestFingerprint}",
             $"receiptCookie={receiptPresent}",
@@ -80,6 +82,13 @@ public sealed class QrShareRuntimeInspector(IWebHostEnvironment environment)
         {
             Gate.Release();
         }
+    }
+
+    private static string FormatStoredUtc(DateTime? value)
+    {
+        if (value is not DateTime date) return "null";
+        var utc = date.Kind == DateTimeKind.Utc ? date : DateTime.SpecifyKind(date, DateTimeKind.Utc);
+        return utc.ToString("O");
     }
 
     private static string Fingerprint(string? value)
