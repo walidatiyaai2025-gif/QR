@@ -75,6 +75,31 @@ try {
         }
     }
 
+    # Opened semantics are represented by MobileDelivery.FirstRevealedAtUtc.
+    # FCM accepted, notification tap, OTP verification, inbox/details access, and
+    # successful secure-message authentication must not write this marker.
+    # Only the authoritative successful RevealAsync path may set it.
+    $openedWriteArgs = @(
+        'grep','-I','-l','-E','-e',
+        'SetProperty\([^\r\n]*FirstRevealedAtUtc|FirstRevealedAtUtc[[:space:]]*=',
+        '--','src/SecureQrPortal',':(exclude)src/SecureQrPortal/Migrations/**'
+    )
+    $openedWriters = & git @openedWriteArgs 2>$null
+    $openedWriteExit = $LASTEXITCODE
+    if ($openedWriteExit -notin @(0,1)) { throw 'OPENED SEMANTICS: source writer scan failed.' }
+    $global:LASTEXITCODE = 0
+    $openedWriterFiles = @($openedWriters | ForEach-Object { $_.Trim() } | Where-Object { $_ } | Sort-Object -Unique)
+    if ($openedWriterFiles.Count -ne 1 -or $openedWriterFiles[0] -ne 'src/SecureQrPortal/Services/MobileDeliveryAccessService.cs') {
+        throw "OPENED SEMANTICS: FirstRevealedAtUtc writer drift detected in: $($openedWriterFiles -join ', ')."
+    }
+    $deliveryAccessSource = Get-Content (Join-Path $repoRoot 'src/SecureQrPortal/Services/MobileDeliveryAccessService.cs') -Raw
+    if ($deliveryAccessSource -notmatch 'RegisterSuccessfulAccessAsync[\s\S]*SetProperty\(d => d\.FirstRevealedAtUtc, d => d\.FirstRevealedAtUtc \?\? now\)') {
+        throw 'OPENED SEMANTICS: reveal marker is not guarded by authoritative successful access.'
+    }
+    if ($deliveryAccessSource -notmatch 'SECURE_MESSAGE_REVEALED') {
+        throw 'OPENED SEMANTICS: authoritative reveal audit event is missing.'
+    }
+
     $requiredRegressionSuites = @(
         'tests/SecureQrPortal.Tests/CaptchaLoginSecurityTests.cs',
         'tests/SecureQrPortal.Tests/CaptchaServiceTests.cs',
@@ -103,6 +128,7 @@ try {
     Write-Host 'SECRET SCAN: PASS'
     Write-Host 'TLS STATIC REGRESSION: PASS'
     Write-Host 'PAYLOAD REGRESSION: PASS'
+    Write-Host 'OPENED SEMANTICS: PASS'
     Write-Host 'SECURITY REGRESSION SUITE PRESENCE: PASS'
     $global:LASTEXITCODE = 0
 }
