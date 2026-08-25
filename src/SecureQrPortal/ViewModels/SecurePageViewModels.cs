@@ -74,6 +74,17 @@ public sealed class QrShareAdminVm
     public string EmailUrl { get; set; } = "";
 }
 
+public sealed class QrShareAuditVm
+{
+    public DateTime TimestampUtc { get; set; }
+    public long ShareId { get; set; }
+    public string Channel { get; set; } = "";
+    public string Result { get; set; } = "";
+    public string Admin { get; set; } = "—";
+    public string IpAddress { get; set; } = "—";
+    public string Details { get; set; } = "";
+}
+
 public sealed class QrDetailsVm
 {
     public SecurePage Page { get; set; } = null!;
@@ -84,6 +95,7 @@ public sealed class QrDetailsVm
     public List<AccessLog> Timeline { get; set; } = [];
     public List<QrTokenHistory> History { get; set; } = [];
     public List<QrShareAdminVm> ShareLinks { get; set; } = [];
+    public List<QrShareAuditVm> ShareMessageAudit { get; set; } = [];
     public string DefaultShareMessageTemplate { get; set; } = "";
     public bool SmsConfigured { get; set; }
     public string CreatedBy { get; set; } = "—";
