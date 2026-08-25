@@ -2,18 +2,18 @@
 @model QrShareRevealVm
 @{
     var ar = CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "ar";
+    var brandName = Branding.Name(ar);
     ViewData["Title"] = ar ? "بيانات الوصول الآمن" : "Secure access credentials";
-
     var rawEnd = Model.Share.AccessWindowEndsAtUtc ?? DateTime.UtcNow;
-    var endUtc = rawEnd.Kind == DateTimeKind.Utc
-        ? rawEnd
-        : DateTime.SpecifyKind(rawEnd, DateTimeKind.Utc);
+    var endUtc = rawEnd.Kind == DateTimeKind.Utc ? rawEnd : DateTime.SpecifyKind(rawEnd, DateTimeKind.Utc);
 }
 <section class="public-center share-shell">
     <div class="premium-card share-card">
         <div class="public-title">
+            <img class="diwan-card-logo" src="@Branding.LogoPath" alt="@brandName">
+            <div class="qr-org-title">@Model.Organization</div>
             <div class="security-kicker">@(ar ? "تم فتح رابط المشاركة" : "SHARE LINK OPENED")</div>
-            <h1>@Model.Organization</h1>
+            <h1>@brandName</h1>
             <p>@Model.PageTitle</p>
         </div>
         <div class="alert success">@(ar ? "تم احتساب هذا الفتح. البيانات التالية هي نفس اسم المستخدم وكلمة المرور الحالية المستخدمة لفتح صفحة الـ QR." : "This opening has been counted. The credentials below are the same current username and password used to open the QR page.")</div>
@@ -31,7 +31,7 @@
             <dt>@(ar ? "مرات الفتح المستخدمة" : "Reveal usage")</dt><dd>@Model.Share.CurrentOpenCount / @Model.Share.MaxOpenCount</dd>
         </dl>
         <a class="btn primary block" href="@Model.PublicQrUrl" rel="noopener">@(ar ? "فتح صفحة QR وإدخال البيانات" : "Open QR page and sign in")</a>
-        <p class="share-hint">@(ar ? "انتهاء مدة عرض المشاركة يغلق هذه الشاشة، لكنه لا يغيّر كلمة مرور الـ QR الأصلية. إذا كان المطلوب إبطال كلمة المرور نفسها فيجب تغيير بيانات دخول صفحة الـ QR من الإدارة." : "When this share display window ends, this screen closes, but the base QR password is not changed. To invalidate the password itself, change the QR page credentials in Admin.")</p>
+        <p class="share-hint">@(ar ? "انتهاء مدة عرض المشاركة يغلق هذه الشاشة، لكنه لا يغيّر كلمة مرور الـ QR الأصلية." : "When this share display window ends, this screen closes, but the base QR password is not changed.")</p>
     </div>
     <partial name="_RuntimeInspector" />
 </section>
@@ -42,7 +42,7 @@
   const ms = expires - Date.now();
   if (ms <= 0) { window.location.replace('@Url.Action("Open", "QrShare", new { token = "expired" })'); return; }
   window.setTimeout(function(){
-    document.body.innerHTML = '<main class="public-center"><div class="premium-card error-card"><div class="error-code">⏱</div><h1>@(ar ? "انتهت مدة عرض المشاركة" : "Share display window expired")</h1><p class="muted">@(ar ? "تم إخفاء بيانات الدخول من شاشة المشاركة. كلمة مرور الـ QR الأصلية لم يتم تغييرها." : "The credentials have been hidden from the share screen. The base QR password has not been changed.")</p></div></main>';
+    document.body.innerHTML = '<main class="public-center"><div class="premium-card error-card"><img class="diwan-card-logo" src="@Branding.LogoPath" alt=""><div class="error-code">⏱</div><h1>@(ar ? "انتهت مدة عرض المشاركة" : "Share display window expired")</h1><p class="muted">@(ar ? "تم إخفاء بيانات الدخول من شاشة المشاركة." : "The credentials have been hidden from the share screen.")</p></div></main>';
   }, Math.min(ms, 2147483647));
 })();
 </script>

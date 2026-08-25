@@ -6,7 +6,7 @@ public static class QrShareMessage
 {
     public const int MaxTemplateLength = 2000;
 
-    public const string DefaultTemplate = "Secure QR access for {QrReference}.\n\nOpen the secure share link:\n{ShareUrl}\n\nCredential reveal limit: {RevealCount}\nShare link expires: {ExpiresAt}\nAccess window after reveal: {SessionMinutes} minute(s).\n\nDo not forward this link to an unauthorized person.";
+    public const string DefaultTemplate = "دولة الكويت - الديوان الأميري\n{ShareUrl}\nالرابط صالح لمرة واحدة\nيرجى حفظ اسم المستخدم وكلمة المرور لاستخدامها بعد مسح رمز QR\nتستخدم لمرة واحدة";
 
     public static string NormalizeTemplate(string? template)
     {

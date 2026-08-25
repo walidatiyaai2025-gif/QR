@@ -6,16 +6,15 @@
     var title = ar ? Model.TitleArabic : Model.TitleEnglish;
     var content = ar ? Model.ContentArabicHtml : Model.ContentEnglishHtml;
     var organizationName = ar ? Model.Organization.NameArabic : Model.Organization.NameEnglish;
+    var brandName = Branding.Name(ar);
 }
 <section class="content-shell" lang="@(ar ? "ar" : "en")" dir="@(ar ? "rtl" : "ltr")">
     <div class="content-card">
         <div class="preview-banner" role="status">@T["PreviewBanner"]</div>
-        @if (!string.IsNullOrWhiteSpace(Model.Organization.LogoPath))
-        {
-            <img class="org-logo" src="@Model.Organization.LogoPath" alt="@T["OrganizationLogoAlt"]" />
-        }
-        <div class="eyebrow">@organizationName</div>
-        <h1>@title</h1>
+        <img class="diwan-card-logo" src="@Branding.LogoPath" alt="@brandName" />
+        <div class="qr-org-title">@organizationName</div>
+        <h1>@brandName</h1>
+        <h2>@title</h2>
         <article class="secure-content">@Html.Raw(content)</article>
     </div>
 </section>

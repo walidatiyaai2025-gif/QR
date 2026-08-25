@@ -4,6 +4,7 @@
     var ar = CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "ar";
     var org = ar ? Model.Organization.NameArabic : Model.Organization.NameEnglish;
     var title = ar ? Model.TitleArabic : Model.TitleEnglish;
+    var brandName = Branding.Name(ar);
     var html = ar ? Model.ContentArabicHtml : Model.ContentEnglishHtml;
     var currentPath = Context.Request.Path.ToString();
     var publicPath = currentPath.EndsWith("/content", StringComparison.OrdinalIgnoreCase) ? currentPath[..^8] : currentPath;
@@ -15,13 +16,11 @@
 
 <section class="public-center secure-page-shell content-shell" style="align-items:start">
     <article class="premium-card secure-content-card">
-        @if (!string.IsNullOrWhiteSpace(Model.Organization.LogoPath))
-        {
-            <img class="org-logo" src="@Model.Organization.LogoPath" alt="@org">
-        }
         <div class="public-title">
+            <img class="diwan-card-logo" src="@Branding.LogoPath" alt="@brandName">
+            <div class="qr-org-title">@org</div>
             <div class="security-kicker">@Model.QrReference</div>
-            <h1>@org</h1>
+            <h1>@brandName</h1>
             <p class="secure-page-title">@title</p>
             @if (ViewBag.ShowExpiry == true && pageExpiry.HasValue)
             {
@@ -51,7 +50,9 @@
     var hardEndForScript = hardExpiry.GetValueOrDefault();
 <script>
 (function(){
-  const expires = Date.parse('@hardEndForScript.ToUniversalTime().ToString("O")');
+  const raw='@hardEndForScript.ToString("O")';
+  const utc=raw.endsWith('Z')?raw:raw+'Z';
+  const expires=Date.parse(utc);
   function closeWhenExpired(){
     if (Date.now() >= expires) { window.location.replace(window.location.href); return; }
     window.setTimeout(closeWhenExpired, Math.min(1000, expires - Date.now()));

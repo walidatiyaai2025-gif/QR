@@ -9,12 +9,17 @@
 </div>
 <section class="panel">
     <div class="panel-body">
+        <div class="branding-policy-note">
+            <img src="@Branding.LogoPath" alt="@Branding.EnglishName">
+            <div><strong>@Branding.ArabicName / @Branding.EnglishName</strong><span>Application branding is centrally fixed and cannot be replaced by organization logos or another product brand.</span></div>
+        </div>
         <form method="post">
             <div asp-validation-summary="ModelOnly"></div>
             <div class="form-grid">
                 <div class="field">
                     <label asp-for="ApplicationName">@T["ApplicationName"]</label>
-                    <input class="input" asp-for="ApplicationName" required autocomplete="off" />
+                    <input class="input" asp-for="ApplicationName" value="@Branding.EnglishName" readonly aria-readonly="true" />
+                    <small class="muted">Fixed system identity: @Branding.EnglishName</small>
                 </div>
                 <div class="field">
                     <label asp-for="DefaultLanguage">@T["DefaultLanguage"]</label>
