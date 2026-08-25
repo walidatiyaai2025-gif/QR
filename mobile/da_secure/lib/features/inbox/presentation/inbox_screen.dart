@@ -95,7 +95,7 @@ class InboxScreen extends StatelessWidget {
         final list = ListView.separated(
           physics: const AlwaysScrollableScrollPhysics(),
           itemCount: state.items.length,
-          separatorBuilder: (_, __) => const SizedBox(height: 12),
+          separatorBuilder: (_, _) => const SizedBox(height: 12),
           itemBuilder: (context, index) {
             final item = state.items[index];
             return _InboxCard(
