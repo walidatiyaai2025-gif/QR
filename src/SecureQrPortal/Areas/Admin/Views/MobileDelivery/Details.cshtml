@@ -1,0 +1,55 @@
+@model SecureQrPortal.ViewModels.MobileDeliveryDetailsVm
+@{
+    var ar = CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "ar";
+    var d = Model.Delivery;
+    ViewData["Title"] = ar ? "تفاصيل إرسال DA Secure" : "DA Secure Delivery Details";
+    string Local(DateTime? utc) => utc.HasValue ? utc.Value.ToLocalTime().ToString(ar ? "dd/MM/yyyy HH:mm:ss" : "dd MMM yyyy HH:mm:ss") : "—";
+}
+<link rel="stylesheet" href="~/css/admin-closure.css" asp-append-version="true" />
+<div class="page-head">
+    <div><h1>@ViewData["Title"] #@d.Id</h1><p>@(ar ? "حالة تشغيلية مبنية فقط على البيانات المخزنة على الخادم." : "Operational state based only on persisted server evidence.")</p></div>
+    <div class="actions mobile-stack">
+        <a class="btn secondary" asp-action="History">@(ar ? "سجل الإرسالات" : "Delivery History")</a>
+        <a class="btn secondary" asp-area="Admin" asp-controller="Qr" asp-action="Details" asp-route-id="@d.SecurePageId">@(ar ? "تفاصيل QR" : "QR Details")</a>
+    </div>
+</div>
+<section class="panel">
+    <div class="panel-body mobile-delivery-detail-grid">
+        <div><span class="muted">@(ar ? "مرجع QR" : "QR Reference")</span><strong>@d.QrReference</strong></div>
+        <div><span class="muted">@T["Organization"]</span><strong>@(ar ? d.OrganizationArabic : d.OrganizationEnglish)</strong></div>
+        <div><span class="muted">@(ar ? "تاريخ الإنشاء" : "Created")</span><strong class="numeric">@Local(d.CreatedAtUtc)</strong></div>
+        <div><span class="muted">@(ar ? "تاريخ الإرسال" : "Sent")</span><strong class="numeric">@Local(d.SentAtUtc)</strong></div>
+        <div><span class="muted">@(ar ? "انتهاء الإرسال الفعلي" : "Effective Delivery Expiry")</span><strong class="numeric">@Local(d.ExpiresAtUtc)</strong></div>
+        <div><span class="muted">@(ar ? "حالة الإرسال" : "Delivery Status")</span><strong>@d.DeliveryStatus</strong></div>
+        <div><span class="muted">Firebase</span><strong>@(d.FirebaseStatus ?? "—")</strong></div>
+        <div><span class="muted">@(ar ? "حالة الصفحة المصدر" : "Source Secure Page Status")</span><strong>@Model.SourceStatus</strong></div>
+        <div><span class="muted">@(ar ? "حالة الفتح" : "Opened State")</span><strong>@(d.FirstRevealedAtUtc.HasValue ? (ar ? "تم فتح الرسالة" : "Message Opened") : (ar ? "غير مفتوحة" : "Unread"))</strong></div>
+        <div><span class="muted">@(ar ? "أول فتح آمن" : "First Secure Reveal")</span><strong class="numeric">@Local(d.FirstRevealedAtUtc)</strong></div>
+        <div><span class="muted">@(ar ? "سياسة الوصول المتبقية" : "Remaining Access Policy")</span><strong>@(Model.UnlimitedReveals ? (ar ? "غير محدود" : "Unlimited") : Model.RemainingReveals?.ToString())</strong></div>
+        <div><span class="muted">@(ar ? "ملغي" : "Revoked")</span><strong>@(d.RevokedAtUtc.HasValue ? Local(d.RevokedAtUtc) : (ar ? "لا" : "No"))</strong></div>
+    </div>
+</section>
+<section class="panel" style="margin-top:16px">
+    <div class="panel-head"><div><h2>@(ar ? "التذكيرات" : "Reminders")</h2></div></div>
+    <div class="panel-body mobile-delivery-detail-grid">
+        <div><span class="muted">@(ar ? "مفعلة" : "Enabled")</span><strong>@(d.ReminderEnabled ? (ar ? "نعم" : "Yes") : (ar ? "لا" : "No"))</strong></div>
+        <div><span class="muted">@(ar ? "الفاصل" : "Interval")</span><strong>@(d.ReminderEnabled ? $"{d.ReminderInterval} {d.ReminderUnit}" : "—")</strong></div>
+        <div><span class="muted">@(ar ? "عدد التذكيرات" : "Reminder Count")</span><strong class="numeric">@d.ReminderCount</strong></div>
+        <div><span class="muted">@(ar ? "آخر تذكير" : "Last Reminder")</span><strong class="numeric">@Local(d.LastReminderAtUtc)</strong></div>
+        <div><span class="muted">@(ar ? "التذكير التالي" : "Next Reminder")</span><strong class="numeric">@Local(d.NextReminderAtUtc)</strong></div>
+    </div>
+</section>
+@if (!d.RevokedAtUtc.HasValue)
+{
+    <section class="panel" style="margin-top:16px">
+        <div class="panel-body">
+            <form method="post" asp-action="Revoke" asp-route-id="@d.Id" class="actions mobile-stack" onsubmit="return confirm('@(ar ? "تأكيد إلغاء هذا الإرسال؟" : "Revoke this delivery?")');">
+                <label class="field">
+                    <span>@(ar ? "اكتب REVOKE للتأكيد" : "Type REVOKE to confirm")</span>
+                    <input class="input confirmation-input" name="confirmation" required pattern="REVOKE" autocomplete="off" />
+                </label>
+                <button class="btn danger" type="submit">@(ar ? "إلغاء الإرسال" : "Revoke Delivery")</button>
+            </form>
+        </div>
+    </section>
+}
