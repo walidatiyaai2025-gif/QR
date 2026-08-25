@@ -196,6 +196,8 @@ builder.Services.AddScoped<MobileSessionService>();
 builder.Services.AddScoped<MobileOtpService>();
 builder.Services.AddScoped<MobileDeviceService>();
 builder.Services.AddScoped<MobileDeliveryAccessService>();
+builder.Services.AddScoped<IMobilePushDispatchService, UnavailableMobilePushDispatchService>();
+builder.Services.AddScoped<MobileDeliveryAdminService>();
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddCaptchaSecurity();
 
