@@ -124,18 +124,29 @@ jobs:
         working-directory: mobile/da_secure
         run: flutter pub get
       - name: Format check
+        id: format
+        continue-on-error: true
         working-directory: mobile/da_secure
         run: dart format --output=none --set-exit-if-changed lib test
       - name: Analyze
+        id: analyze
+        continue-on-error: true
         working-directory: mobile/da_secure
         run: flutter analyze
       - name: Test
+        id: flutter-tests
+        continue-on-error: true
         working-directory: mobile/da_secure
         run: flutter test
       - name: Build debug APK
+        id: apk-build
+        continue-on-error: true
         working-directory: mobile/da_secure
         run: flutter build apk --debug
       - name: Verify APK metadata
+        id: apk-metadata
+        if: steps.apk-build.outcome == 'success'
+        continue-on-error: true
         shell: bash
         run: |
           set -euo pipefail
@@ -164,13 +175,32 @@ jobs:
             echo "Workflow run: $GITHUB_RUN_ID"
           } >> "$GITHUB_STEP_SUMMARY"
       - name: Upload debug APK
-        if: success()
+        if: steps.apk-build.outcome == 'success' && steps.apk-metadata.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
           name: da-secure-debug-apk-${{ github.run_id }}
           path: mobile/da_secure/build/app/outputs/flutter-apk/app-debug.apk
           if-no-files-found: error
           retention-days: 14
+      - name: Enforce Flutter and APK gates
+        if: always()
+        shell: bash
+        run: |
+          echo "Format: ${{ steps.format.outcome }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "Analyze: ${{ steps.analyze.outcome }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "Flutter tests: ${{ steps.flutter-tests.outcome }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "APK build: ${{ steps.apk-build.outcome }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "APK metadata: ${{ steps.apk-metadata.outcome }}" >> "$GITHUB_STEP_SUMMARY"
+          failed=0
+          [[ '${{ steps.format.outcome }}' == 'success' ]] || failed=1
+          [[ '${{ steps.analyze.outcome }}' == 'success' ]] || failed=1
+          [[ '${{ steps.flutter-tests.outcome }}' == 'success' ]] || failed=1
+          [[ '${{ steps.apk-build.outcome }}' == 'success' ]] || failed=1
+          if [[ '${{ steps.apk-build.outcome }}' == 'success' && '${{ steps.apk-metadata.outcome }}' != 'success' ]]; then failed=1; fi
+          if [[ $failed -ne 0 ]]; then
+            echo 'Flutter/APK release gate is not GREEN.' >&2
+            exit 1
+          fi
 
   release-summary:
     name: Release Gate Summary
