@@ -31,7 +31,7 @@ public sealed class PublicQrController(
         return View("Login", page);
     }
 
-    [HttpPost("{token}/login"), EnableRateLimiting("public-login")]
+    [HttpPost("{token}/login"), EnableRateLimiting("public-login"), IgnoreAntiforgeryToken]
     public async Task<IActionResult> Login(string token, string username, string password, CancellationToken ct)
     {
         var page = await access.FindByTokenAsync(token, ct);
