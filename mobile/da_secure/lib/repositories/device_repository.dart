@@ -45,18 +45,34 @@ class DeviceRepository {
         },
       );
       final json = ApiClient.jsonMap(response.data);
+      final databaseId = _requiredPositiveInt(json['deviceId']);
+      final responsePushEnabled = json['pushEnabled'];
+      if (responsePushEnabled is! bool) {
+        throw const FormatException('Invalid pushEnabled.');
+      }
       return DeviceRegistration(
-        deviceDatabaseId: _asInt(json['deviceId']),
-        pushEnabled: json['pushEnabled'] == true,
+        deviceDatabaseId: databaseId,
+        pushEnabled: responsePushEnabled,
       );
     } on DioException catch (error) {
       throw ApiClient.mapError(error);
+    } on FormatException {
+      throw AppFailure.invalidResponse();
     }
   }
 }
 
-int _asInt(dynamic value) {
-  if (value is int) return value;
-  if (value is num) return value.toInt();
-  return int.tryParse(value?.toString() ?? '') ?? 0;
+int _requiredPositiveInt(dynamic value) {
+  final parsed = switch (value) {
+    int number => number,
+    num number when number.isFinite && number == number.truncateToDouble() =>
+      number.toInt(),
+    String text when RegExp(r'^\d+$').hasMatch(text.trim()) =>
+      int.tryParse(text.trim()),
+    _ => null,
+  };
+  if (parsed == null || parsed <= 0) {
+    throw const FormatException('Invalid deviceId.');
+  }
+  return parsed;
 }
