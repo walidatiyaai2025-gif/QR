@@ -32,6 +32,17 @@ if (Test-Path $appGradlePath) {
         Write-Host 'PACKAGE ID: FAIL'
         $failures.Add('PACKAGE_ID_DRIFT')
     }
+
+    $java17 = $appGradle -match 'sourceCompatibility\s*=\s*JavaVersion\.VERSION_17' -and
+              $appGradle -match 'targetCompatibility\s*=\s*JavaVersion\.VERSION_17' -and
+              $appGradle -match 'jvmTarget\s*=\s*JavaVersion\.VERSION_17\.toString\(\)'
+    if ($java17) {
+        Write-Host 'JAVA 17 CONFIG: PASS'
+    }
+    else {
+        Write-Host 'JAVA 17 CONFIG: FAIL'
+        $failures.Add('JAVA_17_COMPATIBILITY_DRIFT')
+    }
 }
 
 $manifestPath = Join-Path $appRoot 'src/main/AndroidManifest.xml'

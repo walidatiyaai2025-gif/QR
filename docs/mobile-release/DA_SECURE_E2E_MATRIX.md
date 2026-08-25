@@ -4,57 +4,46 @@ Canonical API: `https://testapi.da.gov.kw`
 Android package: `com.qr.mobile.da`  
 Release harness branch: `worker/da-secure-release-qa-harness`
 
-Status vocabulary: **PASS / FAIL / UNVERIFIED / BLOCKED / WAITING FOR CONVERGENCE**.
+Status vocabulary: **PASS / FAIL / UNVERIFIED / BLOCKED / WAITING**.
 
-This matrix separates repository/unit evidence from live external evidence. Automated component tests do not prove live SMS, live FCM receipt, device biometrics, canonical-host deployment parity, or visual approval.
+Automated component evidence never substitutes for live SMS, live FCM receipt, device biometrics, canonical-host deployment parity, or exact-SHA visual approval.
 
-| # | Flow | Required system | Automated evidence | Manual evidence | Live external dependency | Current evidence |
-|---:|---|---|---|---|---|---|
-| 1 | App launch | Flutter / Android | Widget/navigation suite | Real-device launch | Android device | WAITING FOR CONVERGENCE |
-| 2 | Mobile number | Flutter + mobile auth API | Backend auth tests; mobile UI contracts | Real app entry | Canonical API | WAITING FOR CONVERGENCE |
-| 3 | OTP request | Mobile auth + SMS gateway | Backend OTP/rate-limit tests | Real registered number | SMS provider | AUTOMATED VERIFIED; LIVE SMS UNVERIFIED |
-| 4 | OTP verify | Mobile auth/session | Expiry/replay/attempt tests | Real OTP entry | SMS provider | AUTOMATED VERIFIED; LIVE SMS UNVERIFIED |
-| 5 | Session restore | Flutter storage + refresh API | Backend refresh/rotation tests | Kill/relaunch device app | Android device | WAITING FOR CONVERGENCE |
-| 6 | Optional biometric | Flutter local_auth | UI/navigation tests where present | Enroll/skip/reopen | Android biometric hardware | LIVE DEVICE UNVERIFIED |
-| 7 | Device register | Flutter FCM + device API | Backend device/token tests; active FCM branch tests | Real token registration | Firebase client + Android device | WAITING FOR CONVERGENCE |
-| 8 | Inbox | Mobile API + Flutter | Tenant/inbox tests; UI empty/success contracts | Real organization inbox | Canonical API | WAITING FOR CONVERGENCE |
-| 9 | Delivery details | Mobile API + Flutter | Ownership/metadata tests | Open owned delivery | Canonical API | WAITING FOR CONVERGENCE |
-| 10 | Secure login | Existing page credentials + mobile API | Wrong-credential/security tests | Real credential entry | Canonical API | AUTOMATED VERIFIED; E2E UNVERIFIED |
-| 11 | Reveal | Mobile delivery access service | Reveal/counter tests | Real protected-message reveal | Canonical API | AUTOMATED VERIFIED; E2E UNVERIFIED |
-| 12 | Reveal count | EF/database + secure reveal | Counter/concurrency tests | Dashboard/app comparison | Canonical API + database | AUTOMATED VERIFIED; E2E UNVERIFIED |
-| 13 | Dashboard audit | Audit persistence/admin UI | Audit-related backend tests | Visible admin history | Canonical host | AUTOMATED PARTIAL; MANUAL UNVERIFIED |
-| 14 | Initial push | Firebase Admin + device | Provider/dispatch tests | Notification receipt | Firebase Admin credentials + Android device | LIVE FCM UNVERIFIED |
-| 15 | Push tap | Flutter FCM routing | Active FCM branch contract tests | Tap notification on device | Android device + live FCM | WAITING FOR CONVERGENCE |
-| 16 | Unread reminder | Durable reminder persistence | Reminder due/eligibility tests | Leave delivery unrevealed | Database | AUTOMATED VERIFIED |
-| 17 | Reminder push | Reminder worker + Firebase | Reminder worker/provider tests | Receive reminder notification | Firebase Admin credentials + Android device | LIVE FCM UNVERIFIED |
-| 18 | Reveal stops reminder | Reveal transaction + reminder worker | Reminder/reveal stop tests | Reveal then observe no future reminder | Database + optional live FCM | AUTOMATED VERIFIED; LIVE E2E UNVERIFIED |
+| Flow | Automated | Manual | Live dependency | Current evidence | Status |
+|---|---|---|---|---|---|
+| Splash | Flutter widget/navigation gate | Exact-SHA real-device launch + visual comparison | Android device + official crest | Integration Flutter tests run; official crest not proven | BLOCKED |
+| Mobile Number | Backend mobile auth + Flutter tests | Real app entry | Canonical API | Automated paths exist; runtime convergence pending | WAITING |
+| OTP Request | OTP/rate-limit backend tests | Real registered number | SMS provider + canonical API | Automated verification only | UNVERIFIED |
+| OTP Verify | OTP expiry/replay/attempt tests | Enter real received OTP | SMS provider + canonical API | Automated verification only | UNVERIFIED |
+| Session Restore | Refresh rotation/replay tests + Flutter session tests | Kill/relaunch app | Canonical API + Android device | Integration gate passes; active runtime PR has unresolved refresh/session tests | WAITING |
+| Biometric | Flutter local-auth contracts where present | Enroll/skip/reopen | Android biometric hardware | No exact-SHA device evidence | UNVERIFIED |
+| Device Register | Backend device/token tests | Register real FCM token | Firebase client + canonical API + device | Backend automated evidence only | WAITING |
+| Inbox | Tenant/inbox backend + Flutter tests | Open real organization inbox | Canonical API | Automated authorization/metadata evidence | WAITING |
+| Delivery Detail | Ownership/metadata tests | Open owned delivery | Canonical API | Automated metadata evidence | WAITING |
+| Secure Login | Wrong/correct secure credential tests | Real credential entry | Canonical API | Wrong credentials consume zero reveals; auth alone is not OPENED | PASS |
+| Reveal | Secure reveal/counter tests | Real protected-message reveal | Canonical API | Successful reveal is server-authoritative | PASS |
+| Reveal Counter | Counter/limit/concurrency tests | Compare app/admin state | Canonical API + database | Automated authoritative counter evidence | PASS |
+| Dashboard Audit | Backend audit tests | Visible admin history | Canonical host | Automated audit evidence; manual UI unverified | UNVERIFIED |
+| Initial Push | Firebase provider/dispatch tests | Receive real notification | Firebase Admin credentials + registered Android device | Automated provider evidence only; live receipt absent | UNVERIFIED |
+| Push Tap | Routing/navigation tests where integrated | Tap real notification | Live FCM + Android device | Tap is not OPENED; real-device route not proven | WAITING |
+| Reminder | Durable reminder tests | Receive real reminder | Firebase Admin credentials + Android device | Due/eligibility/retry/concurrency automated evidence | UNVERIFIED |
+| Reveal Stops Reminder | Reveal + scheduler stop tests | Reveal then observe no future push | Database + optional live FCM | Server-side schedule stop is automated; live observation absent | PASS |
+| Logout | Session revocation backend + Flutter auth tests | Logout and verify protected route denial | Canonical API + Android device | Automated session-revocation coverage; live E2E pending | WAITING |
+
+## Opened semantics release invariant
+
+Release regression requires all of the following on the exact backend candidate:
+
+- Firebase provider acceptance != OPENED.
+- push receipt/tap/navigation != OPENED.
+- OTP verification/session issuance != OPENED.
+- Inbox/details access != OPENED.
+- secure-login authentication != OPENED.
+- only successful secure reveal sets `FirstRevealedAtUtc` / `REVEALED` and stops future reminders.
 
 ## Security release assertions
 
-The release workflow executes the full backend suite plus static release checks. Required regression coverage includes:
+The release workflow executes the full backend suite plus static release checks covering OTP expiry/replay/attempt limits, refresh rotation/replay/session revocation, tenant/IDOR isolation, secure credential/reveal limits, CAPTCHA single-use/expiry/refresh/anti-forgery/rate limiting/lockout, Firebase safe payload/fail-closed behavior where integrated, reminder durability/concurrency/stop conditions, and TLS/secret regression checks.
 
-- OTP expiry, replay and attempt limits.
-- refresh rotation/replay and session revocation.
-- organization/tenant isolation and IDOR resistance.
-- wrong secure credentials consume zero reveals.
-- authoritative reveal limits and concurrency.
-- CAPTCHA expiry, single use, refresh invalidation, anti-forgery, rate limiting and Identity lockout.
-- durable reminder scheduling/restart/concurrency/stop conditions.
-- FCM data payload restricted to opaque routing metadata.
-- TLS verification retained; no HTTP fallback or trust-all callback.
+## Responsive and visual QA
 
-## Mobile responsive QA
-
-Automated mobile widget coverage must run at **360 / 375 / 390 / 412 / 430** for Arabic RTL and English LTR where the integrated candidate contains those tests. Exact-SHA screenshots remain a manual QA artifact and are not manufactured by this harness.
-
-## Admin responsive QA
-
-Manual/existing automated coverage must be recorded at **320 / 360 / 375 / 390 / 412 / 430** for:
-
-- QR Details.
-- Send To DA Secure.
-- delivery history.
-- Organization mobile.
-- status/actions.
-
-Current state: **MANUAL VISUAL EVIDENCE UNVERIFIED**. The release harness does not redesign admin screens or create fragile pixel goldens.
+Mobile exact-SHA evidence remains required at **360 / 375 / 390 / 412 / 430** for Arabic RTL and English LTR. Admin responsive evidence remains required at **320 / 360 / 375 / 390 / 412 / 430**. This harness does not manufacture screenshots or substitute the demo SVG for the official crest.

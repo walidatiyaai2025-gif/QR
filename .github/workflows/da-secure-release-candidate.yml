@@ -24,6 +24,7 @@ concurrency:
 env:
   DOTNET_VERSION: '10.0.400'
   FLUTTER_VERSION: '3.47.1'
+  JAVA_VERSION: '17'
   EXPECTED_PACKAGE: 'com.qr.mobile.da'
   EXPECTED_LABEL: 'DA Secure'
   CANONICAL_API: 'https://testapi.da.gov.kw'
@@ -111,15 +112,22 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.sha || github.event.inputs.candidate_ref || github.sha }}
+      - name: Install Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
       - name: Install pinned Flutter
         uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: stable
           cache: true
-      - name: Flutter version provenance
+      - name: Toolchain provenance
         working-directory: mobile/da_secure
-        run: flutter --version
+        run: |
+          java -version
+          flutter --version
       - name: Pub get
         working-directory: mobile/da_secure
         run: flutter pub get
@@ -134,18 +142,18 @@ jobs:
         working-directory: mobile/da_secure
         run: flutter analyze
       - name: Test
-        id: flutter-tests
+        id: flutter_tests
         continue-on-error: true
         working-directory: mobile/da_secure
         run: flutter test
       - name: Build debug APK
-        id: apk-build
+        id: apk_build
         continue-on-error: true
         working-directory: mobile/da_secure
         run: flutter build apk --debug
       - name: Verify APK metadata
-        id: apk-metadata
-        if: steps.apk-build.outcome == 'success'
+        id: apk_metadata
+        if: steps.apk_build.outcome == 'success'
         continue-on-error: true
         shell: bash
         run: |
@@ -173,9 +181,10 @@ jobs:
             echo "APK mode: debug"
             echo "Source commit: $(git rev-parse HEAD)"
             echo "Workflow run: $GITHUB_RUN_ID"
+            echo "Artifact name: da-secure-debug-apk-$GITHUB_RUN_ID"
           } >> "$GITHUB_STEP_SUMMARY"
       - name: Upload debug APK
-        if: steps.apk-build.outcome == 'success' && steps.apk-metadata.outcome == 'success'
+        if: steps.apk_build.outcome == 'success' && steps.apk_metadata.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
           name: da-secure-debug-apk-${{ github.run_id }}
@@ -188,15 +197,15 @@ jobs:
         run: |
           echo "Format: ${{ steps.format.outcome }}" >> "$GITHUB_STEP_SUMMARY"
           echo "Analyze: ${{ steps.analyze.outcome }}" >> "$GITHUB_STEP_SUMMARY"
-          echo "Flutter tests: ${{ steps.flutter-tests.outcome }}" >> "$GITHUB_STEP_SUMMARY"
-          echo "APK build: ${{ steps.apk-build.outcome }}" >> "$GITHUB_STEP_SUMMARY"
-          echo "APK metadata: ${{ steps.apk-metadata.outcome }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "Flutter tests: ${{ steps.flutter_tests.outcome }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "APK build: ${{ steps.apk_build.outcome }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "APK metadata: ${{ steps.apk_metadata.outcome }}" >> "$GITHUB_STEP_SUMMARY"
           failed=0
           [[ '${{ steps.format.outcome }}' == 'success' ]] || failed=1
           [[ '${{ steps.analyze.outcome }}' == 'success' ]] || failed=1
-          [[ '${{ steps.flutter-tests.outcome }}' == 'success' ]] || failed=1
-          [[ '${{ steps.apk-build.outcome }}' == 'success' ]] || failed=1
-          if [[ '${{ steps.apk-build.outcome }}' == 'success' && '${{ steps.apk-metadata.outcome }}' != 'success' ]]; then failed=1; fi
+          [[ '${{ steps.flutter_tests.outcome }}' == 'success' ]] || failed=1
+          [[ '${{ steps.apk_build.outcome }}' == 'success' ]] || failed=1
+          [[ '${{ steps.apk_metadata.outcome }}' == 'success' ]] || failed=1
           if [[ $failed -ne 0 ]]; then
             echo 'Flutter/APK release gate is not GREEN.' >&2
             exit 1
