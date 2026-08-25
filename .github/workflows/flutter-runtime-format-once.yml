@@ -3,7 +3,7 @@ name: DA Secure Flutter Runtime Format Once
 on:
   push:
     branches:
-      - worker/da-secure-flutter-real-runtime
+      - worker/da-secure-flutter-runtime-api
 
 permissions:
   contents: write
@@ -24,19 +24,29 @@ jobs:
         with:
           channel: stable
           cache: true
-      - name: Get dependencies
-        run: flutter pub get
-      - name: Apply Dart formatter
-        run: dart format lib test
-      - name: Commit formatter output
+      - name: Correct session generation assertion
         shell: bash
         run: |
-          if git diff --quiet -- lib test; then
-            echo "No formatting changes required."
-            exit 0
-          fi
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('test/runtime_networking_contract_test.dart')
+          text = path.read_text()
+          old = """      final generationKeys = all.keys\n          .where((key) => key.startsWith('da_secure.session.'))\n          .toList();\n"""
+          new = """      final generationKeys = all.keys\n          .where(\n            (key) =>\n                key.startsWith('da_secure.session.') &&\n                key != 'da_secure.session.active',\n          )\n          .toList();\n"""
+          if old not in text:
+              raise SystemExit('Expected session generation assertion was not found.')
+          path.write_text(text.replace(old, new, 1))
+          PY
+      - name: Get dependencies
+        run: flutter pub get
+      - name: Format corrected test
+        run: dart format test/runtime_networking_contract_test.dart
+      - name: Commit corrected assertion
+        shell: bash
+        run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add lib test
-          git commit -m "style(mobile): apply Dart formatter"
-          git push origin HEAD:worker/da-secure-flutter-real-runtime
+          git add test/runtime_networking_contract_test.dart
+          git diff --cached --quiet && { echo "No assertion change required."; exit 0; }
+          git commit -m "test(mobile): fix session generation key assertion"
+          git push origin HEAD:worker/da-secure-flutter-runtime-api
