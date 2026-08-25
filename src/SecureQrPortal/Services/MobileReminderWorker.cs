@@ -51,6 +51,11 @@ public sealed class MobileReminderProcessor(
                 .SetProperty(d => d.ConcurrencyStamp, Guid.NewGuid().ToString("N")), ct);
         if (claimed != 1) return false;
 
+        // ExecuteUpdate bypasses the change tracker and rotates the concurrency stamp.
+        // Drop any pre-existing tracked snapshot so all subsequent decisions use the
+        // authoritative state created by the database-backed lease claim.
+        db.ChangeTracker.Clear();
+
         try
         {
             var delivery = await LoadDeliveryAsync(deliveryId, ct);
