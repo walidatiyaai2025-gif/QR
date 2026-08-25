@@ -45,12 +45,18 @@ public sealed class DashboardMobileDeliveryMvcTests
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = true, HandleCookies = true });
 
         await client.GetAsync("/Localization/Switch?culture=en&returnUrl=%2FAdmin%2FMobileDelivery%2FHistory");
-        var english = await client.GetStringAsync("/Admin/MobileDelivery/History");
+        using var englishResponse = await client.GetAsync("/Admin/MobileDelivery/History");
+        var english = await englishResponse.Content.ReadAsStringAsync();
+        Assert.Equal(HttpStatusCode.OK, englishResponse.StatusCode);
+        Assert.Contains("<html lang=\"en\" dir=\"ltr\">", english, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("DA Secure Delivery History", english, StringComparison.Ordinal);
 
         await client.GetAsync("/Localization/Switch?culture=ar&returnUrl=%2FAdmin%2FMobileDelivery%2FHistory");
-        var arabic = await client.GetStringAsync("/Admin/MobileDelivery/History");
-        Assert.Contains("سجل إرسال DA Secure", arabic, StringComparison.Ordinal);
+        using var arabicResponse = await client.GetAsync("/Admin/MobileDelivery/History");
+        var arabic = await arabicResponse.Content.ReadAsStringAsync();
+        Assert.Equal(HttpStatusCode.OK, arabicResponse.StatusCode);
+        Assert.Contains("<html lang=\"ar\" dir=\"rtl\">", arabic, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("DA Secure", arabic, StringComparison.Ordinal);
     }
 
     private static WebApplicationFactory<Program> CreateFactory(bool authenticatedAdmin)
@@ -66,9 +72,9 @@ public sealed class DashboardMobileDeliveryMvcTests
                 {
                     services.AddAuthentication(options =>
                     {
-                        options.DefaultAuthenticateScheme = TestAdminAuthenticationHandler.Scheme;
-                        options.DefaultChallengeScheme = TestAdminAuthenticationHandler.Scheme;
-                    }).AddScheme<AuthenticationSchemeOptions, TestAdminAuthenticationHandler>(TestAdminAuthenticationHandler.Scheme, _ => { });
+                        options.DefaultAuthenticateScheme = TestAdminAuthenticationHandler.AuthenticationSchemeName;
+                        options.DefaultChallengeScheme = TestAdminAuthenticationHandler.AuthenticationSchemeName;
+                    }).AddScheme<AuthenticationSchemeOptions, TestAdminAuthenticationHandler>(TestAdminAuthenticationHandler.AuthenticationSchemeName, _ => { });
                 });
             }
         });
@@ -80,7 +86,7 @@ public sealed class DashboardMobileDeliveryMvcTests
         UrlEncoder encoder)
         : AuthenticationHandler<AuthenticationSchemeOptions>(options, logger, encoder)
     {
-        public const string Scheme = "DashboardMobileTestAdmin";
+        public const string AuthenticationSchemeName = "DashboardMobileTestAdmin";
 
         protected override Task<AuthenticateResult> HandleAuthenticateAsync()
         {
@@ -90,8 +96,8 @@ public sealed class DashboardMobileDeliveryMvcTests
                 new Claim(ClaimTypes.Name, "Dashboard Mobile Test Admin"),
                 new Claim(ClaimTypes.Role, "Administrator")
             };
-            var principal = new ClaimsPrincipal(new ClaimsIdentity(claims, Scheme));
-            return Task.FromResult(AuthenticateResult.Success(new AuthenticationTicket(principal, Scheme)));
+            var principal = new ClaimsPrincipal(new ClaimsIdentity(claims, AuthenticationSchemeName));
+            return Task.FromResult(AuthenticateResult.Success(new AuthenticationTicket(principal, AuthenticationSchemeName)));
         }
     }
 }
