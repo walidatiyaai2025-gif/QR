@@ -52,11 +52,7 @@ void main() {
 
   testWidgets('Arabic uses RTL and English uses LTR', (tester) async {
     await tester.pumpWidget(
-      const _TestHost(
-        width: 390,
-        locale: Locale('ar'),
-        child: InboxScreen(),
-      ),
+      const _TestHost(width: 390, locale: Locale('ar'), child: InboxScreen()),
     );
     expect(
       Directionality.of(tester.element(find.text('الوارد'))),
@@ -64,11 +60,7 @@ void main() {
     );
 
     await tester.pumpWidget(
-      const _TestHost(
-        width: 390,
-        locale: Locale('en'),
-        child: InboxScreen(),
-      ),
+      const _TestHost(width: 390, locale: Locale('en'), child: InboxScreen()),
     );
     expect(find.text('Inbox'), findsOneWidget);
     expect(
@@ -81,11 +73,7 @@ void main() {
     tester,
   ) async {
     await tester.pumpWidget(
-      const _TestHost(
-        width: 390,
-        locale: Locale('ar'),
-        child: InboxScreen(),
-      ),
+      const _TestHost(width: 390, locale: Locale('ar'), child: InboxScreen()),
     );
 
     expect(find.text('لا توجد رسائل آمنة حاليًا.'), findsOneWidget);

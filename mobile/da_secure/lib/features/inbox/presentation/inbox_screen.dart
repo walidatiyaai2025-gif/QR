@@ -58,18 +58,9 @@ class InboxScreen extends StatelessWidget {
       bottomNavigationBar: NavigationBar(
         selectedIndex: 1,
         destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.home_outlined),
-            label: '',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.inbox_outlined),
-            label: '',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.person_outline),
-            label: '',
-          ),
+          NavigationDestination(icon: Icon(Icons.home_outlined), label: ''),
+          NavigationDestination(icon: Icon(Icons.inbox_outlined), label: ''),
+          NavigationDestination(icon: Icon(Icons.person_outline), label: ''),
         ],
       ),
     );
@@ -139,10 +130,7 @@ class _CenteredState extends StatelessWidget {
             ),
             if (actionLabel != null && onAction != null) ...[
               const SizedBox(height: 14),
-              OutlinedButton(
-                onPressed: onAction,
-                child: Text(actionLabel!),
-              ),
+              OutlinedButton(onPressed: onAction, child: Text(actionLabel!)),
             ],
           ],
         ),

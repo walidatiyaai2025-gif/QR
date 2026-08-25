@@ -66,9 +66,8 @@ class SafePushPayload {
       return null;
     }
 
-    final category = (data['notificationCategory'] ?? data['category'])
-            ?.toString()
-            .trim() ??
+    final category =
+        (data['notificationCategory'] ?? data['category'])?.toString().trim() ??
         'secure_delivery';
     if (!_allowedCategories.contains(category)) {
       return null;
@@ -93,7 +92,7 @@ abstract interface class PushMessagingPort {
 
 class FlutterFireMessagingPort implements PushMessagingPort {
   FlutterFireMessagingPort([FirebaseMessaging? messaging])
-      : messaging = messaging ?? FirebaseMessaging.instance;
+    : messaging = messaging ?? FirebaseMessaging.instance;
 
   final FirebaseMessaging messaging;
 

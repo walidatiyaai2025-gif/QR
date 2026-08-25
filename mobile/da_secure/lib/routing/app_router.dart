@@ -15,7 +15,8 @@ final appRouter = GoRouter(
     final location = state.matchedLocation;
     final stage = appNavigationState.stage;
 
-    final isProtected = location == '/inbox' || location.startsWith('/delivery/');
+    final isProtected =
+        location == '/inbox' || location.startsWith('/delivery/');
     if (isProtected && !appNavigationState.isAuthenticated) {
       return '/auth/mobile';
     }
@@ -24,7 +25,8 @@ final appRouter = GoRouter(
       return '/auth/mobile';
     }
 
-    if (location == '/auth/biometric' && stage != MobileAuthStage.biometricOffer) {
+    if (location == '/auth/biometric' &&
+        stage != MobileAuthStage.biometricOffer) {
       return appNavigationState.isAuthenticated
           ? appNavigationState.postAuthenticationDestination()
           : '/auth/mobile';
@@ -37,37 +39,26 @@ final appRouter = GoRouter(
     return null;
   },
   routes: [
-    GoRoute(
-      path: '/',
-      builder: (_, __) => const SplashScreen(),
-    ),
+    GoRoute(path: '/', builder: (_, __) => const SplashScreen()),
     GoRoute(
       path: '/auth/mobile',
       builder: (_, __) => const MobileNumberScreen(),
     ),
-    GoRoute(
-      path: '/auth/otp',
-      builder: (_, __) => const OtpScreen(),
-    ),
+    GoRoute(path: '/auth/otp', builder: (_, __) => const OtpScreen()),
     GoRoute(
       path: '/auth/biometric',
       builder: (_, __) => const BiometricScreen(),
     ),
-    GoRoute(
-      path: '/inbox',
-      builder: (_, __) => const InboxScreen(),
-    ),
+    GoRoute(path: '/inbox', builder: (_, __) => const InboxScreen()),
     GoRoute(
       path: '/delivery/:id/login',
-      builder: (_, state) => SecureLoginScreen(
-        deliveryId: state.pathParameters['id']!,
-      ),
+      builder: (_, state) =>
+          SecureLoginScreen(deliveryId: state.pathParameters['id']!),
     ),
     GoRoute(
       path: '/delivery/:id/message',
-      builder: (_, state) => SecureMessageScreen(
-        deliveryId: state.pathParameters['id']!,
-      ),
+      builder: (_, state) =>
+          SecureMessageScreen(deliveryId: state.pathParameters['id']!),
     ),
   ],
 );

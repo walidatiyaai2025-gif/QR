@@ -1,16 +1,7 @@
-enum UiPhase {
-  idle,
-  loading,
-  empty,
-  success,
-  error,
-}
+enum UiPhase { idle, loading, empty, success, error }
 
 class MobileNumberUiState {
-  const MobileNumberUiState({
-    this.isSubmitting = false,
-    this.errorMessage,
-  });
+  const MobileNumberUiState({this.isSubmitting = false, this.errorMessage});
 
   final bool isSubmitting;
   final String? errorMessage;
@@ -29,10 +20,7 @@ class OtpUiState {
 }
 
 class BiometricUiState {
-  const BiometricUiState({
-    this.isBusy = false,
-    this.errorMessage,
-  });
+  const BiometricUiState({this.isBusy = false, this.errorMessage});
 
   final bool isBusy;
   final String? errorMessage;
@@ -91,10 +79,7 @@ class SecureLoginUiState {
 }
 
 class AttachmentUiModel {
-  const AttachmentUiModel({
-    required this.name,
-    this.sizeLabel,
-  });
+  const AttachmentUiModel({required this.name, this.sizeLabel});
 
   final String name;
   final String? sizeLabel;

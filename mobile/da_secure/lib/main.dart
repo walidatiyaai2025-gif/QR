@@ -25,10 +25,7 @@ class DaSecureApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       title: AppConfig.appName,
       theme: DaSecureTheme.light,
-      supportedLocales: const [
-        Locale('ar'),
-        Locale('en'),
-      ],
+      supportedLocales: const [Locale('ar'), Locale('en')],
       localizationsDelegates: GlobalMaterialLocalizations.delegates,
       localeResolutionCallback: (deviceLocale, supportedLocales) {
         if (deviceLocale?.languageCode == 'en') {

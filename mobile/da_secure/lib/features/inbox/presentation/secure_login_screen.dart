@@ -3,11 +3,8 @@ import 'package:da_secure/localization/da_strings.dart';
 import 'package:da_secure/presentation/mobile_ui_contracts.dart';
 import 'package:flutter/material.dart';
 
-typedef SecureLoginCallback = Future<void> Function(
-  String deliveryId,
-  String username,
-  String password,
-);
+typedef SecureLoginCallback =
+    Future<void> Function(String deliveryId, String username, String password);
 
 class SecureLoginScreen extends StatefulWidget {
   const SecureLoginScreen({
@@ -42,9 +39,9 @@ class _SecureLoginScreenState extends State<SecureLoginScreen> {
     final strings = DaStrings.of(context);
 
     if (callback == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(strings.serviceUnavailable)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(strings.serviceUnavailable)));
       return;
     }
 
@@ -80,10 +77,7 @@ class _SecureLoginScreenState extends State<SecureLoginScreen> {
             ],
             Text(
               strings.fixedMessageHeading,
-              style: const TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.w700,
-              ),
+              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
             ),
             const SizedBox(height: 20),
             if (terminalMessage != null)
@@ -127,8 +121,8 @@ class _SecureLoginScreenState extends State<SecureLoginScreen> {
               FilledButton(
                 onPressed:
                     widget.state.phase == SecureDeliveryUiPhase.submitting
-                        ? null
-                        : _submit,
+                    ? null
+                    : _submit,
                 child: widget.state.phase == SecureDeliveryUiPhase.submitting
                     ? const SizedBox.square(
                         dimension: 22,

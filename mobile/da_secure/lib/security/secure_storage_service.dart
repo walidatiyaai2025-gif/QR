@@ -64,7 +64,8 @@ class SecureStorageService implements MobileSessionStorage {
   }
 
   @override
-  Future<String?> readPendingFcmToken() => storage.read(key: pendingFcmTokenKey);
+  Future<String?> readPendingFcmToken() =>
+      storage.read(key: pendingFcmTokenKey);
 
   @override
   Future<void> writePendingFcmToken(String token) async {
@@ -77,5 +78,6 @@ class SecureStorageService implements MobileSessionStorage {
   }
 
   @override
-  Future<void> clearPendingFcmToken() => storage.delete(key: pendingFcmTokenKey);
+  Future<void> clearPendingFcmToken() =>
+      storage.delete(key: pendingFcmTokenKey);
 }

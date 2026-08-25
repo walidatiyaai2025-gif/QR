@@ -21,9 +21,7 @@ class SecureMessageScreen extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(title: Text(strings.secureMessage)),
-      body: SafeArea(
-        child: _buildBody(context, strings),
-      ),
+      body: SafeArea(child: _buildBody(context, strings)),
     );
   }
 
@@ -67,10 +65,7 @@ class SecureMessageScreen extends StatelessWidget {
             ],
             Text(
               strings.fixedMessageHeading,
-              style: const TextStyle(
-                fontSize: 21,
-                fontWeight: FontWeight.w700,
-              ),
+              style: const TextStyle(fontSize: 21, fontWeight: FontWeight.w700),
             ),
             if (state.remainingRevealsLabel != null ||
                 state.expiryLabel != null) ...[
@@ -133,11 +128,7 @@ class SecureMessageScreen extends StatelessWidget {
 }
 
 class _StatusBody extends StatelessWidget {
-  const _StatusBody({
-    required this.message,
-    this.actionLabel,
-    this.onAction,
-  });
+  const _StatusBody({required this.message, this.actionLabel, this.onAction});
 
   final String message;
   final String? actionLabel;
@@ -160,10 +151,7 @@ class _StatusBody extends StatelessWidget {
               ),
               if (actionLabel != null && onAction != null) ...[
                 const SizedBox(height: 14),
-                OutlinedButton(
-                  onPressed: onAction,
-                  child: Text(actionLabel!),
-                ),
+                OutlinedButton(onPressed: onAction, child: Text(actionLabel!)),
               ],
             ],
           ),

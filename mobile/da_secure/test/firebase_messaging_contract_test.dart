@@ -139,35 +139,38 @@ void main() {
     await messaging.dispose();
   });
 
-  test('terminated-state initial message resumes through auth boundary', () async {
-    final messaging = FakeMessagingPort()
-      ..initialMessage = <String, dynamic>{
-        'deliveryId': '99',
-        'category': 'delivery',
-        'version': '1',
-      };
-    final state = AppNavigationState();
-    final destinations = <String>[];
-    final coordinator = FcmMessagingCoordinator(
-      messaging: messaging,
-      registrar: FcmDeviceRegistrar(
-        storage: FakeStorage(),
-        gateway: FakeGateway(),
-        random: Random(11),
-      ),
-      navigation: PushNavigationCoordinator(
-        navigationState: state,
-        navigate: destinations.add,
-      ),
-    );
+  test(
+    'terminated-state initial message resumes through auth boundary',
+    () async {
+      final messaging = FakeMessagingPort()
+        ..initialMessage = <String, dynamic>{
+          'deliveryId': '99',
+          'category': 'delivery',
+          'version': '1',
+        };
+      final state = AppNavigationState();
+      final destinations = <String>[];
+      final coordinator = FcmMessagingCoordinator(
+        messaging: messaging,
+        registrar: FcmDeviceRegistrar(
+          storage: FakeStorage(),
+          gateway: FakeGateway(),
+          random: Random(11),
+        ),
+        navigation: PushNavigationCoordinator(
+          navigationState: state,
+          navigate: destinations.add,
+        ),
+      );
 
-    await coordinator.start();
+      await coordinator.start();
 
-    expect(destinations, <String>['/auth/mobile']);
-    expect(state.pendingDeliveryId, '99');
-    await coordinator.dispose();
-    await messaging.dispose();
-  });
+      expect(destinations, <String>['/auth/mobile']);
+      expect(state.pendingDeliveryId, '99');
+      await coordinator.dispose();
+      await messaging.dispose();
+    },
+  );
 }
 
 class RegistrationCall {
