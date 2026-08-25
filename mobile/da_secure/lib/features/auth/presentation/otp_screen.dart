@@ -37,17 +37,15 @@ class _OtpScreenState extends State<OtpScreen> {
     final otp = _otpController.text.trim();
 
     if (otp.length != 6) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(strings.otpPrompt)));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(strings.otpPrompt)));
       return;
     }
 
     final callback = widget.onVerify;
     if (callback == null) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(strings.serviceUnavailable)));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(strings.serviceUnavailable)));
       return;
     }
 

@@ -49,6 +49,7 @@ class AppFailure implements Exception {
   factory AppFailure.fromDio(DioException error) {
     switch (error.type) {
       case DioExceptionType.connectionTimeout:
+      case DioExceptionType.transformTimeout:
       case DioExceptionType.sendTimeout:
       case DioExceptionType.receiveTimeout:
         return const AppFailure(
