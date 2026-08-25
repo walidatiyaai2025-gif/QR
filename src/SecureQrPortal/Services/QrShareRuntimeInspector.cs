@@ -32,6 +32,7 @@ public sealed class QrShareRuntimeInspector(IWebHostEnvironment environment)
         var snapshot = string.Join(" | ", new[]
         {
             $"utc={now:O}",
+            $"pid={Environment.ProcessId}",
             $"trace={Clean(context.TraceIdentifier, 80)}",
             $"stage={Clean(stage, 80)}",
             $"method={context.Request.Method}",
@@ -55,24 +56,30 @@ public sealed class QrShareRuntimeInspector(IWebHostEnvironment environment)
         await Gate.WaitAsync(ct);
         try
         {
-            var directory = Path.GetDirectoryName(LogFilePath)!;
-            Directory.CreateDirectory(directory);
-
-            if (File.Exists(LogFilePath) && new FileInfo(LogFilePath).Length >= MaxLogBytes)
+            try
             {
-                var archived = Path.Combine(directory, "qr-share-runtime-inspector.previous.txt");
-                if (File.Exists(archived)) File.Delete(archived);
-                File.Move(LogFilePath, archived);
-            }
+                var directory = Path.GetDirectoryName(LogFilePath)!;
+                Directory.CreateDirectory(directory);
 
-            await File.AppendAllTextAsync(LogFilePath, snapshot + Environment.NewLine, Encoding.UTF8, ct);
+                if (File.Exists(LogFilePath) && new FileInfo(LogFilePath).Length >= MaxLogBytes)
+                {
+                    var archived = Path.Combine(directory, "qr-share-runtime-inspector.previous.txt");
+                    if (File.Exists(archived)) File.Delete(archived);
+                    File.Move(LogFilePath, archived);
+                }
+
+                await File.AppendAllTextAsync(LogFilePath, snapshot + Environment.NewLine, Encoding.UTF8, ct);
+                return snapshot + " | logWrite=OK";
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)
+            {
+                return snapshot + $" | logWrite=FAILED:{ex.GetType().Name}";
+            }
         }
         finally
         {
             Gate.Release();
         }
-
-        return snapshot;
     }
 
     private static string Fingerprint(string? value)
