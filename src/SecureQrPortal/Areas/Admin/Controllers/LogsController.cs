@@ -22,7 +22,7 @@ public sealed class LogsController(ApplicationDbContext db) : Controller
             Items = await query.OrderByDescending(x => x.TimestampUtc).Skip((page - 1) * 50).Take(50).ToListAsync(ct)
         };
         ViewBag.Organizations = await db.Organizations.AsNoTracking().OrderBy(x => x.NameEnglish).ToListAsync(ct);
-        ViewBag.Pages = await db.SecurePages.AsNoTracking().OrderBy(x => x.QrReference).Select(x => new { x.Id, x.QrReference, x.TitleEnglish }).ToListAsync(ct);
+        ViewBag.Pages = await db.SecurePages.AsNoTracking().OrderBy(x => x.QrReference).Select(x => new { x.Id, x.QrReference, x.TitleArabic, x.TitleEnglish }).ToListAsync(ct);
         return View(vm);
     }
 
