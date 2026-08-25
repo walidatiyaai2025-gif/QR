@@ -4,6 +4,7 @@
     var ar = CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "ar";
     ViewData["Title"] = ar ? "رابط مشاركة آمن" : "Secure share link";
     var remaining = Math.Max(0, Model.Share.MaxOpenCount - Model.Share.CurrentOpenCount);
+    var revealRequestId = (string?)ViewBag.RevealRequestId ?? Guid.NewGuid().ToString("N");
 }
 <section class="public-center share-shell">
     <div class="premium-card share-card">
@@ -28,9 +29,10 @@
         {
             <form id="revealCredentialsForm" method="post" action="@Context.Request.Path/reveal">
                 @Html.AntiForgeryToken()
+                <input type="hidden" name="revealRequestId" value="@revealRequestId" />
                 <button id="revealCredentialsButton" class="btn primary block" type="submit">@(ar ? "إظهار بيانات الدخول الآن" : "Reveal credentials now")</button>
             </form>
-            <p class="share-hint">@(ar ? "لا يتم احتساب زيارة هذه الصفحة وحدها. يتم احتساب الفتح عند الضغط على زر إظهار بيانات الدخول، لحماية الرابط من فاحصات الروابط التلقائية." : "Simply visiting this landing page does not consume an opening. The opening is consumed only when you reveal credentials, protecting the link from automated link scanners.")</p>
+            <p class="share-hint">@(ar ? "لا يتم احتساب زيارة هذه الصفحة وحدها. يتم احتساب الفتح عند الضغط على زر إظهار بيانات الدخول، وأي إعادة إرسال لنفس الطلب لا تُحتسب مرة ثانية." : "Simply visiting this landing page does not consume an opening. The opening is consumed only when you reveal credentials, and an automatic retry of the same request is not counted twice.")</p>
         }
         else
         {
