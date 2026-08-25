@@ -5,10 +5,11 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 
 typedef DeliveryPushCallback = Future<void> Function(String deliveryId);
 typedef ForegroundDeliveryCallback = Future<void> Function();
-typedef RegisterDeviceCallback = Future<void> Function({
-  required String fcmToken,
-  required bool pushEnabled,
-});
+typedef RegisterDeviceCallback =
+    Future<void> Function({
+      required String fcmToken,
+      required bool pushEnabled,
+    });
 
 enum MobilePushAuthorization { denied, authorized, provisional }
 

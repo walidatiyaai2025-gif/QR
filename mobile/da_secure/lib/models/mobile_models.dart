@@ -220,11 +220,7 @@ class DeliveryDetails {
 
   factory DeliveryDetails.fromJson(Map<String, dynamic> json) =>
       DeliveryDetails(
-        deliveryId: _requiredInt(
-          json['deliveryId'],
-          'deliveryId',
-          minimum: 1,
-        ),
+        deliveryId: _requiredInt(json['deliveryId'], 'deliveryId', minimum: 1),
         sentAtUtc: _optionalDate(json['sentAtUtc'], 'sentAtUtc'),
         expiresAtUtc: _optionalDate(json['expiresAtUtc'], 'expiresAtUtc'),
         firstRevealedAtUtc: _optionalDate(

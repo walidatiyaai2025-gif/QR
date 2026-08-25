@@ -27,17 +27,21 @@ void main() {
     await harness.dispose();
   });
 
-  test('notification permission denial keeps application registration truthful', () async {
-    final harness = _Harness(authenticated: true);
-    harness.port.authorization = MobilePushAuthorization.denied;
-    harness.port.token = 'fcm-token-1';
+  test(
+    'notification permission denial keeps application registration truthful',
+    () async {
+      final harness = _Harness(authenticated: true);
+      harness.port.authorization = MobilePushAuthorization.denied;
+      harness.port.token = 'fcm-token-1';
 
-    final registered = await harness.coordinator.registerAuthenticatedDevice();
+      final registered = await harness.coordinator
+          .registerAuthenticatedDevice();
 
-    expect(registered, isTrue);
-    expect(harness.registrations.single['pushEnabled'], isFalse);
-    await harness.dispose();
-  });
+      expect(registered, isTrue);
+      expect(harness.registrations.single['pushEnabled'], isFalse);
+      await harness.dispose();
+    },
+  );
 
   test('notification permission is not repeatedly requested', () async {
     final harness = _Harness(authenticated: true);
@@ -119,19 +123,22 @@ void main() {
     await harness.dispose();
   });
 
-  test('terminated notification launch resumes through the same delivery callback', () async {
-    final harness = _Harness(authenticated: false);
-    harness.port.initialData = <String, dynamic>{
-      'notificationCategory': 'secure_delivery',
-      'version': 1,
-      'deliveryId': 77,
-    };
+  test(
+    'terminated notification launch resumes through the same delivery callback',
+    () async {
+      final harness = _Harness(authenticated: false);
+      harness.port.initialData = <String, dynamic>{
+        'notificationCategory': 'secure_delivery',
+        'version': 1,
+        'deliveryId': 77,
+      };
 
-    await harness.coordinator.start();
+      await harness.coordinator.start();
 
-    expect(harness.openedDeliveries, ['77']);
-    await harness.dispose();
-  });
+      expect(harness.openedDeliveries, ['77']);
+      await harness.dispose();
+    },
+  );
 
   test('missing or invalid delivery id is ignored safely', () async {
     final harness = _Harness(authenticated: true);
@@ -177,38 +184,44 @@ void main() {
     await harness.dispose();
   });
 
-  test('authenticated foreground push refreshes inbox without revealing content', () async {
-    final harness = _Harness(authenticated: true);
-    await harness.coordinator.start();
+  test(
+    'authenticated foreground push refreshes inbox without revealing content',
+    () async {
+      final harness = _Harness(authenticated: true);
+      await harness.coordinator.start();
 
-    harness.port.foregroundController.add(<String, dynamic>{
-      'notificationCategory': 'secure_delivery',
-      'version': '1',
-      'deliveryId': '42',
-      'contentArabicHtml': '<p>must stay ignored</p>',
-      'attachment': 'must stay ignored',
-    });
-    await _flushEvents();
+      harness.port.foregroundController.add(<String, dynamic>{
+        'notificationCategory': 'secure_delivery',
+        'version': '1',
+        'deliveryId': '42',
+        'contentArabicHtml': '<p>must stay ignored</p>',
+        'attachment': 'must stay ignored',
+      });
+      await _flushEvents();
 
-    expect(harness.foregroundRefreshes, 1);
-    expect(harness.openedDeliveries, isEmpty);
-    await harness.dispose();
-  });
+      expect(harness.foregroundRefreshes, 1);
+      expect(harness.openedDeliveries, isEmpty);
+      await harness.dispose();
+    },
+  );
 
-  test('unauthenticated foreground push cannot refresh protected inbox', () async {
-    final harness = _Harness(authenticated: false);
-    await harness.coordinator.start();
+  test(
+    'unauthenticated foreground push cannot refresh protected inbox',
+    () async {
+      final harness = _Harness(authenticated: false);
+      await harness.coordinator.start();
 
-    harness.port.foregroundController.add(<String, dynamic>{
-      'notificationCategory': 'secure_delivery',
-      'version': '1',
-      'deliveryId': '42',
-    });
-    await _flushEvents();
+      harness.port.foregroundController.add(<String, dynamic>{
+        'notificationCategory': 'secure_delivery',
+        'version': '1',
+        'deliveryId': '42',
+      });
+      await _flushEvents();
 
-    expect(harness.foregroundRefreshes, 0);
-    await harness.dispose();
-  });
+      expect(harness.foregroundRefreshes, 0);
+      await harness.dispose();
+    },
+  );
 
   test('payload validator accepts only positive secure-delivery ids', () {
     expect(
@@ -270,7 +283,8 @@ class _Harness {
 
 class _FakeMessagingPort implements MobileMessagingPort {
   final openedController = StreamController<Map<String, dynamic>>.broadcast();
-  final foregroundController = StreamController<Map<String, dynamic>>.broadcast();
+  final foregroundController =
+      StreamController<Map<String, dynamic>>.broadcast();
   final tokenRefreshController = StreamController<String>.broadcast();
 
   MobilePushAuthorization authorization = MobilePushAuthorization.denied;

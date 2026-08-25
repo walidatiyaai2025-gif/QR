@@ -222,36 +222,39 @@ void main() {
       expect(requests.single.path, '/api/mobile/auth/verify-otp');
       expect(requests.single.headers['Authorization'], isNull);
       expect(session.accessToken, 'access-old');
-      expect((await fixture.storage.readSession())?.refreshToken, 'refresh-old');
+      expect(
+        (await fixture.storage.readSession())?.refreshToken,
+        'refresh-old',
+      );
     });
 
-    test('OTP server failure does not create an authenticated session', () async {
-      final fixture = _fixture(
-        mainHandler: (_) => _jsonResponse(
-          <String, Object?>{
+    test(
+      'OTP server failure does not create an authenticated session',
+      () async {
+        final fixture = _fixture(
+          mainHandler: (_) => _jsonResponse(<String, Object?>{
             'code': 'INVALID_OTP',
             'messageArabic': 'رمز التحقق غير صحيح أو غير صالح.',
             'messageEnglish': 'The verification code is invalid.',
-          },
-          statusCode: 400,
-        ),
-      );
-      final auth = AuthRepository(
-        client: fixture.client,
-        storage: fixture.storage,
-      );
-      await expectLater(
-        auth.verifyOtp(challengeId: 'challenge-1', otp: '123456'),
-        throwsA(
-          isA<AppFailure>().having(
-            (failure) => failure.code,
-            'code',
-            'INVALID_OTP',
+          }, statusCode: 400),
+        );
+        final auth = AuthRepository(
+          client: fixture.client,
+          storage: fixture.storage,
+        );
+        await expectLater(
+          auth.verifyOtp(challengeId: 'challenge-1', otp: '123456'),
+          throwsA(
+            isA<AppFailure>().having(
+              (failure) => failure.code,
+              'code',
+              'INVALID_OTP',
+            ),
           ),
-        ),
-      );
-      expect(await fixture.storage.readSession(), isNull);
-    });
+        );
+        expect(await fixture.storage.readSession(), isNull);
+      },
+    );
 
     test('/me drives authoritative organization identity', () async {
       final fixture = _fixture(
@@ -269,24 +272,27 @@ void main() {
       expect(user.organization.nameEnglish, 'Authority 99');
     });
 
-    test('logout clears local session even when server revocation is offline', () async {
-      final fixture = _fixture(
-        mainHandler: (request) => throw DioException(
-          requestOptions: request,
-          type: DioExceptionType.connectionError,
-          error: StateError('offline'),
-        ),
-      );
-      await fixture.storage.writeSession(_session());
-      final auth = AuthRepository(
-        client: fixture.client,
-        storage: fixture.storage,
-      );
+    test(
+      'logout clears local session even when server revocation is offline',
+      () async {
+        final fixture = _fixture(
+          mainHandler: (request) => throw DioException(
+            requestOptions: request,
+            type: DioExceptionType.connectionError,
+            error: StateError('offline'),
+          ),
+        );
+        await fixture.storage.writeSession(_session());
+        final auth = AuthRepository(
+          client: fixture.client,
+          storage: fixture.storage,
+        );
 
-      await auth.logout();
+        await auth.logout();
 
-      expect(await fixture.storage.readSession(), isNull);
-    });
+        expect(await fixture.storage.readSession(), isNull);
+      },
+    );
   });
 
   group('bearer and refresh lifecycle', () {
@@ -305,24 +311,27 @@ void main() {
       expect(captured.headers['Authorization'], 'Bearer access-old');
     });
 
-    test('public API call does not attach a stored bearer credential', () async {
-      late RequestOptions captured;
-      final fixture = _fixture(
-        mainHandler: (request) {
-          captured = request;
-          return _jsonResponse(_otpChallengeJson());
-        },
-      );
-      await fixture.storage.writeSession(_session());
+    test(
+      'public API call does not attach a stored bearer credential',
+      () async {
+        late RequestOptions captured;
+        final fixture = _fixture(
+          mainHandler: (request) {
+            captured = request;
+            return _jsonResponse(_otpChallengeJson());
+          },
+        );
+        await fixture.storage.writeSession(_session());
 
-      await fixture.client.post(
-        '/api/mobile/auth/request-otp',
-        data: const <String, String>{'mobileNumber': '+96550000001'},
-        skipAuth: true,
-      );
+        await fixture.client.post(
+          '/api/mobile/auth/request-otp',
+          data: const <String, String>{'mobileNumber': '+96550000001'},
+          skipAuth: true,
+        );
 
-      expect(captured.headers['Authorization'], isNull);
-    });
+        expect(captured.headers['Authorization'], isNull);
+      },
+    );
 
     test('401 performs refresh then retries original request once', () async {
       var originalCalls = 0;
@@ -333,14 +342,11 @@ void main() {
           if (request.headers['Authorization'] == 'Bearer access-new') {
             return _jsonResponse(_currentUserJson());
           }
-          return _jsonResponse(
-            const <String, Object?>{
-              'code': 'SESSION_EXPIRED',
-              'messageArabic': 'الجلسة غير صالحة.',
-              'messageEnglish': 'The mobile session is invalid.',
-            },
-            statusCode: 401,
-          );
+          return _jsonResponse(const <String, Object?>{
+            'code': 'SESSION_EXPIRED',
+            'messageArabic': 'الجلسة غير صالحة.',
+            'messageEnglish': 'The mobile session is invalid.',
+          }, statusCode: 401);
         },
         refreshHandler: (request) async {
           refreshCalls++;
@@ -357,159 +363,176 @@ void main() {
       expect(refreshCalls, 1);
       expect(originalCalls, 2);
       expect((await fixture.storage.readSession())?.accessToken, 'access-new');
-      expect((await fixture.storage.readSession())?.refreshToken, 'refresh-new');
+      expect(
+        (await fixture.storage.readSession())?.refreshToken,
+        'refresh-new',
+      );
     });
 
-    test('simultaneous authorization failures use one refresh flight', () async {
-      var refreshCalls = 0;
-      final fixture = _fixture(
-        mainHandler: (request) {
-          if (request.headers['Authorization'] == 'Bearer access-new') {
-            return _jsonResponse(const <String, Object?>{'ok': true});
-          }
-          return _jsonResponse(
-            const <String, Object?>{'code': 'SESSION_EXPIRED'},
-            statusCode: 401,
-          );
-        },
-        refreshHandler: (_) async {
-          refreshCalls++;
-          await Future<void>.delayed(const Duration(milliseconds: 25));
-          return _jsonResponse(
-            _sessionJson(access: 'access-new', refresh: 'refresh-new'),
-          );
-        },
-      );
-      await fixture.storage.writeSession(_session());
+    test(
+      'simultaneous authorization failures use one refresh flight',
+      () async {
+        var refreshCalls = 0;
+        final fixture = _fixture(
+          mainHandler: (request) {
+            if (request.headers['Authorization'] == 'Bearer access-new') {
+              return _jsonResponse(const <String, Object?>{'ok': true});
+            }
+            return _jsonResponse(const <String, Object?>{
+              'code': 'SESSION_EXPIRED',
+            }, statusCode: 401);
+          },
+          refreshHandler: (_) async {
+            refreshCalls++;
+            await Future<void>.delayed(const Duration(milliseconds: 25));
+            return _jsonResponse(
+              _sessionJson(access: 'access-new', refresh: 'refresh-new'),
+            );
+          },
+        );
+        await fixture.storage.writeSession(_session());
 
-      final results = await Future.wait([
-        fixture.client.get('/api/mobile/me'),
-        fixture.client.get('/api/mobile/inbox'),
-        fixture.client.get('/api/mobile/me'),
-      ]);
+        final results = await Future.wait([
+          fixture.client.get('/api/mobile/me'),
+          fixture.client.get('/api/mobile/inbox'),
+          fixture.client.get('/api/mobile/me'),
+        ]);
 
-      expect(results.every((response) => response.statusCode == 200), isTrue);
-      expect(refreshCalls, 1);
-    });
+        expect(results.every((response) => response.statusCode == 200), isTrue);
+        expect(refreshCalls, 1);
+      },
+    );
 
-    test('failed refresh clears session and invokes invalidation once', () async {
-      var invalidations = 0;
-      final fixture = _fixture(
-        mainHandler: (_) => _jsonResponse(
-          const <String, Object?>{'code': 'SESSION_EXPIRED'},
-          statusCode: 401,
-        ),
-        refreshHandler: (_) => _jsonResponse(
-          const <String, Object?>{'code': 'SESSION_EXPIRED'},
-          statusCode: 401,
-        ),
-      );
-      fixture.client.onSessionInvalidated = () => invalidations++;
-      await fixture.storage.writeSession(_session());
+    test(
+      'failed refresh clears session and invokes invalidation once',
+      () async {
+        var invalidations = 0;
+        final fixture = _fixture(
+          mainHandler: (_) => _jsonResponse(const <String, Object?>{
+            'code': 'SESSION_EXPIRED',
+          }, statusCode: 401),
+          refreshHandler: (_) => _jsonResponse(const <String, Object?>{
+            'code': 'SESSION_EXPIRED',
+          }, statusCode: 401),
+        );
+        fixture.client.onSessionInvalidated = () => invalidations++;
+        await fixture.storage.writeSession(_session());
 
-      await expectLater(
-        fixture.client.get('/api/mobile/me'),
-        throwsA(isA<DioException>()),
-      );
+        await expectLater(
+          fixture.client.get('/api/mobile/me'),
+          throwsA(isA<DioException>()),
+        );
 
-      expect(await fixture.storage.readSession(), isNull);
-      expect(invalidations, 1);
-    });
+        expect(await fixture.storage.readSession(), isNull);
+        expect(invalidations, 1);
+      },
+    );
 
-    test('malformed refresh response invalidates instead of rolling back tokens', () async {
-      final fixture = _fixture(
-        refreshHandler: (_) => _jsonResponse(
-          const <String, Object?>{'accessToken': 'missing-critical-fields'},
-        ),
-      );
-      await fixture.storage.writeSession(_session());
+    test(
+      'malformed refresh response invalidates instead of rolling back tokens',
+      () async {
+        final fixture = _fixture(
+          refreshHandler: (_) => _jsonResponse(const <String, Object?>{
+            'accessToken': 'missing-critical-fields',
+          }),
+        );
+        await fixture.storage.writeSession(_session());
 
-      final refreshed = await fixture.client.refreshSession();
+        final refreshed = await fixture.client.refreshSession();
 
-      expect(refreshed, isNull);
-      expect(await fixture.storage.readSession(), isNull);
-    });
+        expect(refreshed, isNull);
+        expect(await fixture.storage.readSession(), isNull);
+      },
+    );
 
-    test('refresh endpoint itself never enters recursive refresh loop', () async {
-      var refreshCalls = 0;
-      final fixture = _fixture(
-        refreshHandler: (_) {
-          refreshCalls++;
-          return _jsonResponse(
-            const <String, Object?>{'code': 'SESSION_EXPIRED'},
-            statusCode: 401,
-          );
-        },
-      );
-      await fixture.storage.writeSession(_session());
+    test(
+      'refresh endpoint itself never enters recursive refresh loop',
+      () async {
+        var refreshCalls = 0;
+        final fixture = _fixture(
+          refreshHandler: (_) {
+            refreshCalls++;
+            return _jsonResponse(const <String, Object?>{
+              'code': 'SESSION_EXPIRED',
+            }, statusCode: 401);
+          },
+        );
+        await fixture.storage.writeSession(_session());
 
-      expect(await fixture.client.refreshSession(), isNull);
-      expect(refreshCalls, 1);
-    });
+        expect(await fixture.client.refreshSession(), isNull);
+        expect(refreshCalls, 1);
+      },
+    );
   });
 
   group('device registration', () {
-    test('authenticated device registration uses exact server contract', () async {
-      late RequestOptions captured;
-      final fixture = _fixture(
-        mainHandler: (request) {
-          captured = request;
-          return _jsonResponse(const <String, Object?>{
-            'code': 'DEVICE_REGISTERED',
-            'deviceId': 12,
-            'pushEnabled': true,
-          });
-        },
-      );
-      await fixture.storage.writeSession(_session());
-      final devices = DeviceRepository(
-        client: fixture.client,
-        storage: fixture.storage,
-      );
+    test(
+      'authenticated device registration uses exact server contract',
+      () async {
+        late RequestOptions captured;
+        final fixture = _fixture(
+          mainHandler: (request) {
+            captured = request;
+            return _jsonResponse(const <String, Object?>{
+              'code': 'DEVICE_REGISTERED',
+              'deviceId': 12,
+              'pushEnabled': true,
+            });
+          },
+        );
+        await fixture.storage.writeSession(_session());
+        final devices = DeviceRepository(
+          client: fixture.client,
+          storage: fixture.storage,
+        );
 
-      final result = await devices.register(
-        fcmToken: 'fcm-test-token',
-        pushEnabled: true,
-      );
+        final result = await devices.register(
+          fcmToken: 'fcm-test-token',
+          pushEnabled: true,
+        );
 
-      expect(captured.path, '/api/mobile/devices/register');
-      expect(captured.headers['Authorization'], 'Bearer access-old');
-      final body = captured.data as Map<String, dynamic>;
-      expect(body['fcmToken'], 'fcm-test-token');
-      expect(body['platform'], 'android');
-      expect(body['appVersion'], isNotEmpty);
-      expect(body['deviceId'], isNotEmpty);
-      expect(body.containsKey('organizationId'), isFalse);
-      expect(result.deviceDatabaseId, 12);
-      expect(result.pushEnabled, isTrue);
-    });
+        expect(captured.path, '/api/mobile/devices/register');
+        expect(captured.headers['Authorization'], 'Bearer access-old');
+        final body = captured.data as Map<String, dynamic>;
+        expect(body['fcmToken'], 'fcm-test-token');
+        expect(body['platform'], 'android');
+        expect(body['appVersion'], isNotEmpty);
+        expect(body['deviceId'], isNotEmpty);
+        expect(body.containsKey('organizationId'), isFalse);
+        expect(result.deviceDatabaseId, 12);
+        expect(result.pushEnabled, isTrue);
+      },
+    );
 
-    test('permission denial can be represented truthfully by pushEnabled false', () async {
-      late RequestOptions captured;
-      final fixture = _fixture(
-        mainHandler: (request) {
-          captured = request;
-          return _jsonResponse(const <String, Object?>{
-            'code': 'DEVICE_REGISTERED',
-            'deviceId': 13,
-            'pushEnabled': false,
-          });
-        },
-      );
-      await fixture.storage.writeSession(_session());
-      final devices = DeviceRepository(
-        client: fixture.client,
-        storage: fixture.storage,
-      );
+    test(
+      'permission denial can be represented truthfully by pushEnabled false',
+      () async {
+        late RequestOptions captured;
+        final fixture = _fixture(
+          mainHandler: (request) {
+            captured = request;
+            return _jsonResponse(const <String, Object?>{
+              'code': 'DEVICE_REGISTERED',
+              'deviceId': 13,
+              'pushEnabled': false,
+            });
+          },
+        );
+        await fixture.storage.writeSession(_session());
+        final devices = DeviceRepository(
+          client: fixture.client,
+          storage: fixture.storage,
+        );
 
-      final result = await devices.register(
-        fcmToken: 'fcm-test-token',
-        pushEnabled: false,
-      );
+        final result = await devices.register(
+          fcmToken: 'fcm-test-token',
+          pushEnabled: false,
+        );
 
-      expect((captured.data as Map<String, dynamic>)['pushEnabled'], isFalse);
-      expect(result.pushEnabled, isFalse);
-    });
+        expect((captured.data as Map<String, dynamic>)['pushEnabled'], isFalse);
+        expect(result.pushEnabled, isFalse);
+      },
+    );
 
     test('empty FCM token never reaches the registration endpoint', () async {
       var calls = 0;
@@ -611,118 +634,122 @@ void main() {
       expect(details.status, 'EXPIRED');
     });
 
-    test('wrong secure credentials map safely and do not call reveal', () async {
-      var revealCalls = 0;
-      final fixture = _fixture(
-        mainHandler: (request) {
-          if (request.path.endsWith('/reveal')) revealCalls++;
-          return _jsonResponse(
-            const <String, Object?>{
+    test(
+      'wrong secure credentials map safely and do not call reveal',
+      () async {
+        var revealCalls = 0;
+        final fixture = _fixture(
+          mainHandler: (request) {
+            if (request.path.endsWith('/reveal')) revealCalls++;
+            return _jsonResponse(const <String, Object?>{
               'code': 'INVALID_SECURE_CREDENTIALS',
               'messageArabic': 'بيانات الاعتماد غير صحيحة.',
               'messageEnglish': 'The credentials are invalid.',
-            },
-            statusCode: 403,
-          );
-        },
-      );
-      final inbox = InboxRepository(fixture.client);
+            }, statusCode: 403);
+          },
+        );
+        final inbox = InboxRepository(fixture.client);
 
-      await expectLater(
-        inbox.authenticate(
+        await expectLater(
+          inbox.authenticate(
+            deliveryId: 42,
+            username: 'test-user',
+            password: 'test-password',
+          ),
+          throwsA(
+            isA<AppFailure>().having(
+              (failure) => failure.kind,
+              'kind',
+              AppFailureKind.invalidCredentials,
+            ),
+          ),
+        );
+        expect(revealCalls, 0);
+      },
+    );
+
+    test(
+      'secure authenticate sends credentials only to authenticate endpoint',
+      () async {
+        late RequestOptions captured;
+        final fixture = _fixture(
+          mainHandler: (request) {
+            captured = request;
+            return _jsonResponse(<String, Object?>{
+              'code': 'SECURE_AUTHENTICATED',
+              'revealToken': 'one-time-reveal-grant',
+              'revealExpiresAtUtc': _future(5),
+            });
+          },
+        );
+        final grant = await InboxRepository(fixture.client).authenticate(
           deliveryId: 42,
           username: 'test-user',
           password: 'test-password',
-        ),
-        throwsA(
-          isA<AppFailure>().having(
-            (failure) => failure.kind,
-            'kind',
-            AppFailureKind.invalidCredentials,
-          ),
-        ),
-      );
-      expect(revealCalls, 0);
-    });
+        );
 
-    test('secure authenticate sends credentials only to authenticate endpoint', () async {
-      late RequestOptions captured;
-      final fixture = _fixture(
-        mainHandler: (request) {
-          captured = request;
-          return _jsonResponse(<String, Object?>{
-            'code': 'SECURE_AUTHENTICATED',
-            'revealToken': 'one-time-reveal-grant',
-            'revealExpiresAtUtc': _future(5),
-          });
-        },
-      );
-      final grant = await InboxRepository(fixture.client).authenticate(
-        deliveryId: 42,
-        username: 'test-user',
-        password: 'test-password',
-      );
+        expect(captured.path, '/api/mobile/inbox/42/authenticate');
+        expect(captured.data, {
+          'username': 'test-user',
+          'password': 'test-password',
+        });
+        expect(grant.revealToken, 'one-time-reveal-grant');
+      },
+    );
 
-      expect(captured.path, '/api/mobile/inbox/42/authenticate');
-      expect(captured.data, {
-        'username': 'test-user',
-        'password': 'test-password',
-      });
-      expect(grant.revealToken, 'one-time-reveal-grant');
-    });
+    test(
+      'reveal uses only server-issued grant and returns server count',
+      () async {
+        late RequestOptions captured;
+        final fixture = _fixture(
+          mainHandler: (request) {
+            captured = request;
+            return _jsonResponse(_secureMessageJson(remainingReveals: 2));
+          },
+        );
+        final message = await InboxRepository(
+          fixture.client,
+        ).reveal(deliveryId: 42, revealToken: 'one-time-reveal-grant');
 
-    test('reveal uses only server-issued grant and returns server count', () async {
-      late RequestOptions captured;
-      final fixture = _fixture(
-        mainHandler: (request) {
-          captured = request;
-          return _jsonResponse(_secureMessageJson(remainingReveals: 2));
-        },
-      );
-      final message = await InboxRepository(fixture.client).reveal(
-        deliveryId: 42,
-        revealToken: 'one-time-reveal-grant',
-      );
-
-      expect(captured.path, '/api/mobile/inbox/42/reveal');
-      expect(captured.data, {'revealToken': 'one-time-reveal-grant'});
-      expect(message.remainingReveals, 2);
-    });
+        expect(captured.path, '/api/mobile/inbox/42/reveal');
+        expect(captured.data, {'revealToken': 'one-time-reveal-grant'});
+        expect(message.remainingReveals, 2);
+      },
+    );
 
     test('text with zero attachments parses successfully', () async {
       final fixture = _fixture(
         mainHandler: (_) => _jsonResponse(_secureMessageJson()),
       );
-      final message = await InboxRepository(fixture.client).reveal(
-        deliveryId: 42,
-        revealToken: 'grant',
-      );
+      final message = await InboxRepository(
+        fixture.client,
+      ).reveal(deliveryId: 42, revealToken: 'grant');
       expect(message.contentEnglishHtml, contains('Secure message'));
       expect(message.attachments, isEmpty);
     });
 
-    test('cross-tenant or missing delivery response is handled as not found', () async {
-      final fixture = _fixture(
-        mainHandler: (_) => _jsonResponse(
-          const <String, Object?>{
+    test(
+      'cross-tenant or missing delivery response is handled as not found',
+      () async {
+        final fixture = _fixture(
+          mainHandler: (_) => _jsonResponse(const <String, Object?>{
             'code': 'DELIVERY_NOT_FOUND',
             'messageArabic': 'الرسالة غير موجودة.',
             'messageEnglish': 'The delivery was not found.',
-          },
-          statusCode: 404,
-        ),
-      );
-      await expectLater(
-        InboxRepository(fixture.client).getDelivery(999),
-        throwsA(
-          isA<AppFailure>().having(
-            (failure) => failure.kind,
-            'kind',
-            AppFailureKind.notFound,
+          }, statusCode: 404),
+        );
+        await expectLater(
+          InboxRepository(fixture.client).getDelivery(999),
+          throwsA(
+            isA<AppFailure>().having(
+              (failure) => failure.kind,
+              'kind',
+              AppFailureKind.notFound,
+            ),
           ),
-        ),
-      );
-    });
+        );
+      },
+    );
 
     test('malformed delivery id in server payload is rejected', () async {
       final fixture = _fixture(
@@ -749,42 +776,48 @@ void main() {
       );
     });
 
-    test('malformed optional date is rejected instead of converted to null', () {
-      expect(
-        () => InboxItem.fromJson(<String, Object?>{
-          ..._deliveryJson(status: 'SUCCESS'),
-          'expiresAtUtc': 'not-a-date',
-        }),
-        throwsFormatException,
-      );
-    });
+    test(
+      'malformed optional date is rejected instead of converted to null',
+      () {
+        expect(
+          () => InboxItem.fromJson(<String, Object?>{
+            ..._deliveryJson(status: 'SUCCESS'),
+            'expiresAtUtc': 'not-a-date',
+          }),
+          throwsFormatException,
+        );
+      },
+    );
   });
 
   group('safe application failure model', () {
-    test('rate-limit envelope keeps retry timing without raw exception text', () {
-      final request = RequestOptions(path: '/api/mobile/auth/request-otp');
-      final failure = AppFailure.fromDio(
-        DioException(
-          requestOptions: request,
-          type: DioExceptionType.badResponse,
-          response: Response<dynamic>(
+    test(
+      'rate-limit envelope keeps retry timing without raw exception text',
+      () {
+        final request = RequestOptions(path: '/api/mobile/auth/request-otp');
+        final failure = AppFailure.fromDio(
+          DioException(
             requestOptions: request,
-            statusCode: 429,
-            data: const <String, Object?>{
-              'error': <String, Object?>{
-                'code': 'OTP_RESEND_COOLDOWN',
-                'messageArabic': 'انتظر.',
-                'messageEnglish': 'Wait.',
+            type: DioExceptionType.badResponse,
+            response: Response<dynamic>(
+              requestOptions: request,
+              statusCode: 429,
+              data: const <String, Object?>{
+                'error': <String, Object?>{
+                  'code': 'OTP_RESEND_COOLDOWN',
+                  'messageArabic': 'انتظر.',
+                  'messageEnglish': 'Wait.',
+                },
+                'retryAfterSeconds': 30,
               },
-              'retryAfterSeconds': 30,
-            },
+            ),
           ),
-        ),
-      );
-      expect(failure.kind, AppFailureKind.rateLimited);
-      expect(failure.retryAfterSeconds, 30);
-      expect(failure.messageEnglish, 'Wait.');
-    });
+        );
+        expect(failure.kind, AppFailureKind.rateLimited);
+        expect(failure.retryAfterSeconds, 30);
+        expect(failure.messageEnglish, 'Wait.');
+      },
+    );
 
     test('connection timeout maps to localized timeout failure', () {
       final failure = AppFailure.fromDio(
@@ -861,7 +894,8 @@ _Fixture _fixture({
   return _Fixture(rawStorage: rawStorage, storage: storage, client: client);
 }
 
-typedef _AdapterHandler = FutureOr<ResponseBody> Function(RequestOptions request);
+typedef _AdapterHandler =
+    FutureOr<ResponseBody> Function(RequestOptions request);
 
 class _StubAdapter implements HttpClientAdapter {
   _StubAdapter(this.handler);
@@ -967,10 +1001,8 @@ Map<String, Object?> _secureMessageJson({int remainingReveals = 2}) =>
       'attachments': const <Object?>[],
     };
 
-String _future(int minutes) => DateTime.now()
-    .toUtc()
-    .add(Duration(minutes: minutes))
-    .toIso8601String();
+String _future(int minutes) =>
+    DateTime.now().toUtc().add(Duration(minutes: minutes)).toIso8601String();
 
 String _past(int minutes) => DateTime.now()
     .toUtc()
