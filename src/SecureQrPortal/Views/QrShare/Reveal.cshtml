@@ -3,7 +3,15 @@
 @{
     var ar = CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "ar";
     ViewData["Title"] = ar ? "بيانات الوصول الآمن" : "Secure access credentials";
-    var end = Model.Share.AccessWindowEndsAtUtc ?? DateTime.UtcNow;
+
+    // SQLite materializes DateTime values with Kind=Unspecified. AccessWindowEndsAtUtc
+    // is stored as UTC, so mark the existing clock value as UTC instead of calling
+    // ToUniversalTime() on an Unspecified value (which would subtract the server's
+    // local UTC offset and make a fresh 15-minute window look already expired).
+    var rawEnd = Model.Share.AccessWindowEndsAtUtc ?? DateTime.UtcNow;
+    var endUtc = rawEnd.Kind == DateTimeKind.Utc
+        ? rawEnd
+        : DateTime.SpecifyKind(rawEnd, DateTimeKind.Utc);
 }
 <section class="public-center share-shell">
     <div class="premium-card share-card">
@@ -23,7 +31,7 @@
             <button type="button" class="link-button" data-copy="@Model.PublicQrUrl">@(ar ? "نسخ الرابط" : "Copy link")</button>
         </div>
         <dl class="share-facts">
-            <dt>@(ar ? "تنتهي بيانات المشاركة" : "Shared access ends")</dt><dd id="shareExpiryText">@end.ToLocalTime().ToString("dd MMM yyyy HH:mm:ss")</dd>
+            <dt>@(ar ? "تنتهي بيانات المشاركة" : "Shared access ends")</dt><dd id="shareExpiryText">@endUtc.ToLocalTime().ToString("dd MMM yyyy HH:mm:ss")</dd>
             <dt>@(ar ? "مرات الفتح المستخدمة" : "Reveal usage")</dt><dd>@Model.Share.CurrentOpenCount / @Model.Share.MaxOpenCount</dd>
         </dl>
         <a class="btn primary block" href="@Model.PublicQrUrl" rel="noopener">@(ar ? "فتح صفحة QR وإدخال البيانات" : "Open QR page and sign in")</a>
@@ -34,7 +42,7 @@
 @section Scripts {
 <script>
 (function(){
-  const expires = Date.parse('@end.ToUniversalTime().ToString("O")');
+  const expires = Date.parse('@endUtc.ToString("O")');
   const ms = expires - Date.now();
   if (ms <= 0) { window.location.replace('@Url.Action("Open", "QrShare", new { token = "expired" })'); return; }
   window.setTimeout(function(){
