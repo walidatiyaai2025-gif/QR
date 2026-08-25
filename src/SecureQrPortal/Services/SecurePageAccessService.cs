@@ -6,7 +6,7 @@ using SecureQrPortal.Security;
 
 namespace SecureQrPortal.Services;
 
-public sealed class SecurePageAccessService(ApplicationDbContext db, QrStatusService status, DeviceInfoService devices)
+public sealed class SecurePageAccessService(ApplicationDbContext db, TokenService tokens, QrStatusService status, DeviceInfoService devices)
 {
     public async Task<SecurePage?> FindByTokenAsync(string token, CancellationToken ct = default)
     {
