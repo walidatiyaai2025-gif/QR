@@ -55,7 +55,10 @@ public sealed class MobileDeviceService(
         if (tokenOwner is not null && tokenOwner.OrganizationId != organizationId)
             return new(MobileDeviceRegistrationStatus.Conflict);
 
-        if (tokenOwner is not null && byDevice is not null && tokenOwner.Id != byDevice.Id)
+        // FCM registration tokens can rotate between device identifiers for the same
+        // organization (for example after reinstall/restore). Retire the previous row
+        // before assigning its unique token hash to the current device.
+        if (tokenOwner is not null && (byDevice is null || tokenOwner.Id != byDevice.Id))
         {
             tokenOwner.DeactivatedAtUtc = now;
             tokenOwner.PushEnabled = false;
