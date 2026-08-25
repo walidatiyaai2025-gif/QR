@@ -26,9 +26,9 @@
         </dl>
         @if (Model.CanReveal)
         {
-            <form method="post" action="@Context.Request.Path/reveal">
+            <form id="revealCredentialsForm" method="post" action="@Context.Request.Path/reveal">
                 @Html.AntiForgeryToken()
-                <button class="btn primary block" type="submit">@(ar ? "إظهار بيانات الدخول الآن" : "Reveal credentials now")</button>
+                <button id="revealCredentialsButton" class="btn primary block" type="submit">@(ar ? "إظهار بيانات الدخول الآن" : "Reveal credentials now")</button>
             </form>
             <p class="share-hint">@(ar ? "لا يتم احتساب زيارة هذه الصفحة وحدها. يتم احتساب الفتح عند الضغط على زر إظهار بيانات الدخول، لحماية الرابط من فاحصات الروابط التلقائية." : "Simply visiting this landing page does not consume an opening. The opening is consumed only when you reveal credentials, protecting the link from automated link scanners.")</p>
         }
@@ -38,3 +38,21 @@
         }
     </div>
 </section>
+@if (Model.CanReveal)
+{
+@section Scripts {
+<script>
+(function(){
+  const form=document.getElementById('revealCredentialsForm');
+  const button=document.getElementById('revealCredentialsButton');
+  if(!form||!button)return;
+  form.addEventListener('submit',function(){
+    if(button.disabled)return false;
+    button.disabled=true;
+    button.setAttribute('aria-busy','true');
+    button.textContent='@(ar ? "جارٍ فتح البيانات..." : "Opening credentials...")';
+  });
+})();
+</script>
+}
+}
