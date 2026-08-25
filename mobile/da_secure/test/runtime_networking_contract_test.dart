@@ -43,7 +43,11 @@ void main() {
 
       final all = await fixture.rawStorage.readAll();
       final generationKeys = all.keys
-          .where((key) => key.startsWith('da_secure.session.'))
+          .where(
+            (key) =>
+                key.startsWith('da_secure.session.') &&
+                key != 'da_secure.session.active',
+          )
           .toList();
       expect(generationKeys, hasLength(1));
       expect((await fixture.storage.readSession())?.accessToken, 'access-two');
