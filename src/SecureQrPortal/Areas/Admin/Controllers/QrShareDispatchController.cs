@@ -68,12 +68,15 @@ public sealed class QrShareDispatchController(
     [HttpPost]
     public async Task<IActionResult> TrackCopy(long id, long shareId, CancellationToken ct = default)
     {
+        var page = await db.SecurePages.AsNoTracking().SingleOrDefaultAsync(x => x.Id == id, ct);
+        if (page is null) return NotFound();
+
         var share = await shares.GetForPageAsync(shareId, id, ct);
         if (share is null) return NotFound();
 
         var raw = shares.GetRawToken(share);
         var shareUrl = $"{Request.Scheme}://{Request.Host}/q/share/{raw}";
-        var message = QrShareMessage.Render(share.MessageTemplate, share, shareUrl, string.Empty);
+        var message = QrShareMessage.Render(share.MessageTemplate, share, shareUrl, page.QrReference);
 
         await audit.WriteAsync(
             "QR_SHARE_LINK_COPIED",
