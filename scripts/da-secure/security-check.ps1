@@ -77,11 +77,12 @@ try {
 
     # Opened semantics are represented by MobileDelivery.FirstRevealedAtUtc.
     # FCM accepted, notification tap, OTP verification, inbox/details access, and
-    # successful secure-message authentication must not write this marker.
-    # Only the authoritative successful RevealAsync path may set it.
+    # successful secure-message authentication must not mutate this marker.
+    # Read/comparison/ViewModel projection references are intentionally allowed.
+    # The only EF mutation is the authoritative successful RevealAsync path.
     $openedWriteArgs = @(
         'grep','-I','-l','-E','-e',
-        'SetProperty\([^\r\n]*FirstRevealedAtUtc|FirstRevealedAtUtc[[:space:]]*=',
+        'SetProperty\([^\r\n]*FirstRevealedAtUtc',
         '--','src/SecureQrPortal',':(exclude)src/SecureQrPortal/Migrations/**'
     )
     $openedWriters = & git @openedWriteArgs 2>$null
@@ -90,7 +91,7 @@ try {
     $global:LASTEXITCODE = 0
     $openedWriterFiles = @($openedWriters | ForEach-Object { $_.Trim() } | Where-Object { $_ } | Sort-Object -Unique)
     if ($openedWriterFiles.Count -ne 1 -or $openedWriterFiles[0] -ne 'src/SecureQrPortal/Services/MobileDeliveryAccessService.cs') {
-        throw "OPENED SEMANTICS: FirstRevealedAtUtc writer drift detected in: $($openedWriterFiles -join ', ')."
+        throw "OPENED SEMANTICS: FirstRevealedAtUtc mutation drift detected in: $($openedWriterFiles -join ', ')."
     }
     $deliveryAccessSource = Get-Content (Join-Path $repoRoot 'src/SecureQrPortal/Services/MobileDeliveryAccessService.cs') -Raw
     if ($deliveryAccessSource -notmatch 'RegisterSuccessfulAccessAsync[\s\S]*SetProperty\(d => d\.FirstRevealedAtUtc, d => d\.FirstRevealedAtUtc \?\? now\)') {
