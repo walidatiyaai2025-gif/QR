@@ -29,7 +29,18 @@ function Invoke-SafeRequest {
         $params.ContentType = 'application/json'
         $params.Body = $Body
     }
-    return Invoke-WebRequest @params
+    try {
+        return Invoke-WebRequest @params
+    }
+    catch [System.Threading.Tasks.TaskCanceledException], [System.Net.Http.HttpRequestException] {
+        throw "CANONICAL API SMOKE: BLOCKED - EXTERNAL SERVICE BLOCKER contacting $($target.Scheme)://$($target.Host)$($target.AbsolutePath). $($_.Exception.GetType().Name)."
+    }
+    catch {
+        if ($_.Exception.Message -match 'Timeout|timed out|canceled due to.*Timeout') {
+            throw "CANONICAL API SMOKE: BLOCKED - EXTERNAL SERVICE BLOCKER contacting $($target.Scheme)://$($target.Host)$($target.AbsolutePath). Request timeout."
+        }
+        throw
+    }
 }
 
 Write-Host '== DA Secure canonical API safe smoke =='
