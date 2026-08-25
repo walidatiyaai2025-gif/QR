@@ -3,4 +3,11 @@
     var ar = CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "ar";
     ViewData["Title"] = ar ? "الرابط غير متاح" : "Share link unavailable";
 }
-<section class="public-center"><div class="premium-card error-card"><div class="error-code">×</div><h1>@(ar ? "رابط المشاركة غير متاح" : "Share link unavailable")</h1><p class="muted">@(ar ? "انتهت صلاحية الرابط، أو تم استخدام العدد المسموح، أو قام المسؤول بإلغائه." : "The link has expired, reached its allowed reveal count, or was revoked by an administrator.")</p></div></section>
+<section class="public-center share-shell">
+    <div class="premium-card error-card">
+        <div class="error-code">×</div>
+        <h1>@(ar ? "رابط المشاركة غير متاح" : "Share link unavailable")</h1>
+        <p class="muted">@(ar ? "انتهت صلاحية الرابط، أو تم استخدام العدد المسموح، أو قام المسؤول بإلغائه." : "The link has expired, reached its allowed reveal count, or was revoked by an administrator.")</p>
+    </div>
+    <partial name="_RuntimeInspector" />
+</section>
