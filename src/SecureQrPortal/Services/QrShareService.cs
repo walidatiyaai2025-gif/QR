@@ -24,6 +24,8 @@ public sealed class QrShareService(ApplicationDbContext db, IDataProtectionProvi
         int maxOpenCount,
         int linkLifetimeHours,
         int sessionDurationMinutes,
+        string pagePassword,
+        string? messageTemplate,
         string? adminUserId,
         CancellationToken ct = default)
     {
@@ -34,9 +36,18 @@ public sealed class QrShareService(ApplicationDbContext db, IDataProtectionProvi
         if (page.Credential is null)
             page.Credential = await db.PageCredentials.SingleOrDefaultAsync(x => x.SecurePageId == page.Id, ct);
 
+        if (page.Credential is null)
+            throw new InvalidOperationException("The QR page does not have credentials configured.");
+        if (string.IsNullOrWhiteSpace(pagePassword))
+            throw new InvalidOperationException("The current QR password is required to create a protected share link.");
+
+        var pageHasher = new PasswordHasher<PageCredential>();
+        if (pageHasher.VerifyHashedPassword(page.Credential, page.Credential.PasswordHash, pagePassword) == PasswordVerificationResult.Failed)
+            throw new InvalidOperationException("The current QR password is incorrect.");
+
         var rawToken = GenerateToken();
-        var password = GeneratePassword();
-        var username = page.Credential?.Username ?? $"share-{page.QrReference}";
+        var password = pagePassword;
+        var username = page.Credential.Username;
         var now = DateTime.UtcNow;
 
         var share = new QrShareLink
@@ -46,6 +57,7 @@ public sealed class QrShareService(ApplicationDbContext db, IDataProtectionProvi
             ProtectedToken = _secretProtector.Protect(rawToken),
             Username = username,
             ProtectedPassword = _secretProtector.Protect(password),
+            MessageTemplate = QrShareMessage.NormalizeTemplate(messageTemplate),
             MaxOpenCount = maxOpenCount,
             SessionDurationMinutes = sessionDurationMinutes,
             ExpiresAtUtc = now.AddHours(linkLifetimeHours),
@@ -53,6 +65,9 @@ public sealed class QrShareService(ApplicationDbContext db, IDataProtectionProvi
             CreatedByAdminId = adminUserId
         };
 
+        // The protected share reveals the exact same QR username/password configured
+        // on the page. A share-specific hash is retained only for the access-window
+        // policy and never changes the actual QR password.
         var hasher = new PasswordHasher<QrShareLink>();
         share.PasswordHash = hasher.HashPassword(share, password);
         db.QrShareLinks.Add(share);
@@ -90,9 +105,6 @@ public sealed class QrShareService(ApplicationDbContext db, IDataProtectionProvi
         if (candidate is null || candidate.RevokedAtUtc is not null || candidate.ExpiresAtUtc <= now)
             return null;
 
-        // Idempotency: the same browser/form submission may be retried by a proxy,
-        // browser, security gateway, or double-submit. The exact same reveal request
-        // must return the same credentials without consuming another allowed opening.
         if (string.Equals(candidate.LastRevealRequestHash, requestHash, StringComparison.Ordinal) &&
             candidate.CurrentOpenCount > 0 &&
             candidate.AccessWindowEndsAtUtc is DateTime existingEnd &&
@@ -120,8 +132,6 @@ public sealed class QrShareService(ApplicationDbContext db, IDataProtectionProvi
         if (affected > 0)
             return await LoadRevealResultAsync(candidate.Id, ct);
 
-        // A retry can race the first successful request. Re-read the row and accept
-        // only the identical request id while its hard access window is still alive.
         var raced = await db.QrShareLinks
             .AsNoTracking()
             .SingleOrDefaultAsync(x => x.Id == candidate.Id, ct);
@@ -179,6 +189,17 @@ public sealed class QrShareService(ApplicationDbContext db, IDataProtectionProvi
         await db.QrShareLinks.AsNoTracking().Where(x => x.SecurePageId == pageId)
             .OrderByDescending(x => x.CreatedAtUtc).ToListAsync(ct);
 
+    public async Task<QrShareLink?> GetForPageAsync(long shareId, long pageId, CancellationToken ct = default) =>
+        await db.QrShareLinks.SingleOrDefaultAsync(x => x.Id == shareId && x.SecurePageId == pageId, ct);
+
+    public async Task<bool> UpdateMessageAsync(long shareId, long pageId, string? messageTemplate, CancellationToken ct = default)
+    {
+        var normalized = QrShareMessage.NormalizeTemplate(messageTemplate);
+        return await db.QrShareLinks
+            .Where(x => x.Id == shareId && x.SecurePageId == pageId)
+            .ExecuteUpdateAsync(s => s.SetProperty(x => x.MessageTemplate, normalized), ct) > 0;
+    }
+
     public async Task<bool> RevokeAsync(long shareId, long pageId, CancellationToken ct = default)
     {
         var now = DateTime.UtcNow;
@@ -198,29 +219,4 @@ public sealed class QrShareService(ApplicationDbContext db, IDataProtectionProvi
     public string GetPassword(QrShareLink share) => _secretProtector.Unprotect(share.ProtectedPassword);
 
     private static string GenerateToken() => Microsoft.AspNetCore.WebUtilities.WebEncoders.Base64UrlEncode(RandomNumberGenerator.GetBytes(32));
-
-    private static string GeneratePassword()
-    {
-        const string upper = "ABCDEFGHJKLMNPQRSTUVWXYZ";
-        const string lower = "abcdefghijkmnopqrstuvwxyz";
-        const string digits = "23456789";
-        const string special = "!@$%#?";
-        const string all = upper + lower + digits + special;
-
-        var chars = new List<char>
-        {
-            upper[RandomNumberGenerator.GetInt32(upper.Length)],
-            lower[RandomNumberGenerator.GetInt32(lower.Length)],
-            digits[RandomNumberGenerator.GetInt32(digits.Length)],
-            special[RandomNumberGenerator.GetInt32(special.Length)]
-        };
-        while (chars.Count < 14) chars.Add(all[RandomNumberGenerator.GetInt32(all.Length)]);
-
-        for (var i = chars.Count - 1; i > 0; i--)
-        {
-            var j = RandomNumberGenerator.GetInt32(i + 1);
-            (chars[i], chars[j]) = (chars[j], chars[i]);
-        }
-        return new string(chars.ToArray());
-    }
 }
