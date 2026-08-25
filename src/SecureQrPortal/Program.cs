@@ -202,6 +202,8 @@ builder.Services.AddScoped<MobilePushDeviceStore>();
 builder.Services.AddScoped<MobilePushAttemptService>();
 builder.Services.AddScoped<IMobilePushDispatchService, FirebaseMobilePushDispatchService>();
 builder.Services.AddScoped<MobileDeliveryAdminService>();
+builder.Services.AddScoped<MobileReminderProcessor>();
+builder.Services.AddHostedService<MobileReminderBackgroundService>();
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddCaptchaSecurity();
 
