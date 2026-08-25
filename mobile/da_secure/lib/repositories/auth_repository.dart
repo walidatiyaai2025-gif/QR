@@ -40,6 +40,8 @@ class AuthRepository {
       return OtpChallenge.fromJson(ApiClient.jsonMap(response.data));
     } on DioException catch (error) {
       throw ApiClient.mapError(error);
+    } on FormatException {
+      throw AppFailure.invalidResponse();
     }
   }
 
@@ -66,6 +68,8 @@ class AuthRepository {
       return session;
     } on DioException catch (error) {
       throw ApiClient.mapError(error);
+    } on FormatException {
+      throw AppFailure.invalidResponse();
     }
   }
 
@@ -78,6 +82,8 @@ class AuthRepository {
       return CurrentUser.fromJson(ApiClient.jsonMap(response.data));
     } on DioException catch (error) {
       throw ApiClient.mapError(error);
+    } on FormatException {
+      throw AppFailure.invalidResponse();
     }
   }
 
