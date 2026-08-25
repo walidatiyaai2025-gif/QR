@@ -34,8 +34,10 @@ Future<void> main() async {
     client: apiClient,
   );
   final messaging = FirebaseMessagingCoordinator(
-    messaging: FirebaseMessaging.instance,
-    devices: devices,
+    messaging: FlutterFireMessagingPort(FirebaseMessaging.instance),
+    registerDevice: ({required fcmToken, required pushEnabled}) async {
+      await devices.register(fcmToken: fcmToken, pushEnabled: pushEnabled);
+    },
     storage: storage,
     isAuthenticated: () => runtime.isAuthenticated,
     onDeliveryOpened: runtime.handlePushOpened,
