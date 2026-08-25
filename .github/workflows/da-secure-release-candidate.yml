@@ -1,0 +1,245 @@
+name: DA Secure Release Candidate
+
+on:
+  workflow_dispatch:
+    inputs:
+      candidate_ref:
+        description: Optional branch, tag, or commit to validate
+        required: false
+        default: ''
+  push:
+    branches:
+      - worker/da-secure-release-qa-harness
+  pull_request:
+    branches:
+      - feat/secure-qr-mobile-app-isolated
+
+permissions:
+  contents: read
+
+concurrency:
+  group: da-secure-release-${{ github.event.pull_request.head.sha || github.event.inputs.candidate_ref || github.sha }}
+  cancel-in-progress: false
+
+env:
+  DOTNET_VERSION: '10.0.400'
+  FLUTTER_VERSION: '3.47.1'
+  JAVA_VERSION: '17'
+  EXPECTED_PACKAGE: 'com.qr.mobile.da'
+  EXPECTED_LABEL: 'DA Secure'
+  CANONICAL_API: 'https://testapi.da.gov.kw'
+
+jobs:
+  backend:
+    name: Backend Release Gate
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout candidate
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.event.inputs.candidate_ref || github.sha }}
+      - name: Record provenance
+        shell: pwsh
+        run: |
+          "SourceBranch=$env:GITHUB_REF_NAME" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+          "Commit=$(git rev-parse HEAD)" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+          "WorkflowRun=$env:GITHUB_RUN_ID" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+      - name: Install .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+      - name: Restore
+        run: dotnet restore SecureQrPortal.sln
+      - name: Build Release
+        run: dotnet build SecureQrPortal.sln --configuration Release --no-restore
+      - name: Test Release
+        run: dotnet test SecureQrPortal.sln --configuration Release --no-build --logger "trx;LogFileName=da-secure-release-tests.trx" --results-directory TestResults
+      - name: Upload backend test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: da-secure-backend-tests-${{ github.run_id }}
+          path: TestResults/**/*.trx
+          if-no-files-found: warn
+          retention-days: 14
+
+  security:
+    name: Security Regression Gate
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout candidate
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.event.inputs.candidate_ref || github.sha }}
+      - name: Static security regression
+        shell: pwsh
+        run: ./scripts/da-secure/security-check.ps1
+
+  android-audit:
+    name: Android Project Audit
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout candidate
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.event.inputs.candidate_ref || github.sha }}
+      - name: Android package and Firebase audit
+        shell: pwsh
+        run: ./scripts/da-secure/verify-android.ps1
+
+  api-smoke:
+    name: Canonical API Safe Smoke
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout candidate
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.event.inputs.candidate_ref || github.sha }}
+      - name: Non-destructive HTTPS smoke
+        shell: pwsh
+        run: ./scripts/da-secure/api-smoke.ps1 -BaseUrl $env:CANONICAL_API
+
+  flutter:
+    name: Flutter / APK Gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout candidate
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.event.inputs.candidate_ref || github.sha }}
+      - name: Install Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+      - name: Install pinned Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - name: Toolchain provenance
+        working-directory: mobile/da_secure
+        run: |
+          java -version
+          flutter --version
+      - name: Pub get
+        working-directory: mobile/da_secure
+        run: flutter pub get
+      - name: Format check
+        id: format
+        continue-on-error: true
+        working-directory: mobile/da_secure
+        run: dart format --output=none --set-exit-if-changed lib test
+      - name: Analyze
+        id: analyze
+        continue-on-error: true
+        working-directory: mobile/da_secure
+        run: flutter analyze
+      - name: Test
+        id: flutter_tests
+        continue-on-error: true
+        working-directory: mobile/da_secure
+        run: flutter test
+      - name: Build debug APK
+        id: apk_build
+        continue-on-error: true
+        working-directory: mobile/da_secure
+        run: flutter build apk --debug
+      - name: Verify APK metadata
+        id: apk_metadata
+        if: steps.apk_build.outcome == 'success'
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK='mobile/da_secure/build/app/outputs/flutter-apk/app-debug.apk'
+          test -f "$APK"
+          APKANALYZER="$(find "${ANDROID_HOME}" -type f -name apkanalyzer 2>/dev/null | sort -V | tail -n 1)"
+          AAPT="$(find "${ANDROID_HOME}/build-tools" -type f -name aapt 2>/dev/null | sort -V | tail -n 1)"
+          if [[ -z "$APKANALYZER" || -z "$AAPT" ]]; then
+            echo 'APK metadata tooling unavailable; refusing false PASS.' >&2
+            exit 1
+          fi
+          PACKAGE="$($APKANALYZER manifest application-id "$APK")"
+          DEBUGGABLE="$($APKANALYZER manifest debuggable "$APK")"
+          BADGING="$($AAPT dump badging "$APK")"
+          LABEL="$(printf '%s\n' "$BADGING" | sed -n "s/^application-label:'\(.*\)'$/\1/p" | head -n 1)"
+          [[ "$PACKAGE" == "$EXPECTED_PACKAGE" ]] || { echo "Package mismatch: $PACKAGE" >&2; exit 1; }
+          [[ "$LABEL" == "$EXPECTED_LABEL" ]] || { echo "Application label mismatch: $LABEL" >&2; exit 1; }
+          [[ "$DEBUGGABLE" == 'true' ]] || { echo 'Expected debug APK is not debuggable.' >&2; exit 1; }
+          VERSION_NAME="$($APKANALYZER manifest version-name "$APK")"
+          {
+            echo "APK package: $PACKAGE"
+            echo "APK label: $LABEL"
+            echo "APK version: $VERSION_NAME"
+            echo "APK mode: debug"
+            echo "Source commit: $(git rev-parse HEAD)"
+            echo "Workflow run: $GITHUB_RUN_ID"
+            echo "Artifact name: da-secure-debug-apk-$GITHUB_RUN_ID"
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload debug APK
+        if: steps.apk_build.outcome == 'success' && steps.apk_metadata.outcome == 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: da-secure-debug-apk-${{ github.run_id }}
+          path: mobile/da_secure/build/app/outputs/flutter-apk/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14
+      - name: Enforce Flutter and APK gates
+        if: always()
+        shell: bash
+        run: |
+          echo "Format: ${{ steps.format.outcome }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "Analyze: ${{ steps.analyze.outcome }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "Flutter tests: ${{ steps.flutter_tests.outcome }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "APK build: ${{ steps.apk_build.outcome }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "APK metadata: ${{ steps.apk_metadata.outcome }}" >> "$GITHUB_STEP_SUMMARY"
+          failed=0
+          [[ '${{ steps.format.outcome }}' == 'success' ]] || failed=1
+          [[ '${{ steps.analyze.outcome }}' == 'success' ]] || failed=1
+          [[ '${{ steps.flutter_tests.outcome }}' == 'success' ]] || failed=1
+          [[ '${{ steps.apk_build.outcome }}' == 'success' ]] || failed=1
+          [[ '${{ steps.apk_metadata.outcome }}' == 'success' ]] || failed=1
+          if [[ $failed -ne 0 ]]; then
+            echo 'Flutter/APK release gate is not GREEN.' >&2
+            exit 1
+          fi
+
+  release-summary:
+    name: Release Gate Summary
+    if: always()
+    needs:
+      - backend
+      - security
+      - android-audit
+      - api-smoke
+      - flutter
+    runs-on: ubuntu-latest
+    steps:
+      - name: Publish factual summary
+        shell: bash
+        run: |
+          {
+            echo '## DA Secure release candidate gate'
+            echo "- Source ref: ${GITHUB_REF_NAME}"
+            echo "- Workflow run: ${GITHUB_RUN_ID}"
+            echo "- Backend: ${{ needs.backend.result }}"
+            echo "- Security: ${{ needs.security.result }}"
+            echo "- Android audit: ${{ needs.android-audit.result }}"
+            echo "- API smoke: ${{ needs.api-smoke.result }}"
+            echo "- Flutter/APK: ${{ needs.flutter.result }}"
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [[ '${{ needs.backend.result }}' != 'success' || \
+                '${{ needs.security.result }}' != 'success' || \
+                '${{ needs.android-audit.result }}' != 'success' || \
+                '${{ needs.api-smoke.result }}' != 'success' || \
+                '${{ needs.flutter.result }}' != 'success' ]]; then
+            echo 'Release candidate gate is not GREEN.' >&2
+            exit 1
+          fi
