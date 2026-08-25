@@ -71,14 +71,17 @@ public sealed class CounterTests
             }
 
             var results = await Task.WhenAll(Attempt(), Attempt());
-            await using var verify = new ApplicationDbContext(options);
-            var final = await verify.SecurePages.AsNoTracking().SingleAsync();
-            Assert.Equal(1, final.CurrentSuccessfulAccessCount);
-            Assert.Single(results, x => x == QrStatus.ACTIVE);
-            Assert.Single(results, x => x == QrStatus.LIMIT_REACHED);
+            await using (var verify = new ApplicationDbContext(options))
+            {
+                var final = await verify.SecurePages.AsNoTracking().SingleAsync();
+                Assert.Equal(1, final.CurrentSuccessfulAccessCount);
+                Assert.Single(results, x => x == QrStatus.ACTIVE);
+                Assert.Single(results, x => x == QrStatus.LIMIT_REACHED);
+            }
         }
         finally
         {
+            SqliteConnection.ClearAllPools();
             if (File.Exists(file)) File.Delete(file);
             if (File.Exists(file + "-wal")) File.Delete(file + "-wal");
             if (File.Exists(file + "-shm")) File.Delete(file + "-shm");
