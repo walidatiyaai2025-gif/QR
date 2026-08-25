@@ -103,6 +103,7 @@ public sealed class QrShareService(ApplicationDbContext db, IDataProtectionProvi
     {
         var now = DateTime.UtcNow;
         var candidates = await db.QrShareLinks
+            .AsNoTracking()
             .Where(x => x.SecurePageId == pageId &&
                         x.Username == username &&
                         x.RevokedAtUtc == null &&
