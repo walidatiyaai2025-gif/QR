@@ -30,8 +30,8 @@ final class SafeDeliveryPush {
     final normalizedKeys = data.keys.map((key) => key.toLowerCase()).toSet();
     if (normalizedKeys.difference(_allowedKeys).isNotEmpty) return null;
 
-    final category =
-        (data['category'] ?? data['notificationCategory'])?.toString();
+    final category = (data['category'] ?? data['notificationCategory'])
+        ?.toString();
     if (category == null || !_allowedCategories.contains(category)) return null;
     if (data['version']?.toString() != '1') return null;
 
