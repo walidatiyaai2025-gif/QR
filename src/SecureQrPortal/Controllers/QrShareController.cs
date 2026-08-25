@@ -34,6 +34,7 @@ public sealed class QrShareController(
                         share.ExpiresAtUtc > now &&
                         share.CurrentOpenCount < share.MaxOpenCount;
         var ar = CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "ar";
+        ViewBag.RevealRequestId = Guid.NewGuid().ToString("N");
 
         return View("Open", new QrShareLandingVm
         {
@@ -45,7 +46,7 @@ public sealed class QrShareController(
     }
 
     [HttpPost("{token}/reveal")]
-    public async Task<IActionResult> Reveal(string token, CancellationToken ct)
+    public async Task<IActionResult> Reveal(string token, string? revealRequestId, CancellationToken ct)
     {
         var existing = await shares.FindByTokenAsync(token, ct);
         if (existing is not null && TryGetValidCookieReceipt(existing, out _))
@@ -54,16 +55,19 @@ public sealed class QrShareController(
             return View("Reveal", BuildRevealVm(existing));
         }
 
-        var result = await shares.RevealAsync(token, ct);
+        // Old cached landing pages may not contain the idempotency field. They are
+        // still allowed once, while all newly-rendered pages carry a stable request id
+        // so browser/proxy retries cannot consume the one-time reveal twice.
+        revealRequestId = string.IsNullOrWhiteSpace(revealRequestId)
+            ? Guid.NewGuid().ToString("N")
+            : revealRequestId;
+
+        var result = await shares.RevealAsync(token, revealRequestId, ct);
         if (result is null) return View("Unavailable");
 
         var receipt = CreateRevealReceipt(result.Share);
         WriteRevealReceiptCookie(result.Share, receipt);
 
-        // Render the credential screen in this same successful POST response.
-        // The one-time reveal has already been consumed, so there must be no
-        // redirect dependency between consuming the reveal and showing the
-        // credentials to the recipient.
         PrepareSensitiveResponse();
         return View("Reveal", BuildRevealVm(result.Share));
     }
@@ -181,6 +185,7 @@ public sealed class QrShareController(
         Response.Headers.CacheControl = "no-store, no-cache, must-revalidate";
         Response.Headers.Pragma = "no-cache";
         Response.Headers.Expires = "0";
+        Response.Headers["X-QR-Share-Flow"] = "idempotent-v3";
     }
 
     private static string ReceiptCookieName(long shareId) => $"SecureQrPortal.ShareReceipt.{shareId}";
