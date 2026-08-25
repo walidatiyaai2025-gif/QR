@@ -14,10 +14,10 @@
         </div>
         <form method="post">
             <div asp-validation-summary="ModelOnly"></div>
-            <div class="field"><label asp-for="DisplayName"></label><input class="input" asp-for="DisplayName"></div>
-            <div class="field"><label asp-for="Email"></label><input class="input" asp-for="Email"></div>
-            <div class="field"><label asp-for="Password"></label><input class="input" asp-for="Password"></div>
-            <div class="field"><label asp-for="ConfirmPassword"></label><input class="input" asp-for="ConfirmPassword"></div>
+            <div class="field"><label for="DisplayName">@(ar ? "اسم المسؤول" : "Administrator display name")</label><input class="input" asp-for="DisplayName" autocomplete="name"></div>
+            <div class="field"><label for="Email">@(ar ? "البريد الإلكتروني" : "Email")</label><input class="input" asp-for="Email" autocomplete="username" dir="ltr"></div>
+            <div class="field"><label for="Password">@(ar ? "كلمة المرور" : "Password")</label><input class="input" asp-for="Password" autocomplete="new-password"></div>
+            <div class="field"><label for="ConfirmPassword">@(ar ? "تأكيد كلمة المرور" : "Confirm password")</label><input class="input" asp-for="ConfirmPassword" autocomplete="new-password"></div>
             <button class="btn primary block">@(ar ? "إنشاء المسؤول" : "Create administrator")</button>
         </form>
     </div>
