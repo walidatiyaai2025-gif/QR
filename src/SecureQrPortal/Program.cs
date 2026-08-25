@@ -1,9 +1,11 @@
 using System.Globalization;
 using System.Threading.RateLimiting;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Localization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using SecureQrPortal;
 using SecureQrPortal.Data;
 using SecureQrPortal.Models;
 using SecureQrPortal.Security;
