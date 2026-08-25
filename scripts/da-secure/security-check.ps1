@@ -19,11 +19,15 @@ try {
         # begin with '-' and must never be parsed as command-line options.
         $args = @('grep','-I','-l','-E','-e',$Pattern,'--') + $Paths
         $matches = & git @args 2>$null
-        if ($LASTEXITCODE -eq 0 -and $matches) {
+        $codeValue = $LASTEXITCODE
+        if ($codeValue -eq 0 -and $matches) {
             $files = @($matches | ForEach-Object { $_.Trim() } | Where-Object { $_ })
             throw "$Code detected in production source: $($files -join ', '). Secret/payload values suppressed."
         }
-        if ($LASTEXITCODE -notin @(0,1)) { throw "git grep failed for $Code." }
+        if ($codeValue -notin @(0,1)) { throw "git grep failed for $Code." }
+        # git grep returns 1 for a valid no-match result. Do not leak that
+        # expected native exit code into the PowerShell process result.
+        $global:LASTEXITCODE = 0
     }
 
     $productionPaths = @('mobile/da_secure/lib','src/SecureQrPortal')
@@ -86,3 +90,4 @@ try {
 finally {
     Pop-Location
 }
+exit 0
