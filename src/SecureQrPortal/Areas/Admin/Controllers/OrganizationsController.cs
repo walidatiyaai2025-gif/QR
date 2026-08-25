@@ -87,7 +87,7 @@ public sealed class OrganizationsController(ApplicationDbContext db, AuditServic
         if (!ModelState.IsValid)
         {
             ModelState.AddModelError("", text["ValidationCorrectFields"]);
-            ViewBag.MobileDevices = model.Id == 0 ? Array.Empty<MobileDeviceAdminVm>() : await LoadDeviceRowsAsync(model.Id, ct);
+            ViewBag.MobileDevices = model.Id == 0 ? new List<MobileDeviceAdminVm>() : await LoadDeviceRowsAsync(model.Id, ct);
             return View(model);
         }
 
