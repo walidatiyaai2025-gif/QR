@@ -1,0 +1,40 @@
+@using System.Globalization
+@model QrShareLandingVm
+@{
+    var ar = CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "ar";
+    ViewData["Title"] = ar ? "رابط مشاركة آمن" : "Secure share link";
+    var remaining = Math.Max(0, Model.Share.MaxOpenCount - Model.Share.CurrentOpenCount);
+}
+<section class="public-center share-shell">
+    <div class="premium-card share-card">
+        <div class="public-title">
+            <div class="security-kicker">@(ar ? "مشاركة بيانات دخول QR" : "QR ACCESS SHARE")</div>
+            <h1>@Model.Organization</h1>
+            <p>@Model.PageTitle</p>
+        </div>
+        <div class="share-warning">
+            <strong>@(ar ? "تنبيه أمني" : "Security notice")</strong>
+            <p>@(ar
+                ? $"هذا الرابط يسمح بإظهار بيانات الدخول {Model.Share.MaxOpenCount} مرة فقط كحد أقصى. المتبقي: {remaining}. لا ترسل الرابط إلى شخص غير مصرح له."
+                : $"This link can reveal the access credentials a maximum of {Model.Share.MaxOpenCount} time(s). Remaining: {remaining}. Do not forward it to an unauthorized person.")</p>
+            <p>@(ar ? "بعد إظهار البيانات تبدأ مدة الوصول المحددة، وبعد انتهائها يتم رفض بيانات المشاركة حتى لو بقيت الصفحة مفتوحة." : "After credentials are revealed, the configured access window starts. When it expires, the shared credentials are rejected even if the page was left open.")</p>
+        </div>
+        <dl class="share-facts">
+            <dt>@(ar ? "انتهاء الرابط" : "Link expires")</dt><dd>@Model.Share.ExpiresAtUtc.ToLocalTime().ToString("dd MMM yyyy HH:mm")</dd>
+            <dt>@(ar ? "مدة الجلسة" : "Access session")</dt><dd>@Model.Share.SessionDurationMinutes @(ar ? "دقيقة" : "minutes")</dd>
+            <dt>@(ar ? "عدد مرات الإظهار" : "Reveal limit")</dt><dd>@Model.Share.CurrentOpenCount / @Model.Share.MaxOpenCount</dd>
+        </dl>
+        @if (Model.CanReveal)
+        {
+            <form method="post" action="@Context.Request.Path/reveal">
+                @Html.AntiForgeryToken()
+                <button class="btn primary block" type="submit">@(ar ? "إظهار بيانات الدخول الآن" : "Reveal credentials now")</button>
+            </form>
+            <p class="share-hint">@(ar ? "لا يتم احتساب زيارة هذه الصفحة وحدها. يتم احتساب الفتح عند الضغط على زر إظهار بيانات الدخول، لحماية الرابط من فاحصات الروابط التلقائية." : "Simply visiting this landing page does not consume an opening. The opening is consumed only when you reveal credentials, protecting the link from automated link scanners.")</p>
+        }
+        else
+        {
+            <div class="alert danger">@(ar ? "الرابط منتهي أو تم استخدام العدد المسموح أو تم إلغاؤه." : "This share link is expired, fully used, or revoked.")</div>
+        }
+    </div>
+</section>
