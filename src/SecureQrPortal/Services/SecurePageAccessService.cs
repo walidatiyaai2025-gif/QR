@@ -11,7 +11,7 @@ public sealed class SecurePageAccessService(
     TokenService tokens,
     QrStatusService status,
     DeviceInfoService devices,
-    QrShareService shares)
+    QrShareService? shares = null)
 {
     public async Task<SecurePage?> FindByTokenAsync(string token, CancellationToken ct = default)
     {
@@ -68,7 +68,9 @@ public sealed class SecurePageAccessService(
         }
         else
         {
-            result = await shares.VerifyCredentialAsync(page.Id, normalizedUsername, password, ct);
+            result = shares is null
+                ? QrShareCredentialResult.Failed
+                : await shares.VerifyCredentialAsync(page.Id, normalizedUsername, password, ct);
         }
 
         if (result.Success)
