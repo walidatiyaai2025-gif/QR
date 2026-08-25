@@ -7,7 +7,7 @@
  var path=Context.Request.Path.ToString();
  string Active(string x)=>path.Contains(x,StringComparison.OrdinalIgnoreCase)?"active":"";
 }
-<!doctype html><html lang="@(ar?"ar":"en")" dir="@(ar?"rtl":"ltr")"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>@ViewData["Title"] — @appName</title><link rel="stylesheet" href="~/css/site.css" asp-append-version="true"></head>
+<!doctype html><html lang="@(ar?"ar":"en")" dir="@(ar?"rtl":"ltr")"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>@ViewData["Title"] — @appName</title><link rel="stylesheet" href="~/css/site.css" asp-append-version="true"><link rel="stylesheet" href="~/css/qr-share.css" asp-append-version="true"></head>
 <body class="admin-body"><div class="admin-shell"><aside class="sidebar" id="sidebar"><div class="sidebar-brand"><span class="brand-mark">QR</span><div><strong>@appName</strong><small>ADMIN CONSOLE</small></div></div><nav>
 <a class="@Active("Dashboard")" asp-area="Admin" asp-controller="Dashboard" asp-action="Index"><span>◫</span>@T["Dashboard"]</a>
 <a class="@Active("Organizations")" asp-area="Admin" asp-controller="Organizations" asp-action="Index"><span>◆</span>@T["Organizations"]</a>
