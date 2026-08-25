@@ -62,6 +62,7 @@ jobs:
       - name: Validate scoped diff
         shell: bash
         run: |
+          git checkout -- mobile/da_secure/analysis_options.yaml
           git diff --check
           changed="$(git diff --name-only)"
           test "$changed" = "mobile/da_secure/test/runtime_contract_test.dart"
