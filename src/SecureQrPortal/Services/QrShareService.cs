@@ -106,7 +106,6 @@ public sealed class QrShareService(ApplicationDbContext db, IDataProtectionProvi
             .Where(x => x.SecurePageId == pageId &&
                         x.Username == username &&
                         x.RevokedAtUtc == null &&
-                        x.ExpiresAtUtc > now &&
                         x.AccessWindowEndsAtUtc > now &&
                         x.CurrentOpenCount > 0)
             .OrderByDescending(x => x.LastOpenedAtUtc)
@@ -132,6 +131,13 @@ public sealed class QrShareService(ApplicationDbContext db, IDataProtectionProvi
         var now = DateTime.UtcNow;
         return await db.QrShareLinks.Where(x => x.Id == shareId && x.SecurePageId == pageId && x.RevokedAtUtc == null)
             .ExecuteUpdateAsync(s => s.SetProperty(x => x.RevokedAtUtc, now), ct) > 0;
+    }
+
+    public async Task<int> RevokeAllForPageAsync(long pageId, CancellationToken ct = default)
+    {
+        var now = DateTime.UtcNow;
+        return await db.QrShareLinks.Where(x => x.SecurePageId == pageId && x.RevokedAtUtc == null)
+            .ExecuteUpdateAsync(s => s.SetProperty(x => x.RevokedAtUtc, now), ct);
     }
 
     public string GetRawToken(QrShareLink share) => _secretProtector.Unprotect(share.ProtectedToken);
