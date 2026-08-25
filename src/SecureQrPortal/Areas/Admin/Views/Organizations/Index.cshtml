@@ -1,3 +1,61 @@
 @model List<Organization>
-@{ViewData["Title"]="Organizations";}
-<div class="page-head"><div><h1>Organizations</h1><p>Manage entities, bilingual names and optional branding.</p></div><a class="btn primary" asp-action="Create">+ Organization</a></div><section class="panel"><div class="panel-head"><form method="get" class="actions"><input class="input" name="q" value="@Context.Request.Query["q"]" placeholder="Search organizations"><button class="btn secondary">Search</button></form></div><div class="table-wrap"><table class="data-table"><thead><tr><th>Logo</th><th>English</th><th>Arabic</th><th>Status</th><th>Created</th><th>Actions</th></tr></thead><tbody>@foreach(var o in Model){<tr><td>@if(o.LogoPath is not null){<img src="@o.LogoPath" style="width:48px;height:48px;object-fit:contain;background:white;border-radius:10px;padding:4px">}</td><td>@o.NameEnglish @if(o.IsDemo){<span class="badge NOT_STARTED">DEMO</span>}</td><td dir="rtl">@o.NameArabic</td><td><span class="badge @(o.IsActive?"ACTIVE":"DISABLED")">@(o.IsActive?"ACTIVE":"DISABLED")</span></td><td>@o.CreatedAtUtc.ToLocalTime().ToString("dd MMM yyyy")</td><td><div class="actions"><a class="btn secondary" asp-action="Edit" asp-route-id="@o.Id">Edit</a><form method="post" asp-action="Delete" asp-route-id="@o.Id" class="actions"><input class="input" name="confirmation" placeholder="Type DELETE" style="width:110px"><button class="btn danger">Delete</button></form></div></td></tr>}</tbody></table></div></section>
+@{
+    var ar = CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "ar";
+    ViewData["Title"] = T["Organizations"];
+}
+<link rel="stylesheet" href="~/css/admin-closure.css" asp-append-version="true" />
+<div class="page-head">
+    <div>
+        <h1>@T["Organizations"]</h1>
+        <p>@T["OrganizationsSubtitle"]</p>
+    </div>
+    <a class="btn primary" asp-action="Create">+ @T["NewOrganization"]</a>
+</div>
+<section class="panel">
+    <div class="panel-head">
+        <form method="get" class="actions" role="search">
+            <label class="sr-only" for="organization-search">@T["SearchOrganizations"]</label>
+            <input class="input" id="organization-search" name="q" value="@Context.Request.Query["q"]" placeholder="@T["SearchOrganizations"]" autocomplete="off" />
+            <button class="btn secondary" type="submit">@T["Search"]</button>
+        </form>
+    </div>
+    <div class="table-wrap admin-stack">
+        <table class="data-table admin-responsive-table">
+            <thead>
+                <tr><th>@T["Logo"]</th><th>@T["English"]</th><th>@T["Arabic"]</th><th>@T["Status"]</th><th>@T["Created"]</th><th>@T["Actions"]</th></tr>
+            </thead>
+            <tbody>
+            @foreach (var o in Model)
+            {
+                var statusKey = o.IsActive ? "ACTIVE" : "DISABLED";
+                <tr>
+                    <td data-label="@T["Logo"]">
+                        @if (o.LogoPath is not null)
+                        {
+                            <img src="@o.LogoPath" alt="@(ar ? o.NameArabic : o.NameEnglish)" style="width:48px;height:48px;object-fit:contain;background:white;border-radius:10px;padding:4px" />
+                        }
+                    </td>
+                    <td data-label="@T["English"]">@o.NameEnglish @if(o.IsDemo){<span class="badge NOT_STARTED">@T["Demo"]</span>}</td>
+                    <td data-label="@T["Arabic"]" dir="rtl">@o.NameArabic</td>
+                    <td data-label="@T["Status"]"><span class="badge @statusKey">@T[statusKey]</span></td>
+                    <td data-label="@T["Created"]"><span class="numeric">@o.CreatedAtUtc.ToLocalTime().ToString(ar ? "dd/MM/yyyy" : "dd MMM yyyy")</span></td>
+                    <td data-label="@T["Actions"]" data-actions>
+                        <div class="actions">
+                            <a class="btn secondary" asp-action="Edit" asp-route-id="@o.Id">@T["Edit"]</a>
+                            <form method="post" asp-action="Delete" asp-route-id="@o.Id" class="actions" onsubmit="return confirm('@T["ConfirmOrganizationDelete"]');">
+                                <label class="sr-only" for="organization-delete-@o.Id">@T["TypeDelete"]</label>
+                                <input class="input confirmation-input" id="organization-delete-@o.Id" name="confirmation" placeholder="@T["TypeDelete"]" autocomplete="off" required pattern="DELETE" />
+                                <button class="btn danger" type="submit">@T["Delete"]</button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+            }
+            @if (Model.Count == 0)
+            {
+                <tr><td colspan="6" class="muted">@T["NoOrganizations"]</td></tr>
+            }
+            </tbody>
+        </table>
+    </div>
+</section>
