@@ -26,9 +26,7 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           $parts = Get-ChildItem -LiteralPath 'bootstrap' -Filter 'part*.b64' | Sort-Object Name
-          if ($parts.Count -ne 11) {
-            throw "Expected 11 bootstrap chunks, found $($parts.Count)."
-          }
+          if ($parts.Count -ne 11) { throw "Expected 11 bootstrap chunks, found $($parts.Count)." }
 
           $encoded = ($parts | ForEach-Object { Get-Content -LiteralPath $_.FullName -Raw }) -join ''
           $archive = Join-Path $env:RUNNER_TEMP 'SecureQrPortal-source.zip'
@@ -38,7 +36,11 @@ jobs:
           if (Test-Path $expanded) { Remove-Item $expanded -Recurse -Force }
           Expand-Archive -LiteralPath $archive -DestinationPath $expanded -Force
 
-          Get-ChildItem -LiteralPath $expanded -Force | ForEach-Object {
+          $sln = Get-ChildItem -LiteralPath $expanded -Filter 'SecureQrPortal.sln' -File -Recurse | Select-Object -First 1
+          if (-not $sln) { throw 'SecureQrPortal.sln was not present in the reconstructed archive.' }
+          $sourceRoot = $sln.Directory.FullName
+
+          Get-ChildItem -LiteralPath $sourceRoot -Force | ForEach-Object {
             Copy-Item -LiteralPath $_.FullName -Destination '.' -Recurse -Force
           }
 
@@ -59,11 +61,6 @@ jobs:
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add -A
           git diff --cached --quiet
-          if ($LASTEXITCODE -eq 0) {
-            Write-Host 'No source import changes to commit.'
-            exit 0
-          }
+          if ($LASTEXITCODE -eq 0) { exit 0 }
           git commit -m 'feat: import complete Secure QR Portal v1.0.0 source [skip bootstrap]'
           git push origin "HEAD:${{ github.ref_name }}"
-
-# retrigger 2026-08-25
