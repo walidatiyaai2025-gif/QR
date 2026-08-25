@@ -151,13 +151,13 @@ public sealed class FirebaseAdminPushProvider(
                     health = new("CREDENTIAL_FAILURE", "CREDENTIAL_FILE_NOT_FOUND");
                     return null;
                 }
-                credential = CredentialFactory.FromFile(
-                    fullPath,
-                    JsonCredentialParameters.ServiceAccountCredentialType);
+                credential = CredentialFactory
+                    .FromFile<ServiceAccountCredential>(fullPath)
+                    .ToGoogleCredential();
             }
             else
             {
-                credential = GoogleCredential.GetApplicationDefault();
+                credential = await GoogleCredential.GetApplicationDefaultAsync(ct);
             }
 
             var app = FirebaseApp.Create(new AppOptions
@@ -184,7 +184,7 @@ public sealed class FirebaseAdminPushProvider(
 
     internal static Message BuildMessage(string fcmToken, FirebasePushEnvelope envelope)
     {
-#pragma warning disable CS0618 // Worker #2 currently persists FCM registration tokens; FirebaseAdmin 3.6 still accepts Token.
+#pragma warning disable CS0618 // FirebaseAdmin 3.6 still exposes the registration-token Token property for single-device sends.
         return new Message
         {
             Token = fcmToken,
