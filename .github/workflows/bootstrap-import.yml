@@ -40,18 +40,16 @@ jobs:
           if (-not $sln) { throw 'SecureQrPortal.sln was not present in the reconstructed archive.' }
           $sourceRoot = $sln.Directory.FullName
 
-          Get-ChildItem -LiteralPath $sourceRoot -Force | ForEach-Object {
+          Get-ChildItem -LiteralPath $sourceRoot -Force | Where-Object { $_.Name -ne '.github' } | ForEach-Object {
             Copy-Item -LiteralPath $_.FullName -Destination '.' -Recurse -Force
           }
 
           Remove-Item -LiteralPath 'bootstrap' -Recurse -Force
-          Remove-Item -LiteralPath '.github/workflows/bootstrap-import.yml' -Force
 
           if (-not (Test-Path 'SecureQrPortal.sln')) { throw 'SecureQrPortal.sln was not imported.' }
           if (-not (Test-Path 'src/SecureQrPortal/SecureQrPortal.csproj')) { throw 'Web project was not imported.' }
           if (-not (Test-Path 'tests/SecureQrPortal.Tests/SecureQrPortal.Tests.csproj')) { throw 'Test project was not imported.' }
           if (-not (Test-Path 'Last Approved Patch/Install-QR-IIS.ps1')) { throw 'Approved IIS installer was not imported.' }
-          if (-not (Test-Path '.github/workflows/ci.yml')) { throw 'CI workflow was not imported.' }
 
       - name: Commit imported product source
         shell: pwsh
