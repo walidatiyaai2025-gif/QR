@@ -22,6 +22,7 @@ public sealed class QrShareLink
     public DateTime? LastOpenedAtUtc { get; set; }
     public DateTime? AccessWindowEndsAtUtc { get; set; }
     public DateTime? RevokedAtUtc { get; set; }
+    [MaxLength(64)] public string? LastRevealRequestHash { get; set; }
 
     [MaxLength(450)] public string? CreatedByAdminId { get; set; }
     public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
