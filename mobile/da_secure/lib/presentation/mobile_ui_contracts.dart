@@ -44,12 +44,14 @@ class InboxDeliveryUiModel {
     this.sentLabel,
     this.expiryLabel,
     this.remainingRevealsLabel,
+    this.status,
   });
 
   final String deliveryId;
   final String? sentLabel;
   final String? expiryLabel;
   final String? remainingRevealsLabel;
+  final String? status;
 }
 
 class InboxUiState {
@@ -105,6 +107,7 @@ class SecureMessageUiState {
     this.phase = SecureDeliveryUiPhase.loading,
     this.organizationName,
     this.bodyText,
+    this.bodyHtml,
     this.remainingRevealsLabel,
     this.expiryLabel,
     this.attachments = const <AttachmentUiModel>[],
@@ -114,6 +117,7 @@ class SecureMessageUiState {
   final SecureDeliveryUiPhase phase;
   final String? organizationName;
   final String? bodyText;
+  final String? bodyHtml;
   final String? remainingRevealsLabel;
   final String? expiryLabel;
   final List<AttachmentUiModel> attachments;

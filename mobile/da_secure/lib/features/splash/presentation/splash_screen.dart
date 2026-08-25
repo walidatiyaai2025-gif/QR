@@ -1,42 +1,18 @@
-import 'dart:async';
-
 import 'package:da_secure/design_system/da_secure_theme.dart';
 import 'package:da_secure/localization/da_strings.dart';
-import 'package:da_secure/routing/app_navigation_state.dart';
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 
-class SplashScreen extends StatefulWidget {
-  const SplashScreen({super.key});
+class SplashScreen extends StatelessWidget {
+  const SplashScreen({
+    this.isLoading = true,
+    this.errorMessage,
+    this.onRetry,
+    super.key,
+  });
 
-  @override
-  State<SplashScreen> createState() => _SplashScreenState();
-}
-
-class _SplashScreenState extends State<SplashScreen> {
-  Timer? _navigationTimer;
-
-  @override
-  void initState() {
-    super.initState();
-    _navigationTimer = Timer(const Duration(milliseconds: 900), () {
-      if (!mounted) {
-        return;
-      }
-
-      context.go(
-        appNavigationState.isAuthenticated
-            ? appNavigationState.postAuthenticationDestination()
-            : '/auth/mobile',
-      );
-    });
-  }
-
-  @override
-  void dispose() {
-    _navigationTimer?.cancel();
-    super.dispose();
-  }
+  final bool isLoading;
+  final String? errorMessage;
+  final Future<void> Function()? onRetry;
 
   @override
   Widget build(BuildContext context) {
@@ -81,6 +57,23 @@ class _SplashScreenState extends State<SplashScreen> {
                       fontWeight: FontWeight.w600,
                     ),
                   ),
+                  const SizedBox(height: 28),
+                  if (isLoading)
+                    const CircularProgressIndicator()
+                  else if (errorMessage != null) ...[
+                    Text(
+                      errorMessage!,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(color: DaSecureColors.textMuted),
+                    ),
+                    if (onRetry != null) ...[
+                      const SizedBox(height: 16),
+                      OutlinedButton(
+                        onPressed: onRetry,
+                        child: Text(strings.retry),
+                      ),
+                    ],
+                  ],
                 ],
               ),
             ),
