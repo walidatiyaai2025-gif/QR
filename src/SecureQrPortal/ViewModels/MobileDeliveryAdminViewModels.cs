@@ -72,12 +72,21 @@ public sealed class MobileDeliveryHistoryVm
     public int TotalPages => Math.Max(1, (int)Math.Ceiling(Total / (double)PageSize));
 }
 
+public sealed class MobileDeliveryAuditItemVm
+{
+    public DateTime TimestampUtc { get; init; }
+    public string Action { get; init; } = string.Empty;
+    public string Admin { get; init; } = "—";
+    public string? Details { get; init; }
+}
+
 public sealed class MobileDeliveryDetailsVm
 {
     public MobileDeliveryHistoryItemVm Delivery { get; init; } = null!;
     public string SourceStatus { get; init; } = string.Empty;
     public long? RemainingReveals { get; init; }
     public bool UnlimitedReveals { get; init; }
+    public IReadOnlyList<MobileDeliveryAuditItemVm> Audit { get; init; } = [];
 }
 
 public sealed class QrMobileDeliveryPanelVm
