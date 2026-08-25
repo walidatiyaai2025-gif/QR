@@ -30,7 +30,6 @@ public sealed class MobileSessionService(
         {
             SessionId = tokens.GenerateToken(24),
             OrganizationId = organization.Id,
-            Organization = organization,
             AccessTokenHash = tokens.HashToken(accessToken),
             RefreshTokenHash = tokens.HashToken(refreshToken),
             CreatedAtUtc = now,
@@ -190,7 +189,7 @@ public sealed class MobileOtpService(
         var challengeId = tokens.GenerateToken(24);
         var expiresAt = now.AddMinutes(5);
         var resendAt = now.AddSeconds(60);
-        var organization = await db.Organizations.SingleOrDefaultAsync(
+        var organization = await db.Organizations.AsNoTracking().SingleOrDefaultAsync(
             x => x.IsActive && x.MobileNumber == normalized, ct);
 
         if (organization is null)
@@ -254,7 +253,7 @@ public sealed class MobileOtpService(
             return new(MobileOtpVerifyStatus.Invalid);
 
         var now = timeProvider.GetUtcNow().UtcDateTime;
-        var challenge = await db.MobileOtpChallenges.Include(x => x.Organization)
+        var challenge = await db.MobileOtpChallenges.AsNoTracking().Include(x => x.Organization)
             .SingleOrDefaultAsync(x => x.ChallengeId == challengeId, ct);
         if (challenge is null || challenge.RevokedAtUtc.HasValue || challenge.ConsumedAtUtc.HasValue)
         {
@@ -289,7 +288,13 @@ public sealed class MobileOtpService(
             .ExecuteUpdateAsync(x => x.SetProperty(c => c.ConsumedAtUtc, now), ct);
         if (consumed != 1)
         {
+            var latest = await db.MobileOtpChallenges.AsNoTracking()
+                .Where(x => x.Id == challenge.Id)
+                .Select(x => new { x.AttemptCount, x.MaxAttempts, x.ExpiresAtUtc, x.ConsumedAtUtc, x.RevokedAtUtc })
+                .SingleAsync(ct);
             await audit.WriteAsync("MOBILE_OTP_FAILED", "MobileOtpChallenge", challengeId, "Replay or concurrent verification denied.", ct);
+            if (latest.AttemptCount >= latest.MaxAttempts) return new(MobileOtpVerifyStatus.TooManyAttempts);
+            if (latest.ExpiresAtUtc <= now) return new(MobileOtpVerifyStatus.Expired);
             return new(MobileOtpVerifyStatus.Invalid);
         }
 
