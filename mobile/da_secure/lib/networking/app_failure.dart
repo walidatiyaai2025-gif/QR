@@ -51,6 +51,7 @@ class AppFailure implements Exception {
       case DioExceptionType.connectionTimeout:
       case DioExceptionType.sendTimeout:
       case DioExceptionType.receiveTimeout:
+      case DioExceptionType.transformTimeout:
         return const AppFailure(
           kind: AppFailureKind.timeout,
           code: 'TIMEOUT',
