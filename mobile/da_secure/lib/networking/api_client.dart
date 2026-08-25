@@ -7,18 +7,15 @@ import 'package:da_secure/security/secure_storage_service.dart';
 import 'package:dio/dio.dart';
 
 class ApiClient {
-  ApiClient({
-    required this.storage,
-    Dio? dio,
-    Dio? refreshDio,
-  })  : dio = dio ?? Dio(_options()),
-        _refreshDio = refreshDio ?? Dio(_options()) {
+  ApiClient({required this.storage, Dio? dio, Dio? refreshDio})
+    : dio = dio ?? Dio(_options()),
+      _refreshDio = refreshDio ?? Dio(_options()) {
     this.dio.interceptors.add(
-          InterceptorsWrapper(
-            onRequest: _authorize,
-            onError: _handleAuthorizationFailure,
-          ),
-        );
+      InterceptorsWrapper(
+        onRequest: _authorize,
+        onError: _handleAuthorizationFailure,
+      ),
+    );
   }
 
   final SecureStorageService storage;
@@ -29,15 +26,15 @@ class ApiClient {
   FutureOr<void> Function()? onSessionInvalidated;
 
   static BaseOptions _options() => BaseOptions(
-        baseUrl: AppConfig.apiBaseUrl,
-        connectTimeout: const Duration(seconds: 15),
-        receiveTimeout: const Duration(seconds: 20),
-        sendTimeout: const Duration(seconds: 20),
-        headers: const {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json',
-        },
-      );
+    baseUrl: AppConfig.apiBaseUrl,
+    connectTimeout: const Duration(seconds: 15),
+    receiveTimeout: const Duration(seconds: 20),
+    sendTimeout: const Duration(seconds: 20),
+    headers: const {
+      'Accept': 'application/json',
+      'Content-Type': 'application/json',
+    },
+  );
 
   Future<void> _authorize(
     RequestOptions options,
@@ -60,7 +57,8 @@ class ApiClient {
     ErrorInterceptorHandler handler,
   ) async {
     final request = error.requestOptions;
-    final canRefresh = error.response?.statusCode == 401 &&
+    final canRefresh =
+        error.response?.statusCode == 401 &&
         request.extra['skipAuth'] != true &&
         request.extra['skipRefresh'] != true &&
         request.extra['retriedAfterRefresh'] != true &&
@@ -115,9 +113,7 @@ class ApiClient {
       final response = await _refreshDio.post<dynamic>(
         '/api/mobile/auth/refresh',
         data: {'refreshToken': current.refreshToken},
-        options: Options(
-          extra: const {'skipAuth': true, 'skipRefresh': true},
-        ),
+        options: Options(extra: const {'skipAuth': true, 'skipRefresh': true}),
       );
       final data = _jsonMap(response.data);
       final refreshed = MobileSession.fromJson(data);

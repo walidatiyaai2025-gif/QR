@@ -18,10 +18,10 @@ class OrganizationProfile {
   }
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'nameArabic': nameArabic,
-        'nameEnglish': nameEnglish,
-      };
+    'id': id,
+    'nameArabic': nameArabic,
+    'nameEnglish': nameEnglish,
+  };
 
   String displayName(bool arabic) {
     final preferred = arabic ? nameArabic : nameEnglish;
@@ -51,24 +51,28 @@ class MobileSession {
     final organizationJson = _asMap(json['organization']);
     return MobileSession(
       accessToken: _requiredString(json['accessToken'], 'accessToken'),
-      accessExpiresAtUtc:
-          _requiredDate(json['accessExpiresAtUtc'], 'accessExpiresAtUtc'),
+      accessExpiresAtUtc: _requiredDate(
+        json['accessExpiresAtUtc'],
+        'accessExpiresAtUtc',
+      ),
       refreshToken: _requiredString(json['refreshToken'], 'refreshToken'),
-      refreshExpiresAtUtc:
-          _requiredDate(json['refreshExpiresAtUtc'], 'refreshExpiresAtUtc'),
+      refreshExpiresAtUtc: _requiredDate(
+        json['refreshExpiresAtUtc'],
+        'refreshExpiresAtUtc',
+      ),
       sessionId: _requiredString(json['sessionId'], 'sessionId'),
       organization: OrganizationProfile.fromJson(organizationJson),
     );
   }
 
   Map<String, dynamic> toJson() => {
-        'accessToken': accessToken,
-        'accessExpiresAtUtc': accessExpiresAtUtc.toUtc().toIso8601String(),
-        'refreshToken': refreshToken,
-        'refreshExpiresAtUtc': refreshExpiresAtUtc.toUtc().toIso8601String(),
-        'sessionId': sessionId,
-        'organization': organization.toJson(),
-      };
+    'accessToken': accessToken,
+    'accessExpiresAtUtc': accessExpiresAtUtc.toUtc().toIso8601String(),
+    'refreshToken': refreshToken,
+    'refreshExpiresAtUtc': refreshExpiresAtUtc.toUtc().toIso8601String(),
+    'sessionId': sessionId,
+    'organization': organization.toJson(),
+  };
 
   bool get refreshExpired =>
       !refreshExpiresAtUtc.toUtc().isAfter(DateTime.now().toUtc());
@@ -86,13 +90,13 @@ class OtpChallenge {
   final DateTime resendAvailableAtUtc;
 
   factory OtpChallenge.fromJson(Map<String, dynamic> json) => OtpChallenge(
-        challengeId: _requiredString(json['challengeId'], 'challengeId'),
-        expiresAtUtc: _requiredDate(json['expiresAtUtc'], 'expiresAtUtc'),
-        resendAvailableAtUtc: _requiredDate(
-          json['resendAvailableAtUtc'],
-          'resendAvailableAtUtc',
-        ),
-      );
+    challengeId: _requiredString(json['challengeId'], 'challengeId'),
+    expiresAtUtc: _requiredDate(json['expiresAtUtc'], 'expiresAtUtc'),
+    resendAvailableAtUtc: _requiredDate(
+      json['resendAvailableAtUtc'],
+      'resendAvailableAtUtc',
+    ),
+  );
 }
 
 class CurrentUser {
@@ -146,14 +150,13 @@ class InboxItem {
   final String status;
 
   factory InboxItem.fromJson(Map<String, dynamic> json) => InboxItem(
-        deliveryId: _asInt(json['deliveryId']),
-        sentAtUtc: _optionalDate(json['sentAtUtc']),
-        expiresAtUtc: _optionalDate(json['expiresAtUtc']),
-        firstRevealedAtUtc: _optionalDate(json['firstRevealedAtUtc']),
-        remainingReveals: _optionalInt(json['remainingReveals']),
-        status:
-            (json['status'] as String?)?.trim().toUpperCase() ?? 'UNKNOWN',
-      );
+    deliveryId: _asInt(json['deliveryId']),
+    sentAtUtc: _optionalDate(json['sentAtUtc']),
+    expiresAtUtc: _optionalDate(json['expiresAtUtc']),
+    firstRevealedAtUtc: _optionalDate(json['firstRevealedAtUtc']),
+    remainingReveals: _optionalInt(json['remainingReveals']),
+    status: (json['status'] as String?)?.trim().toUpperCase() ?? 'UNKNOWN',
+  );
 }
 
 class InboxPage {
@@ -210,27 +213,23 @@ class DeliveryDetails {
         expiresAtUtc: _optionalDate(json['expiresAtUtc']),
         firstRevealedAtUtc: _optionalDate(json['firstRevealedAtUtc']),
         remainingReveals: _optionalInt(json['remainingReveals']),
-        status:
-            (json['status'] as String?)?.trim().toUpperCase() ?? 'UNKNOWN',
+        status: (json['status'] as String?)?.trim().toUpperCase() ?? 'UNKNOWN',
       );
 }
 
 class RevealGrant {
-  const RevealGrant({
-    required this.revealToken,
-    required this.expiresAtUtc,
-  });
+  const RevealGrant({required this.revealToken, required this.expiresAtUtc});
 
   final String revealToken;
   final DateTime expiresAtUtc;
 
   factory RevealGrant.fromJson(Map<String, dynamic> json) => RevealGrant(
-        revealToken: _requiredString(json['revealToken'], 'revealToken'),
-        expiresAtUtc: _requiredDate(
-          json['revealExpiresAtUtc'],
-          'revealExpiresAtUtc',
-        ),
-      );
+    revealToken: _requiredString(json['revealToken'], 'revealToken'),
+    expiresAtUtc: _requiredDate(
+      json['revealExpiresAtUtc'],
+      'revealExpiresAtUtc',
+    ),
+  );
 }
 
 class SecureMessage {

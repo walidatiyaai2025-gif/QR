@@ -61,7 +61,8 @@ class AppFailure implements Exception {
         return const AppFailure(
           kind: AppFailureKind.network,
           code: 'NO_NETWORK',
-          messageArabic: 'تعذر الاتصال بالشبكة. تحقق من الاتصال وحاول مرة أخرى.',
+          messageArabic:
+              'تعذر الاتصال بالشبكة. تحقق من الاتصال وحاول مرة أخرى.',
           messageEnglish:
               'Network connection failed. Check your connection and try again.',
         );
@@ -102,7 +103,8 @@ class AppFailure implements Exception {
     final ar = _string(source['messageArabic']);
     final en = _string(source['messageEnglish']);
     final retryAfter =
-        _int(envelope['retryAfterSeconds']) ?? _int(source['retryAfterSeconds']);
+        _int(envelope['retryAfterSeconds']) ??
+        _int(source['retryAfterSeconds']);
     final kind = _kindFor(status, code);
 
     return AppFailure(
@@ -157,36 +159,36 @@ class AppFailure implements Exception {
   }
 
   static String _fallbackArabic(AppFailureKind kind) => switch (kind) {
-        AppFailureKind.network => 'تعذر الاتصال بالشبكة.',
-        AppFailureKind.timeout => 'انتهت مهلة الاتصال.',
-        AppFailureKind.unauthorized => 'انتهت الجلسة. سجل الدخول مرة أخرى.',
-        AppFailureKind.forbidden => 'غير مصرح بهذا الإجراء.',
-        AppFailureKind.rateLimited => 'تم تجاوز عدد المحاولات مؤقتًا.',
-        AppFailureKind.validation => 'تحقق من البيانات المدخلة.',
-        AppFailureKind.notFound => 'العنصر المطلوب غير موجود.',
-        AppFailureKind.expiredDelivery => 'انتهت صلاحية الرسالة.',
-        AppFailureKind.revokedDelivery => 'تم إلغاء الرسالة.',
-        AppFailureKind.accessLimit => 'تم الوصول إلى الحد الأقصى للمشاهدة.',
-        AppFailureKind.invalidCredentials => 'بيانات الاعتماد غير صحيحة.',
-        AppFailureKind.server => 'الخدمة غير متاحة مؤقتًا.',
-        AppFailureKind.unknown => 'تعذر إتمام الطلب.',
-      };
+    AppFailureKind.network => 'تعذر الاتصال بالشبكة.',
+    AppFailureKind.timeout => 'انتهت مهلة الاتصال.',
+    AppFailureKind.unauthorized => 'انتهت الجلسة. سجل الدخول مرة أخرى.',
+    AppFailureKind.forbidden => 'غير مصرح بهذا الإجراء.',
+    AppFailureKind.rateLimited => 'تم تجاوز عدد المحاولات مؤقتًا.',
+    AppFailureKind.validation => 'تحقق من البيانات المدخلة.',
+    AppFailureKind.notFound => 'العنصر المطلوب غير موجود.',
+    AppFailureKind.expiredDelivery => 'انتهت صلاحية الرسالة.',
+    AppFailureKind.revokedDelivery => 'تم إلغاء الرسالة.',
+    AppFailureKind.accessLimit => 'تم الوصول إلى الحد الأقصى للمشاهدة.',
+    AppFailureKind.invalidCredentials => 'بيانات الاعتماد غير صحيحة.',
+    AppFailureKind.server => 'الخدمة غير متاحة مؤقتًا.',
+    AppFailureKind.unknown => 'تعذر إتمام الطلب.',
+  };
 
   static String _fallbackEnglish(AppFailureKind kind) => switch (kind) {
-        AppFailureKind.network => 'Network connection failed.',
-        AppFailureKind.timeout => 'The connection timed out.',
-        AppFailureKind.unauthorized => 'The session expired. Sign in again.',
-        AppFailureKind.forbidden => 'This action is not authorized.',
-        AppFailureKind.rateLimited => 'Too many attempts. Try again later.',
-        AppFailureKind.validation => 'Check the entered information.',
-        AppFailureKind.notFound => 'The requested item was not found.',
-        AppFailureKind.expiredDelivery => 'This message has expired.',
-        AppFailureKind.revokedDelivery => 'This message was revoked.',
-        AppFailureKind.accessLimit => 'The reveal limit has been reached.',
-        AppFailureKind.invalidCredentials => 'The credentials are invalid.',
-        AppFailureKind.server => 'The service is temporarily unavailable.',
-        AppFailureKind.unknown => 'The request could not be completed.',
-      };
+    AppFailureKind.network => 'Network connection failed.',
+    AppFailureKind.timeout => 'The connection timed out.',
+    AppFailureKind.unauthorized => 'The session expired. Sign in again.',
+    AppFailureKind.forbidden => 'This action is not authorized.',
+    AppFailureKind.rateLimited => 'Too many attempts. Try again later.',
+    AppFailureKind.validation => 'Check the entered information.',
+    AppFailureKind.notFound => 'The requested item was not found.',
+    AppFailureKind.expiredDelivery => 'This message has expired.',
+    AppFailureKind.revokedDelivery => 'This message was revoked.',
+    AppFailureKind.accessLimit => 'The reveal limit has been reached.',
+    AppFailureKind.invalidCredentials => 'The credentials are invalid.',
+    AppFailureKind.server => 'The service is temporarily unavailable.',
+    AppFailureKind.unknown => 'The request could not be completed.',
+  };
 }
 
 Map<String, dynamic> _map(dynamic value) {

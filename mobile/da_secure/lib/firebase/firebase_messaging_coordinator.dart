@@ -33,10 +33,12 @@ class FirebaseMessagingCoordinator {
     if (_started) return;
     _started = true;
 
-    _openedSubscription =
-        FirebaseMessaging.onMessageOpenedApp.listen(_handleOpenedMessage);
-    _foregroundSubscription =
-        FirebaseMessaging.onMessage.listen(_handleForegroundMessage);
+    _openedSubscription = FirebaseMessaging.onMessageOpenedApp.listen(
+      _handleOpenedMessage,
+    );
+    _foregroundSubscription = FirebaseMessaging.onMessage.listen(
+      _handleForegroundMessage,
+    );
     _tokenSubscription = messaging.onTokenRefresh.listen((token) async {
       if (!isAuthenticated()) return;
       try {
@@ -75,7 +77,7 @@ class FirebaseMessagingCoordinator {
 
     final pushEnabled =
         settings.authorizationStatus == AuthorizationStatus.authorized ||
-            settings.authorizationStatus == AuthorizationStatus.provisional;
+        settings.authorizationStatus == AuthorizationStatus.provisional;
     await devices.register(fcmToken: token, pushEnabled: pushEnabled);
     return true;
   }
@@ -86,11 +88,15 @@ class FirebaseMessagingCoordinator {
   }) async {
     if (!isAuthenticated() || token.trim().isEmpty) return;
     final settings = requestPermission
-        ? await messaging.requestPermission(alert: true, badge: true, sound: true)
+        ? await messaging.requestPermission(
+            alert: true,
+            badge: true,
+            sound: true,
+          )
         : await messaging.getNotificationSettings();
     final pushEnabled =
         settings.authorizationStatus == AuthorizationStatus.authorized ||
-            settings.authorizationStatus == AuthorizationStatus.provisional;
+        settings.authorizationStatus == AuthorizationStatus.provisional;
     await devices.register(fcmToken: token, pushEnabled: pushEnabled);
   }
 

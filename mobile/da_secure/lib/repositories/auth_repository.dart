@@ -5,10 +5,7 @@ import 'package:da_secure/security/secure_storage_service.dart';
 import 'package:dio/dio.dart';
 
 class AuthRepository {
-  const AuthRepository({
-    required this.client,
-    required this.storage,
-  });
+  const AuthRepository({required this.client, required this.storage});
 
   final ApiClient client;
   final SecureStorageService storage;
@@ -61,10 +58,7 @@ class AuthRepository {
     try {
       final response = await client.post(
         '/api/mobile/auth/verify-otp',
-        data: {
-          'challengeId': challengeId,
-          'otp': otp.trim(),
-        },
+        data: {'challengeId': challengeId, 'otp': otp.trim()},
         skipAuth: true,
       );
       final session = MobileSession.fromJson(ApiClient.jsonMap(response.data));
@@ -77,8 +71,10 @@ class AuthRepository {
 
   Future<CurrentUser> getCurrentUser({CancelToken? cancelToken}) async {
     try {
-      final response =
-          await client.get('/api/mobile/me', cancelToken: cancelToken);
+      final response = await client.get(
+        '/api/mobile/me',
+        cancelToken: cancelToken,
+      );
       return CurrentUser.fromJson(ApiClient.jsonMap(response.data));
     } on DioException catch (error) {
       throw ApiClient.mapError(error);

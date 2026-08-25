@@ -36,8 +36,7 @@ class DaStrings {
   String get biometricBody => isArabic
       ? 'البصمة اختيارية ولا تستبدل اسم المستخدم وكلمة المرور الخاصة بالرسالة الآمنة.'
       : 'Biometrics are optional and never replace the secure-message username and password.';
-  String get enableBiometric =>
-      isArabic ? 'تفعيل البصمة' : 'Enable biometrics';
+  String get enableBiometric => isArabic ? 'تفعيل البصمة' : 'Enable biometrics';
   String get notNow => isArabic ? 'ليس الآن' : 'Not now';
 
   String get inbox => isArabic ? 'الوارد' : 'Inbox';
@@ -61,8 +60,7 @@ class DaStrings {
   String get password => isArabic ? 'كلمة المرور' : 'Password';
   String get revealMessage =>
       isArabic ? 'استعراض الرسالة' : 'View secure message';
-  String get secureMessage =>
-      isArabic ? 'الرسالة الآمنة' : 'Secure message';
+  String get secureMessage => isArabic ? 'الرسالة الآمنة' : 'Secure message';
   String get attachments => isArabic ? 'المرفقات' : 'Attachments';
 
   String get expired =>

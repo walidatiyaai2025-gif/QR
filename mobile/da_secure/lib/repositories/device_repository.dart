@@ -15,10 +15,7 @@ class DeviceRegistration {
 }
 
 class DeviceRepository {
-  const DeviceRepository({
-    required this.client,
-    required this.storage,
-  });
+  const DeviceRepository({required this.client, required this.storage});
 
   final ApiClient client;
   final SecureStorageService storage;

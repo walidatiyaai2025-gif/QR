@@ -49,10 +49,7 @@ class InboxRepository {
     try {
       final response = await client.post(
         '/api/mobile/inbox/$deliveryId/authenticate',
-        data: {
-          'username': username,
-          'password': password,
-        },
+        data: {'username': username, 'password': password},
         cancelToken: cancelToken,
       );
       return RevealGrant.fromJson(ApiClient.jsonMap(response.data));

@@ -196,8 +196,9 @@ class AppRuntime extends AppNavigationState {
     notifyListeners();
 
     try {
-      final enabled =
-          await biometrics.enableForExistingSession(arabic: isArabic);
+      final enabled = await biometrics.enableForExistingSession(
+        arabic: isArabic,
+      );
       if (!enabled) {
         _biometricState = BiometricUiState(
           errorMessage: isArabic
@@ -299,8 +300,9 @@ class AppRuntime extends AppNavigationState {
     if (id == null) {
       return SecureLoginUiState(
         phase: SecureDeliveryUiPhase.error,
-        errorMessage:
-            isArabic ? 'معرّف الرسالة غير صالح.' : 'Invalid delivery identifier.',
+        errorMessage: isArabic
+            ? 'معرّف الرسالة غير صالح.'
+            : 'Invalid delivery identifier.',
       );
     }
     return _secureLoginStates[id] ??
@@ -315,8 +317,9 @@ class AppRuntime extends AppNavigationState {
     if (id == null) {
       return SecureMessageUiState(
         phase: SecureDeliveryUiPhase.error,
-        errorMessage:
-            isArabic ? 'معرّف الرسالة غير صالح.' : 'Invalid delivery identifier.',
+        errorMessage: isArabic
+            ? 'معرّف الرسالة غير صالح.'
+            : 'Invalid delivery identifier.',
       );
     }
     return _secureMessageStates[id] ??
@@ -442,12 +445,12 @@ class AppRuntime extends AppNavigationState {
   }
 
   InboxDeliveryUiModel _toInboxUi(InboxItem item) => InboxDeliveryUiModel(
-        deliveryId: item.deliveryId.toString(),
-        sentLabel: _formatDate(item.sentAtUtc),
-        expiryLabel: _formatDate(item.expiresAtUtc),
-        remainingRevealsLabel: item.remainingReveals?.toString(),
-        status: item.status,
-      );
+    deliveryId: item.deliveryId.toString(),
+    sentLabel: _formatDate(item.sentAtUtc),
+    expiryLabel: _formatDate(item.expiresAtUtc),
+    remainingRevealsLabel: item.remainingReveals?.toString(),
+    status: item.status,
+  );
 
   SecureLoginUiState _loginStateFromDetails(DeliveryDetails details) {
     final phase = switch (details.status) {

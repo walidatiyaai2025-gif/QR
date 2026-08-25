@@ -2,7 +2,7 @@ import 'package:local_auth/local_auth.dart';
 
 class BiometricService {
   BiometricService([LocalAuthentication? authentication])
-      : _authentication = authentication ?? LocalAuthentication();
+    : _authentication = authentication ?? LocalAuthentication();
 
   final LocalAuthentication _authentication;
 

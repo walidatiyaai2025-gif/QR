@@ -37,9 +37,9 @@ class _MobileNumberScreenState extends State<MobileNumberScreen> {
     final callback = widget.onRequestOtp;
     if (callback == null) {
       final strings = DaStrings.of(context);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(strings.serviceUnavailable)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(strings.serviceUnavailable)));
       return;
     }
 
@@ -70,10 +70,7 @@ class _MobileNumberScreenState extends State<MobileNumberScreen> {
             Text(
               strings.signIn,
               textAlign: TextAlign.center,
-              style: const TextStyle(
-                fontSize: 28,
-                fontWeight: FontWeight.w700,
-              ),
+              style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w700),
             ),
             const SizedBox(height: 8),
             Text(
