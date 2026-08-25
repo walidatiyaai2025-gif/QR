@@ -1,0 +1,39 @@
+name: DA Secure Firebase Reminder Worker Verify
+
+on:
+  push:
+    branches:
+      - worker/da-secure-firebase-reminders-v2
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  firebase-reminder-build-test:
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Install .NET 10 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.400'
+      - name: Restore
+        shell: pwsh
+        run: dotnet restore SecureQrPortal.sln
+      - name: Build Release
+        shell: pwsh
+        run: dotnet build SecureQrPortal.sln --configuration Release --no-restore
+      - name: Test Release
+        shell: pwsh
+        run: dotnet test SecureQrPortal.sln --configuration Release --no-build --logger "trx;LogFileName=firebase-reminder-worker-tests.trx" --results-directory TestResults
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: da-secure-firebase-reminder-worker-test-results
+          path: TestResults/**/*.trx
+          if-no-files-found: warn
+          retention-days: 14

@@ -196,8 +196,11 @@ builder.Services.AddScoped<MobileSessionService>();
 builder.Services.AddScoped<MobileOtpService>();
 builder.Services.AddScoped<MobileDeviceService>();
 builder.Services.AddScoped<MobileDeliveryAccessService>();
-builder.Services.AddScoped<IMobilePushDispatchService, UnavailableMobilePushDispatchService>();
+builder.Services.AddSingleton<IFirebaseMessagingClient, FirebaseAdminMessagingClient>();
+builder.Services.AddScoped<IMobilePushDispatchService, FirebaseMobilePushDispatchService>();
 builder.Services.AddScoped<MobileDeliveryAdminService>();
+builder.Services.AddScoped<MobileReminderService>();
+builder.Services.AddHostedService<MobileReminderWorker>();
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddCaptchaSecurity();
 
