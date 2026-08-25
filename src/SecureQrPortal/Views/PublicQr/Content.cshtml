@@ -1,25 +1,57 @@
 @using System.Globalization
 @model SecurePage
 @{
-    var ar=CultureInfo.CurrentUICulture.TwoLetterISOLanguageName=="ar";
-    var org=ar?Model.Organization.NameArabic:Model.Organization.NameEnglish;
-    var title=ar?Model.TitleArabic:Model.TitleEnglish;
-    var html=ar?Model.ContentArabicHtml:Model.ContentEnglishHtml;
-    var currentPath=Context.Request.Path.ToString();
-    var publicPath=currentPath.EndsWith("/content",StringComparison.OrdinalIgnoreCase)?currentPath[..^8]:currentPath;
-    var secureUrl=$"{Context.Request.Scheme}://{Context.Request.Host}{Context.Request.PathBase}{publicPath}";
-    DateTime? hardExpiry=ViewBag.HardSessionExpiresAtUtc is DateTime dt ? dt : null;
-    ViewData["Title"]=title;
+    var ar = CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "ar";
+    var org = ar ? Model.Organization.NameArabic : Model.Organization.NameEnglish;
+    var title = ar ? Model.TitleArabic : Model.TitleEnglish;
+    var html = ar ? Model.ContentArabicHtml : Model.ContentEnglishHtml;
+    var currentPath = Context.Request.Path.ToString();
+    var publicPath = currentPath.EndsWith("/content", StringComparison.OrdinalIgnoreCase) ? currentPath[..^8] : currentPath;
+    var secureUrl = $"{Context.Request.Scheme}://{Context.Request.Host}{Context.Request.PathBase}{publicPath}";
+    var pageExpiry = Model.ExpiresAtUtc;
+    DateTime? hardExpiry = ViewBag.HardSessionExpiresAtUtc is DateTime dt ? dt : null;
+    ViewData["Title"] = title;
 }
-<section class="public-center secure-page-shell content-shell" style="align-items:start"><article class="premium-card secure-content-card">@if(!string.IsNullOrWhiteSpace(Model.Organization.LogoPath)){<img class="org-logo" src="@Model.Organization.LogoPath" alt="@org">}<div class="public-title"><div class="security-kicker">@Model.QrReference</div><h1>@org</h1><p class="secure-page-title">@title</p>@if(ViewBag.ShowExpiry==true&&Model.ExpiresAtUtc.HasValue){<span class="validity-pill">@(ar?"صالح حتى":"Valid until") @Model.ExpiresAtUtc.Value.ToLocalTime().ToString("dd MMM yyyy HH:mm")</span>}</div><div class="secure-address"><span>@(ar?"الرابط الآمن":"Secure address")</span><strong class="url">@secureUrl</strong></div>@if(hardExpiry.HasValue){<div class="session-expiry-banner"><strong>@(ar?"جلسة مشاركة مؤقتة":"Temporary shared session")</strong><span>@(ar?"سيتم إنهاء الوصول تلقائياً في":"Access will close automatically at") @hardExpiry.Value.ToLocalTime().ToString("dd MMM yyyy HH:mm:ss")</span></div>}<div class="secure-content">@Html.Raw(html)</div></article></section>
+
+<section class="public-center secure-page-shell content-shell" style="align-items:start">
+    <article class="premium-card secure-content-card">
+        @if (!string.IsNullOrWhiteSpace(Model.Organization.LogoPath))
+        {
+            <img class="org-logo" src="@Model.Organization.LogoPath" alt="@org">
+        }
+        <div class="public-title">
+            <div class="security-kicker">@Model.QrReference</div>
+            <h1>@org</h1>
+            <p class="secure-page-title">@title</p>
+            @if (ViewBag.ShowExpiry == true && pageExpiry is DateTime expiry)
+            {
+                <span class="validity-pill">@(ar ? "صالح حتى" : "Valid until") @expiry.ToLocalTime().ToString("dd MMM yyyy HH:mm")</span>
+            }
+        </div>
+        <div class="secure-address">
+            <span>@(ar ? "الرابط الآمن" : "Secure address")</span>
+            <strong class="url">@secureUrl</strong>
+        </div>
+        @if (hardExpiry is DateTime hardEnd)
+        {
+            <div class="session-expiry-banner">
+                <strong>@(ar ? "جلسة مشاركة مؤقتة" : "Temporary shared session")</strong>
+                <span>@(ar ? "سيتم إنهاء الوصول تلقائياً في" : "Access will close automatically at") @hardEnd.ToLocalTime().ToString("dd MMM yyyy HH:mm:ss")</span>
+            </div>
+        }
+        <div class="secure-content">@Html.Raw(html)</div>
+    </article>
+</section>
+
 @section Scripts {
-@if(hardExpiry.HasValue){
+@if (hardExpiry is DateTime hardEndForScript)
+{
 <script>
 (function(){
-  const expires=Date.parse('@hardExpiry.Value.ToUniversalTime().ToString("O")');
+  const expires = Date.parse('@hardEndForScript.ToUniversalTime().ToString("O")');
   function closeWhenExpired(){
-    if(Date.now()>=expires){window.location.replace(window.location.href);return;}
-    window.setTimeout(closeWhenExpired,Math.min(1000,expires-Date.now()));
+    if (Date.now() >= expires) { window.location.replace(window.location.href); return; }
+    window.setTimeout(closeWhenExpired, Math.min(1000, expires - Date.now()));
   }
   closeWhenExpired();
 })();
