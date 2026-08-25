@@ -29,6 +29,7 @@
         <a class="btn primary block" href="@Model.PublicQrUrl" rel="noopener">@(ar ? "فتح صفحة QR وإدخال البيانات" : "Open QR page and sign in")</a>
         <p class="share-hint">@(ar ? "حتى لو تركت صفحة المحتوى مفتوحة، سيقوم النظام بإنهاء جلسة المشاركة عند انتهاء الوقت، والتحقق يتم من الخادم أيضاً." : "Even if the content page is left open, the shared session is terminated at the deadline; the server also enforces the expiry.")</p>
     </div>
+    <partial name="_RuntimeInspector" />
 </section>
 @section Scripts {
 <script>
