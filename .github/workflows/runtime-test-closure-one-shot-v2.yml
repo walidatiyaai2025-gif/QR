@@ -1,0 +1,75 @@
+name: DA Secure Runtime Test Closure One Shot V2
+
+on:
+  push:
+    branches:
+      - lead/da-secure-runtime-convergence
+    paths:
+      - .github/workflows/runtime-test-closure-one-shot-v2.yml
+
+permissions:
+  contents: write
+
+jobs:
+  validate-commit-push:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: lead/da-secure-runtime-convergence
+          fetch-depth: 0
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Apply previously validated closure recipe
+        shell: bash
+        run: |
+          python3 - <<'PY2'
+          from pathlib import Path
+          import textwrap
+
+          workflow = Path('.github/workflows/runtime-test-closure-one-shot.yml').read_text()
+          start_marker = "          python3 - <<'PY'\n"
+          end_marker = "\n          PY\n"
+          start = workflow.index(start_marker) + len(start_marker)
+          end = workflow.index(end_marker, start)
+          recipe = textwrap.dedent(workflow[start:end])
+          exec(compile(recipe, '<validated-closure-recipe>', 'exec'))
+          PY2
+      - name: Get Flutter dependencies
+        working-directory: mobile/da_secure
+        run: flutter pub get
+      - name: Canonically format patched test
+        working-directory: mobile/da_secure
+        run: dart format test/runtime_contract_test.dart
+      - name: Validate targeted runtime contracts
+        working-directory: mobile/da_secure
+        run: flutter test test/runtime_contract_test.dart
+      - name: Validate full Flutter suite
+        working-directory: mobile/da_secure
+        run: flutter test
+      - name: Verify Dart format
+        working-directory: mobile/da_secure
+        run: dart format --output=none --set-exit-if-changed lib test
+      - name: Analyze
+        working-directory: mobile/da_secure
+        run: flutter analyze
+      - name: Build debug APK
+        working-directory: mobile/da_secure
+        run: flutter build apk --debug
+      - name: Commit validated closure and remove one-shot workflows
+        shell: bash
+        run: |
+          git rm .github/workflows/runtime-test-closure-one-shot.yml
+          git rm .github/workflows/runtime-test-closure-one-shot-v2.yml
+          git add mobile/da_secure/test/runtime_contract_test.dart
+          git diff --cached --check
+          git config user.name "da-secure-runtime-convergence"
+          git config user.email "actions@users.noreply.github.com"
+          git commit -m "test(mobile): close auth refresh and FCM runtime contracts"
+          git push origin HEAD:lead/da-secure-runtime-convergence
