@@ -39,17 +39,17 @@ final appRouter = GoRouter(
     return null;
   },
   routes: [
-    GoRoute(path: '/', builder: (_, __) => const SplashScreen()),
+    GoRoute(path: '/', builder: (_, _) => const SplashScreen()),
     GoRoute(
       path: '/auth/mobile',
-      builder: (_, __) => const MobileNumberScreen(),
+      builder: (_, _) => const MobileNumberScreen(),
     ),
-    GoRoute(path: '/auth/otp', builder: (_, __) => const OtpScreen()),
+    GoRoute(path: '/auth/otp', builder: (_, _) => const OtpScreen()),
     GoRoute(
       path: '/auth/biometric',
-      builder: (_, __) => const BiometricScreen(),
+      builder: (_, _) => const BiometricScreen(),
     ),
-    GoRoute(path: '/inbox', builder: (_, __) => const InboxScreen()),
+    GoRoute(path: '/inbox', builder: (_, _) => const InboxScreen()),
     GoRoute(
       path: '/delivery/:id/login',
       builder: (_, state) =>
