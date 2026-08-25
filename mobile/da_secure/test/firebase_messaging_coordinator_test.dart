@@ -267,7 +267,7 @@ class _Harness {
     );
   }
 
-  bool _authenticated;
+  final bool _authenticated;
   late final SecureStorageService storage;
   late final _FakeMessagingPort port;
   late final FirebaseMessagingCoordinator coordinator;
