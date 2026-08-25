@@ -19,6 +19,7 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     public DbSet<MobileSession> MobileSessions => Set<MobileSession>();
     public DbSet<MobileDevice> MobileDevices => Set<MobileDevice>();
     public DbSet<MobileDelivery> MobileDeliveries => Set<MobileDelivery>();
+    public DbSet<MobilePushAttempt> MobilePushAttempts => Set<MobilePushAttempt>();
     public DbSet<MobileRevealGrant> MobileRevealGrants => Set<MobileRevealGrant>();
 
     protected override void OnModelCreating(ModelBuilder builder)
@@ -53,7 +54,10 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
         builder.Entity<MobileDevice>().Property(x => x.ConcurrencyStamp).IsConcurrencyToken();
         builder.Entity<MobileDelivery>().HasIndex(x => new { x.OrganizationId, x.CreatedAtUtc });
         builder.Entity<MobileDelivery>().HasIndex(x => new { x.SecurePageId, x.CreatedAtUtc });
+        builder.Entity<MobileDelivery>().HasIndex(x => new { x.ReminderEnabled, x.NextReminderAtUtc, x.ProcessingLeaseUntilUtc });
         builder.Entity<MobileDelivery>().Property(x => x.ConcurrencyStamp).IsConcurrencyToken();
+        builder.Entity<MobilePushAttempt>().HasIndex(x => x.CorrelationKey).IsUnique();
+        builder.Entity<MobilePushAttempt>().HasIndex(x => new { x.MobileDeliveryId, x.Kind, x.Sequence });
         builder.Entity<MobileRevealGrant>().HasIndex(x => x.TokenHash).IsUnique();
         builder.Entity<MobileRevealGrant>().HasIndex(x => new { x.MobileSessionId, x.MobileDeliveryId, x.ExpiresAtUtc });
 
@@ -88,6 +92,9 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
         builder.Entity<MobileDelivery>()
             .HasOne(x => x.SecurePage).WithMany()
             .HasForeignKey(x => x.SecurePageId).OnDelete(DeleteBehavior.Restrict);
+        builder.Entity<MobilePushAttempt>()
+            .HasOne(x => x.MobileDelivery).WithMany()
+            .HasForeignKey(x => x.MobileDeliveryId).OnDelete(DeleteBehavior.Cascade);
         builder.Entity<MobileRevealGrant>()
             .HasOne(x => x.MobileSession).WithMany()
             .HasForeignKey(x => x.MobileSessionId).OnDelete(DeleteBehavior.Cascade);
