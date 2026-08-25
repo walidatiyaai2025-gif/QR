@@ -1,3 +1,4 @@
+using System.Globalization;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -17,7 +18,8 @@ public sealed class SecurePagesController(
     TokenService tokens,
     HtmlContentService html,
     AdminIdentityService admin,
-    AuditService audit) : Controller
+    AuditService audit,
+    UiText text) : Controller
 {
     public async Task<IActionResult> Index(string? q, string? statusFilter, long? organizationId, int page = 1, int pageSize = 20, string sort = "created_desc", CancellationToken ct = default)
     {
@@ -82,12 +84,17 @@ public sealed class SecurePagesController(
     public async Task<IActionResult> Edit(SecurePageEditVm vm, CancellationToken ct)
     {
         if (vm.ExpiresAtLocal.HasValue && vm.ValidFromLocal.HasValue && vm.ExpiresAtLocal <= vm.ValidFromLocal)
-            ModelState.AddModelError(nameof(vm.ExpiresAtLocal), "Expiry must be after valid-from.");
+            ModelState.AddModelError(nameof(vm.ExpiresAtLocal), text["ValidationExpiryAfterStart"]);
         if ((vm.AccessLimitMode is AccessLimitMode.MaximumSuccessfulAccesses or AccessLimitMode.MaximumQrOpens or AccessLimitMode.ExpiryAndSuccessfulAccesses or AccessLimitMode.ExpiryAndQrOpens) && !vm.MaxAccessCount.HasValue)
-            ModelState.AddModelError(nameof(vm.MaxAccessCount), "Maximum access count is required for this mode.");
+            ModelState.AddModelError(nameof(vm.MaxAccessCount), text["ValidationMaxAccessRequired"]);
         if (vm.Id == 0 && string.IsNullOrWhiteSpace(vm.PagePassword))
-            ModelState.AddModelError(nameof(vm.PagePassword), "Password is required when creating a page.");
-        if (!ModelState.IsValid) { await Lists(ct); return View(vm); }
+            ModelState.AddModelError(nameof(vm.PagePassword), text["ValidationPasswordRequired"]);
+        if (!ModelState.IsValid)
+        {
+            ModelState.AddModelError("", text["ValidationCorrectFields"]);
+            await Lists(ct);
+            return View(vm);
+        }
 
         var userId = admin.CurrentUserId;
         SecurePage p;
@@ -210,7 +217,7 @@ public sealed class SecurePagesController(
     {
         if (!string.Equals(confirmation, "DELETE", StringComparison.OrdinalIgnoreCase))
         {
-            TempData["Error"] = "Type DELETE to confirm secure-page deletion.";
+            TempData["Error"] = text["ConfirmSecurePageDelete"];
             return RedirectToAction(nameof(Index));
         }
         var p = await db.SecurePages.FindAsync([id], ct);
@@ -222,8 +229,12 @@ public sealed class SecurePagesController(
         return RedirectToAction(nameof(Index));
     }
 
-    private async Task Lists(CancellationToken ct) =>
-        ViewBag.Organizations = new SelectList(await db.Organizations.Where(x => x.IsActive).OrderBy(x => x.NameEnglish).ToListAsync(ct), "Id", "NameEnglish");
+    private async Task Lists(CancellationToken ct)
+    {
+        var organizations = await db.Organizations.Where(x => x.IsActive).OrderBy(x => x.NameEnglish).ToListAsync(ct);
+        var displayProperty = CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "ar" ? nameof(Organization.NameArabic) : nameof(Organization.NameEnglish);
+        ViewBag.Organizations = new SelectList(organizations, nameof(Organization.Id), displayProperty);
+    }
 
     private static IQueryable<SecurePage> ApplyStatusFilter(IQueryable<SecurePage> q, string f, DateTime now) => f.ToUpperInvariant() switch
     {

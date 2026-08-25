@@ -1,3 +1,51 @@
 @model AuditLogIndexVm
-@{ViewData["Title"]="Audit Log";}
-<div class="page-head"><div><h1>Audit Log</h1><p>Administrator operations without passwords, raw tokens, cookies or connection secrets.</p></div></div><section class="panel"><div class="panel-head"><h2>@Model.Total audit entries</h2></div><div class="table-wrap"><table class="data-table"><thead><tr><th>Timestamp</th><th>Action</th><th>Entity</th><th>Entity ID</th><th>Admin</th><th>IP</th><th>Details</th></tr></thead><tbody>@foreach(var x in Model.Items){<tr><td>@x.TimestampUtc.ToLocalTime().ToString("dd MMM yyyy HH:mm:ss")</td><td>@x.Action</td><td>@x.EntityType</td><td>@x.EntityId</td><td>@x.AdminUserId</td><td>@x.IpAddress</td><td>@x.Details</td></tr>}</tbody></table></div><div class="pagination">@if(Model.Page>1){<a asp-action="Audit" asp-route-page="@(Model.Page-1)">‹</a>}<span>@Model.Page / @Model.TotalPages</span>@if(Model.Page<Model.TotalPages){<a asp-action="Audit" asp-route-page="@(Model.Page+1)">›</a>}</div></section>
+@{
+    var ar = CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "ar";
+    var previousArrow = ar ? "›" : "‹";
+    var nextArrow = ar ? "‹" : "›";
+    ViewData["Title"] = T["AuditLog"];
+}
+<link rel="stylesheet" href="~/css/admin-closure.css" asp-append-version="true" />
+<div class="page-head">
+    <div>
+        <h1>@T["AuditLog"]</h1>
+        <p>@T["AuditSubtitle"]</p>
+    </div>
+</div>
+<section class="panel">
+    <div class="panel-head"><h2><span class="numeric">@Model.Total</span> @T["AuditEntries"]</h2></div>
+    <div class="table-wrap admin-stack">
+        <table class="data-table admin-responsive-table">
+            <thead><tr><th>@T["Timestamp"]</th><th>@T["Action"]</th><th>@T["Entity"]</th><th>@T["EntityId"]</th><th>@T["Admin"]</th><th>@T["IP"]</th><th>@T["Details"]</th></tr></thead>
+            <tbody>
+            @foreach (var x in Model.Items)
+            {
+                <tr>
+                    <td data-label="@T["Timestamp"]"><span class="numeric">@x.TimestampUtc.ToLocalTime().ToString(ar ? "dd/MM/yyyy HH:mm:ss" : "dd MMM yyyy HH:mm:ss")</span></td>
+                    <td data-label="@T["Action"]"><span dir="ltr">@x.Action</span></td>
+                    <td data-label="@T["Entity"]">@x.EntityType</td>
+                    <td data-label="@T["EntityId"]"><span class="numeric">@x.EntityId</span></td>
+                    <td data-label="@T["Admin"]"><span dir="ltr">@x.AdminUserId</span></td>
+                    <td data-label="@T["IP"]"><span class="numeric">@x.IpAddress</span></td>
+                    <td data-label="@T["Details"]">@x.Details</td>
+                </tr>
+            }
+            @if (Model.Items.Count == 0)
+            {
+                <tr><td colspan="7" class="muted">@T["NoAuditEntries"]</td></tr>
+            }
+            </tbody>
+        </table>
+    </div>
+    <nav class="pagination" aria-label="@T["Pagination"]">
+        @if (Model.Page > 1)
+        {
+            <a aria-label="@T["PreviousPage"]" asp-action="Audit" asp-route-page="@(Model.Page - 1)">@previousArrow</a>
+        }
+        <span><span class="numeric">@Model.Page / @Model.TotalPages</span></span>
+        @if (Model.Page < Model.TotalPages)
+        {
+            <a aria-label="@T["NextPage"]" asp-action="Audit" asp-route-page="@(Model.Page + 1)">@nextArrow</a>
+        }
+    </nav>
+</section>

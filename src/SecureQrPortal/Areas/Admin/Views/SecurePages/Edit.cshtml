@@ -1,3 +1,123 @@
 @model SecurePageEditVm
-@{ViewData["Title"]=Model.Id==0?"Create Secure Page":"Edit Secure Page";}
-<div class="page-head"><div><h1>@ViewData["Title"]</h1><p>Passwords are hashed. Rich HTML is sanitized again on the server.</p></div><div class="actions">@if(Model.Id>0){<a class="btn secondary" asp-controller="Qr" asp-action="Details" asp-route-id="@Model.Id">QR Details</a>}<a class="btn secondary" asp-action="Index">Back</a></div></div><form method="post" asp-action="Edit"><input type="hidden" asp-for="Id"><div asp-validation-summary="ModelOnly"></div><section class="panel"><div class="panel-head"><h2>Identity & Credentials</h2>@if(Model.QrReference is not null){<span class="code">@Model.QrReference</span>}</div><div class="panel-body"><div class="form-grid"><div class="field"><label>Organization</label><select class="select" asp-for="OrganizationId" asp-items="ViewBag.Organizations"></select></div><label class="check"><input asp-for="IsActive"> Active</label><div class="field"><label>Arabic title</label><input class="input" asp-for="TitleArabic" dir="rtl"></div><div class="field"><label>English title</label><input class="input" asp-for="TitleEnglish"></div><div class="field"><label>Page username</label><input class="input" asp-for="PageUsername" autocomplete="off"></div><div class="field"><label>Page password @(Model.Id>0?"(leave blank to keep current)":"")</label><input class="input" asp-for="PagePassword" autocomplete="new-password"></div></div></div></section><section class="panel"><div class="panel-head"><h2>Validity & Access Policy</h2></div><div class="panel-body"><div class="form-grid"><div class="field"><label>Valid from</label><input class="input" asp-for="ValidFromLocal" type="datetime-local"></div><div class="field"><label>Expiry</label><input class="input" asp-for="ExpiresAtLocal" type="datetime-local"></div><div class="field"><label>Access limit mode</label><select class="select" asp-for="AccessLimitMode" asp-items="Html.GetEnumSelectList<AccessLimitMode>()"></select></div><div class="field"><label>Maximum allowed accesses / opens</label><input class="input" asp-for="MaxAccessCount" type="number" min="1"></div></div></div></section><section class="panel"><div class="panel-head"><h2>Arabic Content</h2><span class="muted">Server-sanitized</span></div><div class="panel-body"><input type="hidden" asp-for="ContentArabicHtml" id="ContentArabicHtml"><div class="rich-editor" data-rich-editor data-target="ContentArabicHtml"><div class="rich-toolbar"><button data-cmd="bold"><b>B</b></button><button data-cmd="italic"><i>I</i></button><button data-cmd="formatBlock" data-value="h2">H2</button><button data-cmd="insertUnorderedList">•</button><button data-cmd="insertOrderedList">1.</button><button data-cmd="removeFormat">Tx</button></div><div class="rich-area" contenteditable="true" dir="rtl"></div></div></div></section><section class="panel"><div class="panel-head"><h2>English Content</h2><span class="muted">Server-sanitized</span></div><div class="panel-body"><input type="hidden" asp-for="ContentEnglishHtml" id="ContentEnglishHtml"><div class="rich-editor" data-rich-editor data-target="ContentEnglishHtml"><div class="rich-toolbar"><button data-cmd="bold"><b>B</b></button><button data-cmd="italic"><i>I</i></button><button data-cmd="formatBlock" data-value="h2">H2</button><button data-cmd="insertUnorderedList">•</button><button data-cmd="insertOrderedList">1.</button><button data-cmd="removeFormat">Tx</button></div><div class="rich-area" contenteditable="true" dir="ltr"></div></div></div></section><div class="actions"><button class="btn primary" type="submit">Save Secure Page</button><a class="btn secondary" asp-action="Index">Cancel</a></div></form>
+@{
+    var creating = Model.Id == 0;
+    ViewData["Title"] = creating ? T["CreateSecurePage"] : T["EditSecurePage"];
+}
+<link rel="stylesheet" href="~/css/admin-closure.css" asp-append-version="true" />
+<div class="page-head">
+    <div>
+        <h1>@ViewData["Title"]</h1>
+        <p>@T["SecurePageFormHelp"]</p>
+    </div>
+    <div class="actions">
+        @if (Model.Id > 0)
+        {
+            <a class="btn secondary" asp-controller="Qr" asp-action="Details" asp-route-id="@Model.Id">@T["QrDetails"]</a>
+        }
+        <a class="btn secondary" asp-action="Index">@T["Back"]</a>
+    </div>
+</div>
+<form method="post" asp-action="Edit">
+    <input type="hidden" asp-for="Id" />
+    <div asp-validation-summary="ModelOnly"></div>
+    <section class="panel">
+        <div class="panel-head">
+            <h2>@T["IdentityCredentials"]</h2>
+            @if (Model.QrReference is not null)
+            {
+                <span class="code" dir="ltr">@Model.QrReference</span>
+            }
+        </div>
+        <div class="panel-body">
+            <div class="form-grid">
+                <div class="field">
+                    <label asp-for="OrganizationId">@T["Organization"]</label>
+                    <select class="select" asp-for="OrganizationId" asp-items="ViewBag.Organizations" required></select>
+                </div>
+                <label class="check" asp-for="IsActive"><input asp-for="IsActive" /> @T["Active"]</label>
+                <div class="field">
+                    <label asp-for="TitleArabic">@T["ArabicTitle"]</label>
+                    <input class="input" asp-for="TitleArabic" dir="rtl" required maxlength="250" />
+                </div>
+                <div class="field">
+                    <label asp-for="TitleEnglish">@T["EnglishTitle"]</label>
+                    <input class="input" asp-for="TitleEnglish" dir="ltr" required maxlength="250" />
+                </div>
+                <div class="field">
+                    <label asp-for="PageUsername">@T["PageUsername"]</label>
+                    <input class="input" asp-for="PageUsername" autocomplete="off" required maxlength="150" />
+                </div>
+                <div class="field">
+                    <label asp-for="PagePassword">@T["PagePassword"] @if(Model.Id > 0){<span class="muted">(@T["LeaveBlankKeep"])</span>}</label>
+                    <input class="input" asp-for="PagePassword" autocomplete="new-password" required="@(creating ? "required" : null)" />
+                </div>
+            </div>
+        </div>
+    </section>
+    <section class="panel">
+        <div class="panel-head"><h2>@T["ValidityAccessPolicy"]</h2></div>
+        <div class="panel-body">
+            <div class="form-grid">
+                <div class="field">
+                    <label asp-for="ValidFromLocal">@T["ValidFrom"]</label>
+                    <input class="input" asp-for="ValidFromLocal" type="datetime-local" />
+                </div>
+                <div class="field">
+                    <label asp-for="ExpiresAtLocal">@T["Expiry"]</label>
+                    <input class="input" asp-for="ExpiresAtLocal" type="datetime-local" />
+                </div>
+                <div class="field">
+                    <label asp-for="AccessLimitMode">@T["AccessLimitMode"]</label>
+                    <select class="select" asp-for="AccessLimitMode">
+                        @foreach (var mode in Enum.GetValues<AccessLimitMode>())
+                        {
+                            <option value="@mode" selected="@(Model.AccessLimitMode == mode ? "selected" : null)">@T[mode.ToString()]</option>
+                        }
+                    </select>
+                </div>
+                <div class="field">
+                    <label asp-for="MaxAccessCount">@T["MaximumAllowed"]</label>
+                    <input class="input" asp-for="MaxAccessCount" type="number" min="1" inputmode="numeric" />
+                </div>
+            </div>
+        </div>
+    </section>
+    <section class="panel">
+        <div class="panel-head"><h2>@T["ArabicContent"]</h2><span class="muted">@T["ServerSanitized"]</span></div>
+        <div class="panel-body">
+            <input type="hidden" asp-for="ContentArabicHtml" id="ContentArabicHtml" />
+            <div class="rich-editor" data-rich-editor data-target="ContentArabicHtml">
+                <div class="rich-toolbar" role="toolbar" aria-label="@T["FormattingToolbar"]">
+                    <button type="button" data-cmd="bold" title="@T["Bold"]" aria-label="@T["Bold"]"><b>B</b></button>
+                    <button type="button" data-cmd="italic" title="@T["Italic"]" aria-label="@T["Italic"]"><i>I</i></button>
+                    <button type="button" data-cmd="formatBlock" data-value="h2" title="@T["Heading"]" aria-label="@T["Heading"]">H2</button>
+                    <button type="button" data-cmd="insertUnorderedList" title="@T["BulletList"]" aria-label="@T["BulletList"]">•</button>
+                    <button type="button" data-cmd="insertOrderedList" title="@T["NumberedList"]" aria-label="@T["NumberedList"]">1.</button>
+                    <button type="button" data-cmd="removeFormat" title="@T["ClearFormatting"]" aria-label="@T["ClearFormatting"]">Tx</button>
+                </div>
+                <div class="rich-area" contenteditable="true" role="textbox" aria-multiline="true" aria-label="@T["ArabicContent"]" dir="rtl"></div>
+            </div>
+        </div>
+    </section>
+    <section class="panel">
+        <div class="panel-head"><h2>@T["EnglishContent"]</h2><span class="muted">@T["ServerSanitized"]</span></div>
+        <div class="panel-body">
+            <input type="hidden" asp-for="ContentEnglishHtml" id="ContentEnglishHtml" />
+            <div class="rich-editor" data-rich-editor data-target="ContentEnglishHtml">
+                <div class="rich-toolbar" role="toolbar" aria-label="@T["FormattingToolbar"]">
+                    <button type="button" data-cmd="bold" title="@T["Bold"]" aria-label="@T["Bold"]"><b>B</b></button>
+                    <button type="button" data-cmd="italic" title="@T["Italic"]" aria-label="@T["Italic"]"><i>I</i></button>
+                    <button type="button" data-cmd="formatBlock" data-value="h2" title="@T["Heading"]" aria-label="@T["Heading"]">H2</button>
+                    <button type="button" data-cmd="insertUnorderedList" title="@T["BulletList"]" aria-label="@T["BulletList"]">•</button>
+                    <button type="button" data-cmd="insertOrderedList" title="@T["NumberedList"]" aria-label="@T["NumberedList"]">1.</button>
+                    <button type="button" data-cmd="removeFormat" title="@T["ClearFormatting"]" aria-label="@T["ClearFormatting"]">Tx</button>
+                </div>
+                <div class="rich-area" contenteditable="true" role="textbox" aria-multiline="true" aria-label="@T["EnglishContent"]" dir="ltr"></div>
+            </div>
+        </div>
+    </section>
+    <div class="actions mobile-stack">
+        <button class="btn primary" type="submit">@T["SaveSecurePage"]</button>
+        <a class="btn secondary" asp-action="Index">@T["Cancel"]</a>
+    </div>
+</form>

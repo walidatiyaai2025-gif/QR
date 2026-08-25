@@ -1,2 +1,63 @@
-@{ViewData["Title"]="Backup";var history=(IEnumerable<FileInfo>)ViewBag.History;var sqlite=(bool)ViewBag.IsSqlite;}
-<div class="page-head"><div><h1>Backup & Restore</h1><p>Verified local SQLite backup with protected restore staging.</p></div></div>@if(!sqlite){<div class="alert danger">Native SQL Server backup requires appropriate SQL Server/server privileges. This screen does not claim to perform server-native backups.</div>}else{<section class="panel"><div class="panel-head"><h2>Create SQLite Backup</h2><span class="muted">WAL checkpoint + file verification</span></div><div class="panel-body"><form method="post" asp-action="CreateBackup"><button class="btn primary">Create Local Backup</button></form></div></section><section class="panel"><div class="panel-head"><h2>Restore SQLite Backup</h2><span class="muted">Applied on next restart</span></div><div class="panel-body"><form method="post" asp-action="RestoreBackup" enctype="multipart/form-data"><div class="field"><label>SQLite backup file</label><input class="input" type="file" name="backupFile" accept=".db" required></div><div class="field"><label>Type RESTORE to confirm</label><input class="input" name="confirmation" autocomplete="off"></div><button class="btn danger">Stage Restore</button></form></div></section><section class="panel"><div class="panel-head"><h2>Backup History</h2></div><div class="table-wrap"><table class="data-table"><thead><tr><th>File</th><th>Created UTC</th><th>Size</th><th>Action</th></tr></thead><tbody>@foreach(var f in history){<tr><td>@f.Name</td><td>@f.CreationTimeUtc.ToString("dd MMM yyyy HH:mm:ss")</td><td>@Math.Round(f.Length/1024d/1024d,2) MB</td><td><a class="btn secondary" asp-action="DownloadBackup" asp-route-file="@f.Name">Download</a></td></tr>}</tbody></table></div></section>}
+@{
+    var ar = CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "ar";
+    var history = (IEnumerable<FileInfo>)ViewBag.History;
+    var sqlite = (bool)ViewBag.IsSqlite;
+    ViewData["Title"] = T["BackupRestore"];
+}
+<link rel="stylesheet" href="~/css/admin-closure.css" asp-append-version="true" />
+<div class="page-head">
+    <div>
+        <h1>@T["BackupRestore"]</h1>
+        <p>@T["BackupSubtitle"]</p>
+    </div>
+</div>
+@if (!sqlite)
+{
+    <div class="alert danger" role="alert">@T["SqlNativeBackupWarning"]</div>
+}
+else
+{
+    <section class="panel">
+        <div class="panel-head"><h2>@T["CreateSQLiteBackup"]</h2><span class="muted">@T["WalCheckpoint"]</span></div>
+        <div class="panel-body"><form method="post" asp-action="CreateBackup"><button class="btn primary" type="submit">@T["CreateLocalBackup"]</button></form></div>
+    </section>
+    <section class="panel">
+        <div class="panel-head"><h2>@T["RestoreSQLiteBackup"]</h2><span class="muted">@T["AppliedOnNextRestart"]</span></div>
+        <div class="panel-body">
+            <form method="post" asp-action="RestoreBackup" enctype="multipart/form-data" onsubmit="return confirm('@T["RestoreConfirmDialog"]');">
+                <div class="field">
+                    <label for="sqlite-backup-file">@T["SQLiteBackupFile"]</label>
+                    <input class="input" id="sqlite-backup-file" type="file" name="backupFile" accept=".db" required />
+                </div>
+                <div class="field">
+                    <label for="restore-confirmation">@T["TypeRestoreToConfirm"]</label>
+                    <input class="input" id="restore-confirmation" name="confirmation" autocomplete="off" required pattern="RESTORE" placeholder="RESTORE" dir="ltr" />
+                </div>
+                <button class="btn danger" type="submit">@T["StageRestore"]</button>
+            </form>
+        </div>
+    </section>
+    <section class="panel">
+        <div class="panel-head"><h2>@T["BackupHistory"]</h2></div>
+        <div class="table-wrap admin-stack">
+            <table class="data-table admin-responsive-table">
+                <thead><tr><th>@T["File"]</th><th>@T["CreatedUtc"]</th><th>@T["Size"]</th><th>@T["Action"]</th></tr></thead>
+                <tbody>
+                @foreach (var f in history)
+                {
+                    <tr>
+                        <td data-label="@T["File"]"><span dir="ltr">@f.Name</span></td>
+                        <td data-label="@T["CreatedUtc"]"><span class="numeric">@f.CreationTimeUtc.ToString(ar ? "dd/MM/yyyy HH:mm:ss" : "dd MMM yyyy HH:mm:ss")</span></td>
+                        <td data-label="@T["Size"]"><span class="numeric">@Math.Round(f.Length / 1024d / 1024d, 2) MB</span></td>
+                        <td data-label="@T["Action"]" data-actions><div class="actions"><a class="btn secondary" asp-action="DownloadBackup" asp-route-file="@f.Name">@T["Download"]</a></div></td>
+                    </tr>
+                }
+                @if (!history.Any())
+                {
+                    <tr><td colspan="4" class="muted">@T["NoBackups"]</td></tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    </section>
+}
