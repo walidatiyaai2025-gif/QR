@@ -8,7 +8,7 @@ using SecureQrPortal.Services;
 namespace SecureQrPortal.Areas.Admin.Controllers;
 
 [Area("Admin"), Authorize(Roles = "Administrator")]
-public sealed class OrganizationsController(ApplicationDbContext db, AuditService audit, IWebHostEnvironment env) : Controller
+public sealed class OrganizationsController(ApplicationDbContext db, AuditService audit, IWebHostEnvironment env, UiText text) : Controller
 {
     public async Task<IActionResult> Index(string? q, CancellationToken ct)
     {
@@ -32,15 +32,20 @@ public sealed class OrganizationsController(ApplicationDbContext db, AuditServic
     public async Task<IActionResult> Edit(Organization model, IFormFile? logo, bool removeLogo = false, CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(model.NameArabic) || string.IsNullOrWhiteSpace(model.NameEnglish))
-            ModelState.AddModelError("", "Arabic and English names are required.");
+            ModelState.AddModelError("", text["ValidationNamesRequired"]);
 
         if (logo is { Length: > 0 })
         {
             var validation = await ValidateLogoAsync(logo, ct);
-            if (validation is not null) ModelState.AddModelError("logo", validation);
+            if (validation is not null) ModelState.AddModelError("", validation);
         }
 
-        if (!ModelState.IsValid) return View(model);
+        if (!ModelState.IsValid)
+        {
+            if (!ModelState[string.Empty]?.Errors.Any() ?? true)
+                ModelState.AddModelError("", text["ValidationCorrectFields"]);
+            return View(model);
+        }
 
         Organization entity;
         if (model.Id == 0)
@@ -80,7 +85,7 @@ public sealed class OrganizationsController(ApplicationDbContext db, AuditServic
     {
         if (!string.Equals(confirmation, "DELETE", StringComparison.OrdinalIgnoreCase))
         {
-            TempData["Error"] = "Type DELETE to confirm organization deletion.";
+            TempData["Error"] = text["ConfirmOrganizationDelete"];
             return RedirectToAction(nameof(Index));
         }
 
@@ -88,7 +93,7 @@ public sealed class OrganizationsController(ApplicationDbContext db, AuditServic
         if (organization is null) return NotFound();
         if (organization.SecurePages.Count > 0)
         {
-            TempData["Error"] = "Organization cannot be deleted while secure pages exist.";
+            TempData["Error"] = text["OrganizationHasPages"];
             return RedirectToAction(nameof(Index));
         }
 
@@ -102,9 +107,9 @@ public sealed class OrganizationsController(ApplicationDbContext db, AuditServic
 
     private async Task<string?> ValidateLogoAsync(IFormFile file, CancellationToken ct)
     {
-        if (file.Length > 3 * 1024 * 1024) return "Logo must be 3 MB or smaller.";
+        if (file.Length > 3 * 1024 * 1024) return text["LogoTooLarge"];
         var ext = Path.GetExtension(file.FileName).ToLowerInvariant();
-        if (ext is not (".png" or ".jpg" or ".jpeg" or ".webp")) return "Only PNG, JPG/JPEG and WEBP images are allowed.";
+        if (ext is not (".png" or ".jpg" or ".jpeg" or ".webp")) return text["LogoTypeInvalid"];
 
         var header = new byte[12];
         await using var stream = file.OpenReadStream();
@@ -114,7 +119,7 @@ public sealed class OrganizationsController(ApplicationDbContext db, AuditServic
         var isWebp = read >= 12 && EncodingAscii(header, 0, 4) == "RIFF" && EncodingAscii(header, 8, 4) == "WEBP";
         return (ext == ".png" && isPng) || (ext is ".jpg" or ".jpeg" && isJpeg) || (ext == ".webp" && isWebp)
             ? null
-            : "The uploaded file content does not match its declared image type.";
+            : text["LogoContentInvalid"];
     }
 
     private static string EncodingAscii(byte[] bytes, int offset, int count) => System.Text.Encoding.ASCII.GetString(bytes, offset, count);
