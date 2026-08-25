@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Threading.RateLimiting;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Localization;
@@ -44,6 +45,9 @@ builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
 })
 .AddEntityFrameworkStores<ApplicationDbContext>()
 .AddDefaultTokenProviders();
+
+builder.Services.AddAuthentication()
+    .AddScheme<AuthenticationSchemeOptions, MobileBearerAuthenticationHandler>(MobileBearerDefaults.Scheme, _ => { });
 
 builder.Services.ConfigureApplicationCookie(options =>
 {
@@ -95,6 +99,46 @@ builder.Services.AddRateLimiter(options =>
                 QueueLimit = 0,
                 AutoReplenishment = true
             }));
+    options.AddPolicy("mobile-otp-request", httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 10,
+                Window = TimeSpan.FromMinutes(10),
+                QueueLimit = 0,
+                AutoReplenishment = true
+            }));
+    options.AddPolicy("mobile-otp-verify", httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 30,
+                Window = TimeSpan.FromMinutes(10),
+                QueueLimit = 0,
+                AutoReplenishment = true
+            }));
+    options.AddPolicy("mobile-refresh", httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 30,
+                Window = TimeSpan.FromMinutes(5),
+                QueueLimit = 0,
+                AutoReplenishment = true
+            }));
+    options.AddPolicy("mobile-secure-auth", httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 15,
+                Window = TimeSpan.FromMinutes(5),
+                QueueLimit = 0,
+                AutoReplenishment = true
+            }));
 });
 
 builder.Services.AddHttpContextAccessor();
@@ -114,6 +158,13 @@ builder.Services.AddScoped<DemoDataService>();
 builder.Services.AddScoped<UiText>();
 builder.Services.AddScoped<HtmlContentService>();
 builder.Services.AddScoped<DeviceInfoService>();
+builder.Services.AddSingleton<MobileTokenService>();
+builder.Services.AddSingleton<MobileSecretProtector>();
+builder.Services.AddSingleton<MobileOtpThrottle>();
+builder.Services.AddScoped<MobileSessionService>();
+builder.Services.AddScoped<MobileOtpService>();
+builder.Services.AddScoped<MobileDeviceService>();
+builder.Services.AddScoped<MobileDeliveryAccessService>();
 builder.Services.AddSingleton(TimeProvider.System);
 
 var app = builder.Build();
