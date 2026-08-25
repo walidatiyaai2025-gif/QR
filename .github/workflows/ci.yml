@@ -90,7 +90,9 @@ jobs:
           Remove-Item $stage -Recurse -Force -ErrorAction SilentlyContinue
           New-Item -ItemType Directory -Path $stage -Force | Out-Null
           robocopy . $stage /E /XD .git .vs bin obj artifacts TestResults /XF *.user *.suo *.db *.db-shm *.db-wal *.pfx *.p12 | Out-Null
-          if ($LASTEXITCODE -ge 8) { throw "Source staging failed with robocopy exit code $LASTEXITCODE" }
+          $robocopyExitCode = $LASTEXITCODE
+          if ($robocopyExitCode -ge 8) { throw "Source staging failed with robocopy exit code $robocopyExitCode" }
+          $global:LASTEXITCODE = 0
           $sourceZip = 'SecureQrPortal-v1.0.0.zip'
           Remove-Item $sourceZip -Force -ErrorAction SilentlyContinue
           Compress-Archive -Path "$stage/*" -DestinationPath $sourceZip -CompressionLevel Optimal
