@@ -1,6 +1,9 @@
+import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:da_secure/config/app_config.dart';
+import 'package:da_secure/firebase/firebase_messaging_coordinator.dart';
 import 'package:da_secure/models/mobile_models.dart';
 import 'package:da_secure/networking/api_client.dart';
 import 'package:da_secure/networking/app_failure.dart';
@@ -21,8 +24,8 @@ void main() {
   late SecureStorageService storage;
   late Dio apiDio;
   late Dio refreshDio;
-  late _QueueApiInterceptor api;
-  late _QueueApiInterceptor refresh;
+  late _QueueHttpClientAdapter api;
+  late _QueueHttpClientAdapter refresh;
   late ApiClient client;
   late AuthRepository auth;
   late InboxRepository inbox;
@@ -33,11 +36,11 @@ void main() {
     storage = const SecureStorageService(FlutterSecureStorage());
     apiDio = Dio(BaseOptions(baseUrl: AppConfig.apiBaseUrl));
     refreshDio = Dio(BaseOptions(baseUrl: AppConfig.apiBaseUrl));
+    api = _QueueHttpClientAdapter();
+    refresh = _QueueHttpClientAdapter();
+    apiDio.httpClientAdapter = api;
+    refreshDio.httpClientAdapter = refresh;
     client = ApiClient(storage: storage, dio: apiDio, refreshDio: refreshDio);
-    api = _QueueApiInterceptor();
-    refresh = _QueueApiInterceptor();
-    apiDio.interceptors.add(api);
-    refreshDio.interceptors.add(refresh);
     auth = AuthRepository(client: client, storage: storage);
     inbox = InboxRepository(client);
     devices = DeviceRepository(client: client, storage: storage);
@@ -660,58 +663,105 @@ void main() {
       expect(state.postAuthenticationDestination(), '/delivery/99/login');
     });
 
-    test(
-      '40 push payload without deliveryId is rejected by coordinator',
-      () async {
-        final source = await _source(
-          'lib/firebase/firebase_messaging_coordinator.dart',
-        );
-        expect(source, contains("data['deliveryId']"));
-        expect(source, contains('if (id == null || id <= 0) return null;'));
-      },
-    );
-
-    test('41 malformed or non-positive deliveryId is ignored safely', () async {
-      final source = await _source(
-        'lib/firebase/firebase_messaging_coordinator.dart',
-      );
+    test('40 push payload without deliveryId is rejected by coordinator', () {
       expect(
-        source,
-        contains("int.tryParse(data['deliveryId']?.toString() ?? '')"),
+        SafeDeliveryPush.tryParse({'category': 'delivery', 'version': '1'}),
+        isNull,
       );
-      expect(source, contains('return id.toString();'));
     });
 
-    test(
-      '42 push tap callback never receives or reveals protected body',
-      () async {
-        final source = await _source(
-          'lib/firebase/firebase_messaging_coordinator.dart',
-        );
-        expect(source, contains('await onDeliveryOpened(deliveryId);'));
-        expect(source, isNot(contains('revealToken')));
-        expect(source, isNot(contains('contentEnglishHtml')));
-      },
-    );
-
-    test(
-      '43 foreground push refreshes safe UI without exposing secure body metadata',
-      () async {
-        final source = await _source(
-          'lib/firebase/firebase_messaging_coordinator.dart',
-        );
-        expect(source, contains('await onForegroundDelivery();'));
+    test('41 malformed or non-positive deliveryId is ignored safely', () {
+      for (final deliveryId in <Object?>['bad', '', '0', '-1', null]) {
         expect(
-          source,
-          contains("data['notificationCategory'] != 'secure_delivery'"),
+          SafeDeliveryPush.tryParse({
+            'deliveryId': ?deliveryId,
+            'category': 'delivery',
+            'version': '1',
+          }),
+          isNull,
+          reason: 'deliveryId=$deliveryId',
         );
-        expect(source, isNot(contains("data['content']")));
-      },
-    );
+      }
+
+      final valid = SafeDeliveryPush.tryParse({
+        'deliveryId': '42',
+        'category': 'delivery',
+        'version': '1',
+      });
+      expect(valid?.deliveryId, '42');
+    });
+
+    test('42 push routing rejects protected body and secret metadata', () {
+      for (final forbiddenKey in <String>[
+        'body',
+        'content',
+        'contentEnglishHtml',
+        'contentArabicHtml',
+        'revealToken',
+        'accessToken',
+        'refreshToken',
+        'attachments',
+      ]) {
+        expect(
+          SafeDeliveryPush.tryParse({
+            'deliveryId': '42',
+            'category': 'delivery',
+            'version': '1',
+            forbiddenKey: 'protected-value',
+          }),
+          isNull,
+          reason: forbiddenKey,
+        );
+      }
+
+      final safe = SafeDeliveryPush.tryParse({
+        'deliveryId': '42',
+        'category': 'delivery',
+        'version': '1',
+      });
+      expect(safe?.deliveryId, '42');
+      expect(safe?.category, 'delivery');
+    });
+
+    test('43 foreground-safe payload validates category and version', () {
+      for (final category in <String>['delivery', 'reminder']) {
+        final push = SafeDeliveryPush.tryParse({
+          'deliveryId': '42',
+          'category': category,
+          'version': '1',
+        });
+        expect(push?.category, category);
+      }
+
+      expect(
+        SafeDeliveryPush.tryParse({
+          'deliveryId': '42',
+          'category': 'other',
+          'version': '1',
+        }),
+        isNull,
+      );
+      expect(
+        SafeDeliveryPush.tryParse({
+          'deliveryId': '42',
+          'category': 'delivery',
+          'version': '2',
+        }),
+        isNull,
+      );
+      expect(
+        SafeDeliveryPush.tryParse({
+          'deliveryId': '42',
+          'notificationCategory': 'secure_delivery',
+          'version': '1',
+        })?.deliveryId,
+        '42',
+      );
+    });
   });
 }
 
-class _QueueApiInterceptor extends Interceptor {
+class _QueueHttpClientAdapter implements HttpClientAdapter {
   final Map<String, List<_QueuedReply>> _replies = {};
   final List<RequestOptions> history = [];
 
@@ -721,40 +771,31 @@ class _QueueApiInterceptor extends Interceptor {
   }
 
   @override
-  void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
+  Future<ResponseBody> fetch(
+    RequestOptions options,
+    Stream<Uint8List>? requestStream,
+    Future<void>? cancelFuture,
+  ) async {
     history.add(options);
     final key = '${options.method.toUpperCase()} ${options.path}';
     final queue = _replies[key];
     if (queue == null || queue.isEmpty) {
-      handler.reject(
-        DioException(
-          requestOptions: options,
-          error: StateError('No queued response for $key'),
-          type: DioExceptionType.unknown,
-        ),
-      );
-      return;
+      throw StateError('No queued response for $key');
     }
 
     final reply = queue.removeAt(0);
-    final response = Response<dynamic>(
-      requestOptions: options,
-      statusCode: reply.statusCode,
-      data: reply.data,
-    );
-    if (reply.statusCode >= 200 && reply.statusCode < 300) {
-      handler.resolve(response);
-      return;
-    }
-
-    handler.reject(
-      DioException(
-        requestOptions: options,
-        response: response,
-        type: DioExceptionType.badResponse,
-      ),
+    final body = reply.data == null ? '' : jsonEncode(reply.data);
+    return ResponseBody.fromString(
+      body,
+      reply.statusCode,
+      headers: {
+        Headers.contentTypeHeader: [Headers.jsonContentType],
+      },
     );
   }
+
+  @override
+  void close({bool force = false}) {}
 }
 
 class _QueuedReply {
