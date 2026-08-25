@@ -8,12 +8,12 @@
     var currentPath=Context.Request.Path.ToString();
     var publicPath=currentPath.EndsWith("/content",StringComparison.OrdinalIgnoreCase)?currentPath[..^8]:currentPath;
     var secureUrl=$"{Context.Request.Scheme}://{Context.Request.Host}{Context.Request.PathBase}{publicPath}";
-    DateTime? hardExpiry=ViewBag.HardSessionExpiresAtUtc as DateTime?;
+    DateTime? hardExpiry=ViewBag.HardSessionExpiresAtUtc is DateTime dt ? dt : null;
     ViewData["Title"]=title;
 }
 <section class="public-center secure-page-shell content-shell" style="align-items:start"><article class="premium-card secure-content-card">@if(!string.IsNullOrWhiteSpace(Model.Organization.LogoPath)){<img class="org-logo" src="@Model.Organization.LogoPath" alt="@org">}<div class="public-title"><div class="security-kicker">@Model.QrReference</div><h1>@org</h1><p class="secure-page-title">@title</p>@if(ViewBag.ShowExpiry==true&&Model.ExpiresAtUtc.HasValue){<span class="validity-pill">@(ar?"صالح حتى":"Valid until") @Model.ExpiresAtUtc.Value.ToLocalTime().ToString("dd MMM yyyy HH:mm")</span>}</div><div class="secure-address"><span>@(ar?"الرابط الآمن":"Secure address")</span><strong class="url">@secureUrl</strong></div>@if(hardExpiry.HasValue){<div class="session-expiry-banner"><strong>@(ar?"جلسة مشاركة مؤقتة":"Temporary shared session")</strong><span>@(ar?"سيتم إنهاء الوصول تلقائياً في":"Access will close automatically at") @hardExpiry.Value.ToLocalTime().ToString("dd MMM yyyy HH:mm:ss")</span></div>}<div class="secure-content">@Html.Raw(html)</div></article></section>
-@if(hardExpiry.HasValue){
 @section Scripts {
+@if(hardExpiry.HasValue){
 <script>
 (function(){
   const expires=Date.parse('@hardExpiry.Value.ToUniversalTime().ToString("O")');
