@@ -10,7 +10,7 @@ namespace SecureQrPortal.Tests;
 public sealed class QrShareTests
 {
     [Fact]
-    public async Task One_time_share_reveals_once_and_credential_has_hard_expiry()
+    public async Task One_time_share_reveals_once_and_same_request_is_idempotent()
     {
         await using var connection = new SqliteConnection("Data Source=:memory:");
         await connection.OpenAsync();
@@ -50,14 +50,20 @@ public sealed class QrShareTests
             var service = new QrShareService(db, provider);
             var share = await service.CreateAsync(page, 1, 24, 15, "admin");
             var raw = service.GetRawToken(share);
+            const string requestId = "recipient-browser-request-001";
 
-            var first = await service.RevealAsync(raw);
+            var first = await service.RevealAsync(raw, requestId);
             Assert.NotNull(first);
             Assert.Equal(1, first!.Share.CurrentOpenCount);
             Assert.NotNull(first.Share.AccessWindowEndsAtUtc);
 
-            var second = await service.RevealAsync(raw);
-            Assert.Null(second);
+            var retry = await service.RevealAsync(raw, requestId);
+            Assert.NotNull(retry);
+            Assert.Equal(first.Password, retry!.Password);
+            Assert.Equal(1, retry.Share.CurrentOpenCount);
+
+            var differentRequest = await service.RevealAsync(raw, "different-browser-request-002");
+            Assert.Null(differentRequest);
 
             var verified = await service.VerifyCredentialAsync(page.Id, first.Share.Username, first.Password);
             Assert.True(verified.Success);
