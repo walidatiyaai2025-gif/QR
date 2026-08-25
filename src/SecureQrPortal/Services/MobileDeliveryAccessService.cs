@@ -60,7 +60,7 @@ public sealed class MobileDeliveryAccessService(
         page = Math.Max(1, page);
         pageSize = Math.Clamp(pageSize, 1, 50);
         var baseQuery = db.MobileDeliveries.AsNoTracking()
-            .Where(x => x.OrganizationId == organizationId)
+            .Where(x => x.OrganizationId == organizationId && x.SecurePage.OrganizationId == organizationId)
             .Include(x => x.SecurePage).ThenInclude(x => x.Organization)
             .OrderByDescending(x => x.SentAtUtc ?? x.CreatedAtUtc);
         var total = await baseQuery.CountAsync(ct);
@@ -172,7 +172,8 @@ public sealed class MobileDeliveryAccessService(
             return new(MapQrStatus(accessState));
         }
 
-        await db.MobileDeliveries.Where(x => x.Id == delivery.Id && x.OrganizationId == organizationId)
+        await db.MobileDeliveries
+            .Where(x => x.Id == delivery.Id && x.OrganizationId == organizationId && x.SecurePage.OrganizationId == organizationId)
             .ExecuteUpdateAsync(x => x
                 .SetProperty(d => d.FirstRevealedAtUtc, d => d.FirstRevealedAtUtc ?? now)
                 .SetProperty(d => d.DeliveryStatus, "REVEALED")
@@ -181,7 +182,7 @@ public sealed class MobileDeliveryAccessService(
         await transaction.CommitAsync(ct);
 
         var refreshed = await db.MobileDeliveries.AsNoTracking()
-            .Where(x => x.Id == delivery.Id && x.OrganizationId == organizationId)
+            .Where(x => x.Id == delivery.Id && x.OrganizationId == organizationId && x.SecurePage.OrganizationId == organizationId)
             .Include(x => x.SecurePage).ThenInclude(x => x.Organization)
             .SingleAsync(ct);
         await audit.WriteAsync("SECURE_MESSAGE_REVEALED", "MobileDelivery", delivery.Id.ToString(),
@@ -199,7 +200,7 @@ public sealed class MobileDeliveryAccessService(
 
     private IQueryable<MobileDelivery> OwnedDeliveryQuery(long organizationId) =>
         db.MobileDeliveries
-            .Where(x => x.OrganizationId == organizationId)
+            .Where(x => x.OrganizationId == organizationId && x.SecurePage.OrganizationId == organizationId)
             .Include(x => x.SecurePage).ThenInclude(x => x.Organization)
             .Include(x => x.SecurePage).ThenInclude(x => x.Credential);
 
