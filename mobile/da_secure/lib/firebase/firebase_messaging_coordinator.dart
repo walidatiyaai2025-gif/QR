@@ -2,10 +2,52 @@ import 'dart:async';
 
 import 'package:da_secure/repositories/device_repository.dart';
 import 'package:da_secure/security/secure_storage_service.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 
 typedef DeliveryPushCallback = Future<void> Function(String deliveryId);
 typedef ForegroundDeliveryCallback = Future<void> Function();
+
+final class SafeDeliveryPush {
+  const SafeDeliveryPush({required this.deliveryId, required this.category});
+
+  final String deliveryId;
+  final String category;
+
+  static const _allowedKeys = <String>{
+    'deliveryid',
+    'category',
+    'notificationcategory',
+    'version',
+  };
+  static const _allowedCategories = <String>{
+    'delivery',
+    'reminder',
+    'secure_delivery',
+  };
+
+  static SafeDeliveryPush? tryParse(Map<String, dynamic> data) {
+    final normalizedKeys = data.keys.map((key) => key.toLowerCase()).toSet();
+    if (normalizedKeys.difference(_allowedKeys).isNotEmpty) return null;
+
+    final category =
+        (data['category'] ?? data['notificationCategory'])?.toString();
+    if (category == null || !_allowedCategories.contains(category)) return null;
+    if (data['version']?.toString() != '1') return null;
+
+    final id = int.tryParse(data['deliveryId']?.toString() ?? '');
+    if (id == null || id <= 0) return null;
+    return SafeDeliveryPush(deliveryId: id.toString(), category: category);
+  }
+}
+
+@pragma('vm:entry-point')
+Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  await Firebase.initializeApp();
+  // Background delivery never authenticates, reveals content, or persists secrets.
+  // Parsing here deliberately accepts only the same safe routing metadata as taps.
+  SafeDeliveryPush.tryParse(message.data);
+}
 
 class FirebaseMessagingCoordinator {
   FirebaseMessagingCoordinator({
@@ -101,23 +143,15 @@ class FirebaseMessagingCoordinator {
   }
 
   Future<void> _handleOpenedMessage(RemoteMessage message) async {
-    final deliveryId = _validatedDeliveryId(message.data);
-    if (deliveryId == null) return;
-    await onDeliveryOpened(deliveryId);
+    final push = SafeDeliveryPush.tryParse(message.data);
+    if (push == null) return;
+    await onDeliveryOpened(push.deliveryId);
   }
 
   Future<void> _handleForegroundMessage(RemoteMessage message) async {
-    if (_validatedDeliveryId(message.data) == null) return;
+    if (SafeDeliveryPush.tryParse(message.data) == null) return;
     if (!isAuthenticated()) return;
     await onForegroundDelivery();
-  }
-
-  String? _validatedDeliveryId(Map<String, dynamic> data) {
-    if (data['notificationCategory'] != 'secure_delivery') return null;
-    if (data['version']?.toString() != '1') return null;
-    final id = int.tryParse(data['deliveryId']?.toString() ?? '');
-    if (id == null || id <= 0) return null;
-    return id.toString();
   }
 
   Future<void> dispose() async {
