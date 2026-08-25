@@ -17,6 +17,7 @@ public sealed class QrController(
     TokenService tokens,
     QrCodeService qr,
     QrStatusService status,
+    QrShareService shares,
     AdminIdentityService admin,
     AuditService audit,
     UserManager<ApplicationUser> users) : Controller
@@ -169,6 +170,20 @@ public sealed class QrController(
         var token = tokens.Unprotect(p.ProtectedPublicToken);
         var userIds = new[] { p.CreatedByAdminId, p.LastModifiedByAdminId }.OfType<string>().Distinct().ToList();
         var names = await users.Users.Where(x => userIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x.DisplayName, ct);
+        var shareRows = await shares.ListForPageAsync(id, ct);
+        var shareVms = shareRows.Select(x =>
+        {
+            var raw = shares.GetRawToken(x);
+            var shareUrl = $"{Request.Scheme}://{Request.Host}/q/share/{raw}";
+            var message = $"Secure QR access for {p.QrReference}. This share link can reveal credentials {x.MaxOpenCount} time(s), expires {x.ExpiresAtUtc.ToLocalTime():dd MMM yyyy HH:mm}, and each revealed access window lasts {x.SessionDurationMinutes} minute(s). This link should only be opened by the intended recipient: {shareUrl}";
+            return new QrShareAdminVm
+            {
+                Share = x,
+                ShareUrl = shareUrl,
+                WhatsAppUrl = $"https://wa.me/?text={Uri.EscapeDataString(message)}",
+                EmailUrl = $"mailto:?subject={Uri.EscapeDataString($"Secure QR access {p.QrReference}")}&body={Uri.EscapeDataString(message)}"
+            };
+        }).ToList();
 
         return View(new QrDetailsVm
         {
@@ -179,9 +194,44 @@ public sealed class QrController(
             RemainingAccesses = QrStatusService.RemainingAccesses(p),
             Timeline = await db.AccessLogs.Where(x => x.SecurePageId == id).OrderByDescending(x => x.TimestampUtc).Take(100).ToListAsync(ct),
             History = p.TokenHistory.OrderByDescending(x => x.RevokedAtUtc).ToList(),
+            ShareLinks = shareVms,
             CreatedBy = p.CreatedByAdminId != null && names.TryGetValue(p.CreatedByAdminId, out var c) ? c : "—",
             ModifiedBy = p.LastModifiedByAdminId != null && names.TryGetValue(p.LastModifiedByAdminId, out var m) ? m : "—"
         });
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> CreateShare(long id, int maxOpenCount = 1, int linkLifetimeHours = 24, int sessionDurationMinutes = 15, CancellationToken ct = default)
+    {
+        var p = await db.SecurePages.Include(x => x.Credential).SingleOrDefaultAsync(x => x.Id == id, ct);
+        if (p is null) return NotFound();
+        if (status.GetStatus(p) != QrStatus.ACTIVE)
+        {
+            TempData["Error"] = "Only an ACTIVE QR can receive a new share link.";
+            return RedirectToAction(nameof(Details), new { id });
+        }
+
+        var share = await shares.CreateAsync(p, maxOpenCount, linkLifetimeHours, sessionDurationMinutes, admin.CurrentUserId, ct);
+        await audit.WriteAsync("QR_SHARE_CREATE", "QrShareLink", share.Id.ToString(), $"{p.QrReference}; opens={share.MaxOpenCount}; expires={share.ExpiresAtUtc:O}; session={share.SessionDurationMinutes}m", ct);
+        TempData["Success"] = "Secure share link created. Use WhatsApp, Email, or Copy Link below.";
+        return RedirectToAction(nameof(Details), new { id });
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> RevokeShare(long id, long shareId, string confirmation, CancellationToken ct = default)
+    {
+        if (!string.Equals(confirmation, "REVOKE SHARE", StringComparison.OrdinalIgnoreCase))
+        {
+            TempData["Error"] = "Share revocation was not confirmed.";
+            return RedirectToAction(nameof(Details), new { id });
+        }
+
+        if (await shares.RevokeAsync(shareId, id, ct))
+        {
+            await audit.WriteAsync("QR_SHARE_REVOKE", "QrShareLink", shareId.ToString(), $"SecurePage={id}", ct);
+            TempData["Success"] = "Share link revoked immediately.";
+        }
+        return RedirectToAction(nameof(Details), new { id });
     }
 
     [HttpGet]

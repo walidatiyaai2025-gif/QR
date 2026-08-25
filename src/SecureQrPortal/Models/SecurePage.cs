@@ -41,4 +41,5 @@ public sealed class SecurePage
     public PageCredential? Credential { get; set; }
     public ICollection<AccessLog> AccessLogs { get; set; } = new List<AccessLog>();
     public ICollection<QrTokenHistory> TokenHistory { get; set; } = new List<QrTokenHistory>();
+    public ICollection<QrShareLink> ShareLinks { get; set; } = new List<QrShareLink>();
 }

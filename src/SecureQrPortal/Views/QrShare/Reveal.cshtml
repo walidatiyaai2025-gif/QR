@@ -1,0 +1,44 @@
+@using System.Globalization
+@model QrShareRevealVm
+@{
+    var ar = CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "ar";
+    ViewData["Title"] = ar ? "بيانات الوصول الآمن" : "Secure access credentials";
+    var end = Model.Share.AccessWindowEndsAtUtc ?? DateTime.UtcNow;
+}
+<section class="public-center share-shell">
+    <div class="premium-card share-card">
+        <div class="public-title">
+            <div class="security-kicker">@(ar ? "تم فتح رابط المشاركة" : "SHARE LINK OPENED")</div>
+            <h1>@Model.Organization</h1>
+            <p>@Model.PageTitle</p>
+        </div>
+        <div class="alert success">@(ar ? "تم احتساب هذا الفتح. احتفظ بالبيانات لنفسك؛ ستتوقف بيانات المشاركة تلقائياً عند انتهاء الوقت أدناه." : "This opening has been counted. Keep these credentials private; the shared credentials stop working automatically at the time below.")</div>
+        <div class="credential-grid">
+            <div class="credential-box"><span>@(ar ? "اسم المستخدم" : "Username")</span><strong class="code">@Model.Username</strong><button type="button" class="link-button" data-copy="@Model.Username">@(ar ? "نسخ" : "Copy")</button></div>
+            <div class="credential-box"><span>@(ar ? "كلمة المرور المؤقتة" : "Temporary password")</span><strong class="code">@Model.Password</strong><button type="button" class="link-button" data-copy="@Model.Password">@(ar ? "نسخ" : "Copy")</button></div>
+        </div>
+        <div class="secure-address share-destination">
+            <span>@(ar ? "رابط QR الآمن" : "Secure QR link")</span>
+            <strong class="url">@Model.PublicQrUrl</strong>
+            <button type="button" class="link-button" data-copy="@Model.PublicQrUrl">@(ar ? "نسخ الرابط" : "Copy link")</button>
+        </div>
+        <dl class="share-facts">
+            <dt>@(ar ? "تنتهي بيانات المشاركة" : "Shared access ends")</dt><dd id="shareExpiryText">@end.ToLocalTime().ToString("dd MMM yyyy HH:mm:ss")</dd>
+            <dt>@(ar ? "مرات الفتح المستخدمة" : "Reveal usage")</dt><dd>@Model.Share.CurrentOpenCount / @Model.Share.MaxOpenCount</dd>
+        </dl>
+        <a class="btn primary block" href="@Model.PublicQrUrl" rel="noopener">@(ar ? "فتح صفحة QR وإدخال البيانات" : "Open QR page and sign in")</a>
+        <p class="share-hint">@(ar ? "حتى لو تركت صفحة المحتوى مفتوحة، سيقوم النظام بإنهاء جلسة المشاركة عند انتهاء الوقت، والتحقق يتم من الخادم أيضاً." : "Even if the content page is left open, the shared session is terminated at the deadline; the server also enforces the expiry.")</p>
+    </div>
+</section>
+@section Scripts {
+<script>
+(function(){
+  const expires = Date.parse('@end.ToUniversalTime().ToString("O")');
+  const ms = expires - Date.now();
+  if (ms <= 0) { window.location.replace('@Url.Action("Open", "QrShare", new { token = "expired" })'); return; }
+  window.setTimeout(function(){
+    document.body.innerHTML = '<main class="public-center"><div class="premium-card error-card"><div class="error-code">⏱</div><h1>@(ar ? "انتهت مدة المشاركة" : "Shared access expired")</h1><p class="muted">@(ar ? "تم إيقاف بيانات الدخول المؤقتة. أغلق هذه الصفحة." : "The temporary shared credentials have been disabled. Close this page.")</p></div></main>';
+  }, Math.min(ms, 2147483647));
+})();
+</script>
+}

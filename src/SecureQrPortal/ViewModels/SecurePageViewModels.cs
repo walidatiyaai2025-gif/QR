@@ -64,6 +64,14 @@ public sealed class QrRegistryVm
     public int TotalPages => Math.Max(1, (int)Math.Ceiling(Total / (double)PageSize));
 }
 
+public sealed class QrShareAdminVm
+{
+    public QrShareLink Share { get; set; } = null!;
+    public string ShareUrl { get; set; } = "";
+    public string WhatsAppUrl { get; set; } = "";
+    public string EmailUrl { get; set; } = "";
+}
+
 public sealed class QrDetailsVm
 {
     public SecurePage Page { get; set; } = null!;
@@ -73,8 +81,27 @@ public sealed class QrDetailsVm
     public long? RemainingAccesses { get; set; }
     public List<AccessLog> Timeline { get; set; } = [];
     public List<QrTokenHistory> History { get; set; } = [];
+    public List<QrShareAdminVm> ShareLinks { get; set; } = [];
     public string CreatedBy { get; set; } = "—";
     public string ModifiedBy { get; set; } = "—";
+}
+
+public sealed class QrShareLandingVm
+{
+    public QrShareLink Share { get; set; } = null!;
+    public bool CanReveal { get; set; }
+    public string Organization { get; set; } = "";
+    public string PageTitle { get; set; } = "";
+}
+
+public sealed class QrShareRevealVm
+{
+    public QrShareLink Share { get; set; } = null!;
+    public string Organization { get; set; } = "";
+    public string PageTitle { get; set; } = "";
+    public string PublicQrUrl { get; set; } = "";
+    public string Username { get; set; } = "";
+    public string Password { get; set; } = "";
 }
 
 public sealed class SecurePageIndexVm
