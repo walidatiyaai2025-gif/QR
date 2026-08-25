@@ -85,7 +85,7 @@ GoRouter createAppRouter(AppRuntime runtime) => GoRouter(
     ),
     GoRoute(
       path: '/auth/mobile',
-      builder: (context, __) => AnimatedBuilder(
+      builder: (context, _) => AnimatedBuilder(
         animation: runtime,
         builder: (_, _) => MobileNumberScreen(
           state: runtime.mobileNumberState,
@@ -98,7 +98,7 @@ GoRouter createAppRouter(AppRuntime runtime) => GoRouter(
     ),
     GoRoute(
       path: '/auth/otp',
-      builder: (context, __) => AnimatedBuilder(
+      builder: (context, _) => AnimatedBuilder(
         animation: runtime,
         builder: (_, _) => OtpScreen(
           state: runtime.otpState,
@@ -114,7 +114,7 @@ GoRouter createAppRouter(AppRuntime runtime) => GoRouter(
     ),
     GoRoute(
       path: '/auth/biometric',
-      builder: (context, __) => AnimatedBuilder(
+      builder: (context, _) => AnimatedBuilder(
         animation: runtime,
         builder: (_, _) => BiometricScreen(
           state: runtime.biometricState,
@@ -135,7 +135,7 @@ GoRouter createAppRouter(AppRuntime runtime) => GoRouter(
     ),
     GoRoute(
       path: '/inbox',
-      builder: (context, __) => _InboxRuntimeRoute(
+      builder: (context, _) => _InboxRuntimeRoute(
         runtime: runtime,
         onOpenDelivery: (deliveryId) {
           context.go('/delivery/$deliveryId/login');
