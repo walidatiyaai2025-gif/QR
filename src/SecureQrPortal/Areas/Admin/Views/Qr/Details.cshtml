@@ -1,20 +1,51 @@
+@using Microsoft.EntityFrameworkCore
 @model QrDetailsVm
+@inject SecureQrPortal.Data.ApplicationDbContext Db
+@inject Microsoft.AspNetCore.Identity.UserManager<ApplicationUser> UserManager
 @{
-    ViewData["Title"] = "QR Details";
+    var ar = CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "ar";
+    string L(string arText, string enText) => ar ? arText : enText;
+    ViewData["Title"] = L("تفاصيل QR", "QR Details");
     var p = Model.Page;
     var now = DateTime.UtcNow;
     var pageExpiry = p.ExpiresAtUtc;
+    var orgName = ar ? p.Organization.NameArabic : p.Organization.NameEnglish;
+    var pageTitle = ar ? p.TitleArabic : p.TitleEnglish;
+
+    var shareIdStrings = Model.ShareLinks.Select(x => x.Share.Id.ToString()).ToList();
+    var shareAuditRows = shareIdStrings.Count == 0
+        ? new List<AuditLog>()
+        : await Db.AuditLogs.AsNoTracking()
+            .Where(x => x.EntityType == "QrShareLink" && x.EntityId != null && shareIdStrings.Contains(x.EntityId) &&
+                (x.Action == "QR_SHARE_SMS_SENT" || x.Action == "QR_SHARE_SMS_FAILED" ||
+                 x.Action == "QR_SHARE_WHATSAPP_HANDOFF" || x.Action == "QR_SHARE_EMAIL_HANDOFF" ||
+                 x.Action == "QR_SHARE_LINK_COPIED"))
+            .OrderByDescending(x => x.TimestampUtc)
+            .Take(200)
+            .ToListAsync();
+    var shareAuditAdminIds = shareAuditRows.Select(x => x.AdminUserId).OfType<string>().Distinct().ToList();
+    var shareAuditAdminNames = await UserManager.Users
+        .Where(x => shareAuditAdminIds.Contains(x.Id))
+        .ToDictionaryAsync(x => x.Id, x => x.DisplayName);
+
+    string AuditChannel(string action) => action.Contains("SMS", StringComparison.Ordinal) ? "SMS" :
+        action.Contains("WHATSAPP", StringComparison.Ordinal) ? "WhatsApp" :
+        action.Contains("EMAIL", StringComparison.Ordinal) ? L("البريد الإلكتروني", "Email") :
+        L("نسخ الرابط", "Copy Link");
+    string AuditResult(string action) => action.EndsWith("_FAILED", StringComparison.Ordinal) ? L("فشل", "Failed") :
+        action.Contains("HANDOFF", StringComparison.Ordinal) ? L("تم فتح قناة الإرسال", "Handoff opened") :
+        action.Contains("COPIED", StringComparison.Ordinal) ? L("تم النسخ", "Copied") : L("تم الإرسال", "Sent");
 }
 
 <div class="page-head">
     <div>
         <h1>@p.QrReference</h1>
-        <p>@p.Organization.NameEnglish · @p.TitleEnglish</p>
+        <p>@orgName · @pageTitle</p>
     </div>
     <div class="actions">
-        <a class="btn secondary" asp-action="Index">Registry</a>
-        <a class="btn secondary" asp-controller="SecurePages" asp-action="Edit" asp-route-id="@p.Id">Edit Page</a>
-        <a class="btn primary" asp-action="Download" asp-route-id="@p.Id">Download PNG</a>
+        <a class="btn secondary" asp-action="Index">@T["QrRegistry"]</a>
+        <a class="btn secondary" asp-controller="SecurePages" asp-action="Edit" asp-route-id="@p.Id">@T["EditSecurePage"]</a>
+        <a class="btn primary" asp-action="Download" asp-route-id="@p.Id">@L("تنزيل PNG", "Download PNG")</a>
     </div>
 </div>
 
@@ -22,63 +53,64 @@
     <div>
         <section class="panel">
             <div class="panel-head">
-                <h2>Identity</h2>
-                <span class="badge @Model.Status">@Model.Status</span>
+                <h2>@L("الهوية", "Identity")</h2>
+                <span class="badge @Model.Status">@T[Model.Status.ToString()]</span>
             </div>
             <div class="panel-body">
                 <div class="identity-block">
                     <img class="qr-large" src="@Url.Action("Code", new { id = p.Id, size = 8 })" alt="QR">
                     <dl class="kv">
-                        <dt>QR Reference</dt><dd class="code">@p.QrReference</dd>
-                        <dt>Organization</dt><dd>@p.Organization.NameEnglish / <span dir="rtl">@p.Organization.NameArabic</span></dd>
-                        <dt>Secure Page</dt><dd>@p.TitleEnglish</dd>
-                        <dt>Public URL</dt>
-                        <dd class="secure-url-admin"><span>@Model.PublicUrl</span> <button type="button" class="link-button" style="color:var(--gold2)" data-copy="@Model.PublicUrl">Copy</button></dd>
-                        <dt>Secure token</dt><dd class="code">@Model.MaskedToken</dd>
-                        <dt>Current token created</dt><dd>@p.CurrentTokenCreatedAtUtc.ToLocalTime().ToString("dd MMM yyyy HH:mm:ss")</dd>
+                        <dt>@L("مرجع QR", "QR Reference")</dt><dd class="code">@p.QrReference</dd>
+                        <dt>@T["Organization"]</dt><dd>@orgName</dd>
+                        <dt>@T["SecurePage"]</dt><dd>@pageTitle</dd>
+                        <dt>@L("الرابط العام", "Public URL")</dt>
+                        <dd class="secure-url-admin"><span>@Model.PublicUrl</span> <button type="button" class="link-button" style="color:var(--gold2)" data-copy="@Model.PublicUrl">@L("نسخ", "Copy")</button></dd>
+                        <dt>@L("رمز الأمان", "Secure token")</dt><dd class="code">@Model.MaskedToken</dd>
+                        <dt>@L("تاريخ إنشاء الرمز الحالي", "Current token created")</dt><dd>@p.CurrentTokenCreatedAtUtc.ToLocalTime().ToString(ar ? "dd/MM/yyyy HH:mm:ss" : "dd MMM yyyy HH:mm:ss")</dd>
                     </dl>
                 </div>
                 <div class="actions" style="margin-top:18px">
-                    <a class="btn secondary" href="@Model.PublicUrl" target="_blank" rel="noopener">Open Public URL</a>
-                    <a class="btn secondary" asp-action="Print" asp-route-id="@p.Id" target="_blank">Print</a>
-                    <a class="btn secondary" asp-controller="Logs" asp-action="Access" asp-route-eventType="">Activity Logs</a>
+                    <a class="btn secondary" href="@Model.PublicUrl" target="_blank" rel="noopener">@L("فتح الرابط العام", "Open Public URL")</a>
+                    <a class="btn secondary" asp-action="Print" asp-route-id="@p.Id" target="_blank">@L("طباعة", "Print")</a>
+                    <a class="btn secondary" asp-controller="Logs" asp-action="Access">@T["AccessLogs"]</a>
                 </div>
             </div>
         </section>
 
         <section class="panel">
-            <div class="panel-head"><h2>Validity & Usage</h2></div>
+            <div class="panel-head"><h2>@L("الصلاحية والاستخدام", "Validity & Usage")</h2></div>
             <div class="panel-body">
                 <dl class="kv">
-                    <dt>Valid From</dt><dd>@(p.ValidFromUtc?.ToLocalTime().ToString("dd MMM yyyy HH:mm") ?? "Immediately")</dd>
-                    <dt>Expiry Date</dt><dd>@(pageExpiry?.ToLocalTime().ToString("dd MMM yyyy HH:mm") ?? "No expiry")</dd>
-                    <dt>Remaining Validity</dt>
+                    <dt>@T["ValidFrom"]</dt><dd>@(p.ValidFromUtc?.ToLocalTime().ToString(ar ? "dd/MM/yyyy HH:mm" : "dd MMM yyyy HH:mm") ?? L("فوراً", "Immediately"))</dd>
+                    <dt>@L("تاريخ الانتهاء", "Expiry Date")</dt><dd>@(pageExpiry?.ToLocalTime().ToString(ar ? "dd/MM/yyyy HH:mm" : "dd MMM yyyy HH:mm") ?? L("بدون انتهاء", "No expiry"))</dd>
+                    <dt>@L("الصلاحية المتبقية", "Remaining Validity")</dt>
                     <dd>
                         @if (pageExpiry is DateTime expiry)
                         {
                             if (expiry > now)
                             {
-                                <text>@Math.Floor((expiry - now).TotalDays) days</text>
+                                var days = Math.Floor((expiry - now).TotalDays);
+                                <text>@days @L("يوم", "days")</text>
                             }
                             else
                             {
-                                <text>Expired</text>
+                                <text>@T["EXPIRED"]</text>
                             }
                         }
                         else
                         {
-                            <text>Unlimited</text>
+                            <text>@T["Unlimited"]</text>
                         }
                     </dd>
-                    <dt>Access Limit Mode</dt><dd>@p.AccessLimitMode</dd>
-                    <dt>Maximum Accesses</dt><dd>@(p.MaxAccessCount?.ToString() ?? "Unlimited")</dd>
-                    <dt>Remaining Accesses</dt><dd>@(Model.RemainingAccesses?.ToString() ?? "Unlimited")</dd>
-                    <dt>Total QR Opens</dt><dd>@p.CurrentQrOpenCount</dd>
-                    <dt>Successful Logins</dt><dd>@p.CurrentSuccessfulLoginCount</dd>
-                    <dt>Failed Logins</dt><dd>@p.CurrentFailedLoginCount</dd>
-                    <dt>Successful Content Accesses</dt><dd>@p.CurrentSuccessfulAccessCount</dd>
-                    <dt>Last Scan</dt><dd>@(p.LastQrScanAtUtc?.ToLocalTime().ToString("dd MMM yyyy HH:mm:ss") ?? "Never")</dd>
-                    <dt>Last Successful Access</dt><dd>@(p.LastSuccessfulAccessAtUtc?.ToLocalTime().ToString("dd MMM yyyy HH:mm:ss") ?? "Never")</dd>
+                    <dt>@T["AccessLimitMode"]</dt><dd>@T[p.AccessLimitMode.ToString()]</dd>
+                    <dt>@L("الحد الأقصى للوصول", "Maximum Accesses")</dt><dd>@(p.MaxAccessCount?.ToString() ?? T["Unlimited"])</dd>
+                    <dt>@L("الوصول المتبقي", "Remaining Accesses")</dt><dd>@(Model.RemainingAccesses?.ToString() ?? T["Unlimited"])</dd>
+                    <dt>@L("إجمالي فتح QR", "Total QR Opens")</dt><dd>@p.CurrentQrOpenCount</dd>
+                    <dt>@L("عمليات الدخول الناجحة", "Successful Logins")</dt><dd>@p.CurrentSuccessfulLoginCount</dd>
+                    <dt>@L("عمليات الدخول الفاشلة", "Failed Logins")</dt><dd>@p.CurrentFailedLoginCount</dd>
+                    <dt>@L("عمليات الوصول الناجحة للمحتوى", "Successful Content Accesses")</dt><dd>@p.CurrentSuccessfulAccessCount</dd>
+                    <dt>@L("آخر مسح", "Last Scan")</dt><dd>@(p.LastQrScanAtUtc?.ToLocalTime().ToString(ar ? "dd/MM/yyyy HH:mm:ss" : "dd MMM yyyy HH:mm:ss") ?? L("لم يحدث", "Never"))</dd>
+                    <dt>@L("آخر وصول ناجح", "Last Successful Access")</dt><dd>@(p.LastSuccessfulAccessAtUtc?.ToLocalTime().ToString(ar ? "dd/MM/yyyy HH:mm:ss" : "dd MMM yyyy HH:mm:ss") ?? L("لم يحدث", "Never"))</dd>
                 </dl>
             </div>
         </section>
@@ -86,32 +118,32 @@
 
     <div>
         <section class="panel">
-            <div class="panel-head"><h2>Ownership</h2></div>
+            <div class="panel-head"><h2>@L("الملكية", "Ownership")</h2></div>
             <div class="panel-body">
                 <dl class="kv">
-                    <dt>Created By</dt><dd>@Model.CreatedBy</dd>
-                    <dt>Created At</dt><dd>@p.CreatedAtUtc.ToLocalTime().ToString("dd MMM yyyy HH:mm:ss")</dd>
-                    <dt>Modified By</dt><dd>@Model.ModifiedBy</dd>
-                    <dt>Last Updated</dt><dd>@p.UpdatedAtUtc.ToLocalTime().ToString("dd MMM yyyy HH:mm:ss")</dd>
-                    <dt>Token regenerations</dt><dd>@Model.History.Count</dd>
+                    <dt>@L("أنشأ بواسطة", "Created By")</dt><dd>@Model.CreatedBy</dd>
+                    <dt>@L("تاريخ الإنشاء", "Created At")</dt><dd>@p.CreatedAtUtc.ToLocalTime().ToString(ar ? "dd/MM/yyyy HH:mm:ss" : "dd MMM yyyy HH:mm:ss")</dd>
+                    <dt>@L("عُدّل بواسطة", "Modified By")</dt><dd>@Model.ModifiedBy</dd>
+                    <dt>@L("آخر تحديث", "Last Updated")</dt><dd>@p.UpdatedAtUtc.ToLocalTime().ToString(ar ? "dd/MM/yyyy HH:mm:ss" : "dd MMM yyyy HH:mm:ss")</dd>
+                    <dt>@L("مرات إعادة توليد الرمز", "Token regenerations")</dt><dd>@Model.History.Count</dd>
                 </dl>
             </div>
         </section>
 
         <section class="panel">
-            <div class="panel-head"><h2>Activity Timeline</h2><span class="muted">Latest 100 events</span></div>
+            <div class="panel-head"><h2>@L("الخط الزمني للنشاط", "Activity Timeline")</h2><span class="muted">@L("آخر 100 حدث", "Latest 100 events")</span></div>
             <div class="panel-body">
                 <div class="timeline">
                     @foreach (var x in Model.Timeline)
                     {
                         <div class="timeline-item">
-                            <strong>@x.EventType — @(x.WasSuccessful ? "SUCCESS" : "FAILED")</strong>
-                            <small>@x.TimestampUtc.ToLocalTime().ToString("dd MMM yyyy HH:mm:ss") · IP @(x.IpAddress ?? "—") · @x.Browser / @x.DeviceType @if (!string.IsNullOrWhiteSpace(x.Country)) { <text> · @x.Country</text> }</small>
+                            <strong>@T[x.EventType] — @(x.WasSuccessful ? T["Success"] : T["Failure"])</strong>
+                            <small>@x.TimestampUtc.ToLocalTime().ToString(ar ? "dd/MM/yyyy HH:mm:ss" : "dd MMM yyyy HH:mm:ss") · IP @(x.IpAddress ?? "—") · @x.Browser / @x.DeviceType @if (!string.IsNullOrWhiteSpace(x.Country)) { <text> · @x.Country</text> }</small>
                         </div>
                     }
                     @if (Model.Timeline.Count == 0)
                     {
-                        <p class="muted">No activity recorded.</p>
+                        <p class="muted">@L("لا يوجد نشاط مسجل.", "No activity recorded.")</p>
                     }
                 </div>
             </div>
@@ -122,42 +154,42 @@
 <section class="panel">
     <div class="panel-head">
         <div>
-            <h2>Share QR Access</h2>
-            <span class="muted">Create a protected link that reveals the same username and password already configured for this QR.</span>
+            <h2>@L("مشاركة الوصول إلى QR", "Share QR Access")</h2>
+            <span class="muted">@L("أنشئ رابطاً محمياً يعرض نفس اسم المستخدم وكلمة المرور المضبوطين حالياً لهذا QR.", "Create a protected link that reveals the same username and password already configured for this QR.")</span>
         </div>
     </div>
     <div class="panel-body">
         <form asp-action="CreateShare" asp-route-id="@p.Id" method="post">
             <div class="share-config-grid">
                 <div class="field">
-                    <label>Allowed credential reveals</label>
+                    <label>@L("عدد مرات إظهار بيانات الدخول", "Allowed credential reveals")</label>
                     <input class="input" type="number" name="maxOpenCount" min="1" max="100" value="1" required>
-                    <small class="muted">1 = one-time credential reveal.</small>
+                    <small class="muted">@L("1 = إظهار بيانات الدخول لمرة واحدة.", "1 = one-time credential reveal.")</small>
                 </div>
                 <div class="field">
-                    <label>Share link lifetime (hours)</label>
+                    <label>@L("صلاحية رابط المشاركة بالساعات", "Share link lifetime (hours)")</label>
                     <input class="input" type="number" name="linkLifetimeHours" min="1" max="720" value="24" required>
                 </div>
                 <div class="field">
-                    <label>Access window after reveal (minutes)</label>
+                    <label>@L("مدة الوصول بعد الإظهار بالدقائق", "Access window after reveal (minutes)")</label>
                     <input class="input" type="number" name="sessionDurationMinutes" min="1" max="1440" value="15" required>
                 </div>
                 <div class="field">
-                    <label>Current QR password</label>
+                    <label>@L("كلمة مرور QR الحالية", "Current QR password")</label>
                     <input class="input" type="password" name="pagePassword" autocomplete="current-password" required>
-                    <small class="muted">Required to prove the protected share contains the exact existing QR password. It is never written to logs or the outgoing message.</small>
+                    <small class="muted">@L("مطلوبة للتحقق من أن المشاركة تستخدم كلمة مرور QR الحالية نفسها. لا تُكتب في السجلات أو الرسالة المرسلة.", "Required to prove the protected share contains the exact existing QR password. It is never written to logs or the outgoing message.")</small>
                 </div>
             </div>
             <div class="field" style="margin-top:18px">
-                <label>Share message text editor</label>
+                <label>@L("محرر نص رسالة المشاركة", "Share message text editor")</label>
                 <textarea class="input" name="messageTemplate" rows="8" maxlength="2000" style="min-height:180px;resize:vertical">@Model.DefaultShareMessageTemplate</textarea>
-                <small class="muted">Available placeholders: {ShareUrl}, {QrReference}, {ExpiresAt}, {SessionMinutes}, {RevealCount}. The message contains the protected share link only; credentials stay behind Reveal.</small>
+                <small class="muted">@L("المتغيرات المتاحة: {ShareUrl}, {QrReference}, {ExpiresAt}, {SessionMinutes}, {RevealCount}. الرسالة تحتوي الرابط المحمي فقط وتظل بيانات الدخول خلف زر الإظهار.", "Available placeholders: {ShareUrl}, {QrReference}, {ExpiresAt}, {SessionMinutes}, {RevealCount}. The message contains the protected share link only; credentials stay behind Reveal.")</small>
             </div>
             <div class="actions" style="margin-top:14px">
-                <button class="btn primary" type="submit">Create Secure Share Link</button>
+                <button class="btn primary" type="submit">@L("إنشاء رابط مشاركة آمن", "Create Secure Share Link")</button>
             </div>
         </form>
-        <div class="share-instruction">Simply previewing the link does not consume it. The reveal count changes only when the recipient explicitly reveals the credentials.</div>
+        <div class="share-instruction">@L("معاينة الرابط وحدها لا تستهلكه. يتم تغيير عداد الإظهار فقط عندما يضغط المستلم على إظهار بيانات الدخول.", "Simply previewing the link does not consume it. The reveal count changes only when the recipient explicitly reveals the credentials.")</div>
     </div>
 
     @if (Model.ShareLinks.Count > 0)
@@ -165,7 +197,7 @@
         <div class="table-wrap">
             <table class="data-table share-table">
                 <thead>
-                    <tr><th>Status</th><th>Share Link</th><th>Reveals</th><th>Expires</th><th>Session</th><th>Actions</th></tr>
+                    <tr><th>@T["Status"]</th><th>@L("رابط المشاركة", "Share Link")</th><th>@L("مرات الإظهار", "Reveals")</th><th>@T["Expiry"]</th><th>@L("الجلسة", "Session")</th><th>@T["Actions"]</th></tr>
                 </thead>
                 <tbody>
                     @foreach (var s in Model.ShareLinks)
@@ -173,31 +205,39 @@
                         var sh = s.Share;
                         var shareStatus = sh.RevokedAtUtc.HasValue ? "REVOKED" : sh.ExpiresAtUtc <= now ? "EXPIRED" : sh.CurrentOpenCount >= sh.MaxOpenCount ? "LIMIT_REACHED" : "ACTIVE";
                         var accessWindowEnd = sh.AccessWindowEndsAtUtc;
+                        var copyAuditFormId = $"copy-audit-{sh.Id}";
                         <tr>
-                            <td><span class="badge @shareStatus">@shareStatus</span></td>
+                            <td><span class="badge @shareStatus">@T[shareStatus]</span></td>
                             <td>
-                                <div class="share-url-cell">@s.ShareUrl</div>
-                                <div class="muted">Created @sh.CreatedAtUtc.ToLocalTime().ToString("dd MMM yyyy HH:mm")</div>
+                                <div class="share-url-cell" dir="ltr">@s.ShareUrl</div>
+                                <div class="muted">@L("أُنشئ", "Created") @sh.CreatedAtUtc.ToLocalTime().ToString(ar ? "dd/MM/yyyy HH:mm" : "dd MMM yyyy HH:mm")</div>
                             </td>
                             <td>@sh.CurrentOpenCount / @sh.MaxOpenCount</td>
-                            <td>@sh.ExpiresAtUtc.ToLocalTime().ToString("dd MMM yyyy HH:mm")</td>
+                            <td>@sh.ExpiresAtUtc.ToLocalTime().ToString(ar ? "dd/MM/yyyy HH:mm" : "dd MMM yyyy HH:mm")</td>
                             <td>
-                                @sh.SessionDurationMinutes min
+                                @sh.SessionDurationMinutes @L("دقيقة", "min")
                                 @if (accessWindowEnd is DateTime windowEnd)
                                 {
-                                    <br><span class="muted">window ends @windowEnd.ToLocalTime().ToString("HH:mm:ss")</span>
+                                    <br><span class="muted">@L("تنتهي نافذة الوصول", "window ends") @windowEnd.ToLocalTime().ToString("HH:mm:ss")</span>
                                 }
                             </td>
                             <td>
                                 <div class="actions share-actions">
-                                    <button type="button" class="btn secondary" data-copy="@s.ShareUrl">Copy</button>
-                                    <a class="btn secondary" href="@s.WhatsAppUrl" target="_blank" rel="noopener">WhatsApp</a>
-                                    <a class="btn secondary" href="@s.EmailUrl">Email</a>
+                                    <form id="@copyAuditFormId" asp-controller="QrShareDispatch" asp-action="TrackCopy" asp-route-id="@p.Id" asp-route-shareId="@sh.Id" method="post" style="display:none"></form>
+                                    <button type="button" class="btn secondary" data-copy="@s.ShareUrl" data-audit-form="@copyAuditFormId">@L("نسخ", "Copy")</button>
+                                    <form asp-controller="QrShareDispatch" asp-action="Dispatch" asp-route-id="@p.Id" asp-route-shareId="@sh.Id" method="post" target="_blank">
+                                        <input type="hidden" name="channel" value="whatsapp">
+                                        <button class="btn secondary" type="submit">WhatsApp</button>
+                                    </form>
+                                    <form asp-controller="QrShareDispatch" asp-action="Dispatch" asp-route-id="@p.Id" asp-route-shareId="@sh.Id" method="post" target="_blank">
+                                        <input type="hidden" name="channel" value="email">
+                                        <button class="btn secondary" type="submit">@L("البريد الإلكتروني", "Email")</button>
+                                    </form>
                                     @if (!sh.RevokedAtUtc.HasValue && sh.ExpiresAtUtc > now)
                                     {
-                                        <form asp-action="RevokeShare" asp-route-id="@p.Id" asp-route-shareId="@sh.Id" method="post" onsubmit="return confirm('Revoke this share link immediately?');">
+                                        <form asp-action="RevokeShare" asp-route-id="@p.Id" asp-route-shareId="@sh.Id" method="post" onsubmit="return confirm('@L("إلغاء رابط المشاركة فوراً؟", "Revoke this share link immediately?")');">
                                             <input type="hidden" name="confirmation" value="REVOKE SHARE">
-                                            <button class="btn danger" type="submit">Revoke</button>
+                                            <button class="btn danger" type="submit">@L("إلغاء", "Revoke")</button>
                                         </form>
                                     }
                                 </div>
@@ -207,31 +247,31 @@
                             <td colspan="6" style="padding:18px">
                                 <form asp-action="UpdateShareMessage" asp-route-id="@p.Id" asp-route-shareId="@sh.Id" method="post">
                                     <div class="field">
-                                        <label>Message text editor</label>
+                                        <label>@L("محرر نص الرسالة", "Message text editor")</label>
                                         <textarea class="input" name="messageTemplate" rows="7" maxlength="2000" style="min-height:160px;resize:vertical">@s.MessageTemplate</textarea>
-                                        <small class="muted">Save the message before using WhatsApp or Email so those buttons use the latest text.</small>
+                                        <small class="muted">@L("احفظ الرسالة قبل الإرسال حتى تستخدم القنوات أحدث نص.", "Save the message before sending so all channels use the latest text.")</small>
                                     </div>
                                     <div class="actions" style="margin-top:12px">
-                                        <button class="btn secondary" type="submit">Save Message</button>
+                                        <button class="btn secondary" type="submit">@L("حفظ الرسالة", "Save Message")</button>
                                     </div>
                                 </form>
 
                                 <div style="margin-top:16px;border-top:1px solid rgba(255,255,255,.08);padding-top:16px">
                                     <form asp-action="SendShareSms" asp-route-id="@p.Id" asp-route-shareId="@sh.Id" method="post">
                                         <div class="field">
-                                            <label>Send this secure share by SMS</label>
-                                            <input class="input" name="mobile" inputmode="tel" autocomplete="tel" placeholder="965XXXXXXXX" required>
+                                            <label>@L("إرسال رابط المشاركة الآمن عبر SMS", "Send this secure share by SMS")</label>
+                                            <input class="input" name="mobile" inputmode="tel" autocomplete="tel" placeholder="965XXXXXXXX" required dir="ltr">
                                             <input type="hidden" name="messageTemplate" value="@s.MessageTemplate">
-                                            <small class="muted">Kuwait 8-digit numbers are automatically prefixed with 965. SMS sends the protected share URL, never the username/password directly.</small>
+                                            <small class="muted">@L("الأرقام الكويتية المكونة من 8 أرقام يضاف لها 965 تلقائياً. الرسالة ترسل رابط المشاركة المحمي ولا ترسل اسم المستخدم أو كلمة المرور مباشرة.", "Kuwait 8-digit numbers are automatically prefixed with 965. SMS sends the protected share URL, never the username/password directly.")</small>
                                         </div>
                                         <div class="actions" style="margin-top:12px">
                                             @if (Model.SmsConfigured)
                                             {
-                                                <button class="btn primary" type="submit">Send SMS</button>
+                                                <button class="btn primary" type="submit">@L("إرسال SMS", "Send SMS")</button>
                                             }
                                             else
                                             {
-                                                <button class="btn secondary" type="button" disabled>SMS gateway not configured</button>
+                                                <button class="btn secondary" type="button" disabled>@L("بوابة SMS غير مضبوطة", "SMS gateway not configured")</button>
                                             }
                                         </div>
                                     </form>
@@ -243,26 +283,62 @@
             </table>
         </div>
     }
+    else
+    {
+        <div class="panel-body"><p class="muted">@L("لم يتم إنشاء روابط مشاركة لهذا QR بعد.", "No share links have been created for this QR yet.")</p></div>
+    }
 </section>
 
 <section class="panel">
-    <div class="panel-head"><h2>Token History</h2><span class="muted">Previous tokens are stored only as hashes</span></div>
+    <div class="panel-head">
+        <h2>@L("سجل رسائل المشاركة", "Share Message Audit")</h2>
+        <span class="muted">@L("آخر 200 إجراء إرسال/مشاركة. لا يتم حفظ كلمات المرور أو رمز الرابط الخام.", "Latest 200 send/share actions. Passwords and raw share tokens are never stored.")</span>
+    </div>
     <div class="table-wrap">
         <table class="data-table">
-            <thead><tr><th>Revoked</th><th>Previous Token Hash</th><th>Reason</th><th>Replacement</th></tr></thead>
+            <thead><tr><th>@L("الوقت", "Time")</th><th>@L("معرف المشاركة", "Share ID")</th><th>@L("القناة", "Channel")</th><th>@T["Result"]</th><th>@T["Admin"]</th><th>@T["IP"]</th><th>@L("تفاصيل التدقيق", "Audit Details")</th></tr></thead>
+            <tbody>
+                @foreach (var row in shareAuditRows)
+                {
+                    var adminName = row.AdminUserId != null && shareAuditAdminNames.TryGetValue(row.AdminUserId, out var foundAdmin) ? foundAdmin : "—";
+                    var failed = row.Action.EndsWith("_FAILED", StringComparison.Ordinal);
+                    <tr>
+                        <td>@row.TimestampUtc.ToLocalTime().ToString(ar ? "dd/MM/yyyy HH:mm:ss" : "dd MMM yyyy HH:mm:ss")</td>
+                        <td class="code">@row.EntityId</td>
+                        <td>@AuditChannel(row.Action)</td>
+                        <td><span class="badge @(failed ? "REVOKED" : "ACTIVE")">@AuditResult(row.Action)</span></td>
+                        <td>@adminName</td>
+                        <td dir="ltr">@(row.IpAddress ?? "—")</td>
+                        <td>@(row.Details ?? "—")</td>
+                    </tr>
+                }
+                @if (shareAuditRows.Count == 0)
+                {
+                    <tr><td colspan="7" class="muted">@L("لا توجد رسائل أو عمليات مشاركة مسجلة حتى الآن.", "No message/share actions have been recorded yet.")</td></tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</section>
+
+<section class="panel">
+    <div class="panel-head"><h2>@L("سجل الرموز", "Token History")</h2><span class="muted">@L("الرموز السابقة تحفظ كقيم Hash فقط", "Previous tokens are stored only as hashes")</span></div>
+    <div class="table-wrap">
+        <table class="data-table">
+            <thead><tr><th>@L("تاريخ الإلغاء", "Revoked")</th><th>@L("Hash الرمز السابق", "Previous Token Hash")</th><th>@L("السبب", "Reason")</th><th>@L("البديل", "Replacement")</th></tr></thead>
             <tbody>
                 @foreach (var h in Model.History)
                 {
                     <tr>
-                        <td>@h.RevokedAtUtc.ToLocalTime().ToString("dd MMM yyyy HH:mm")</td>
+                        <td>@h.RevokedAtUtc.ToLocalTime().ToString(ar ? "dd/MM/yyyy HH:mm" : "dd MMM yyyy HH:mm")</td>
                         <td class="code">@(h.PreviousTokenHash.Length > 16 ? h.PreviousTokenHash[..16] : h.PreviousTokenHash)…</td>
                         <td>@h.RevocationReason</td>
-                        <td>@h.ReplacementTokenCreatedAtUtc?.ToLocalTime().ToString("dd MMM yyyy HH:mm")</td>
+                        <td>@h.ReplacementTokenCreatedAtUtc?.ToLocalTime().ToString(ar ? "dd/MM/yyyy HH:mm" : "dd MMM yyyy HH:mm")</td>
                     </tr>
                 }
                 @if (Model.History.Count == 0)
                 {
-                    <tr><td colspan="4" class="muted">Token has never been regenerated.</td></tr>
+                    <tr><td colspan="4" class="muted">@L("لم تتم إعادة توليد الرمز من قبل.", "Token has never been regenerated.")</td></tr>
                 }
             </tbody>
         </table>
@@ -270,24 +346,24 @@
 </section>
 
 <section class="panel danger-zone">
-    <div class="panel-head"><h2>Administrative Actions</h2><span class="muted">Dangerous operations require explicit confirmation</span></div>
+    <div class="panel-head"><h2>@L("إجراءات الإدارة", "Administrative Actions")</h2><span class="muted">@L("العمليات الحساسة تتطلب تأكيداً صريحاً", "Dangerous operations require explicit confirmation")</span></div>
     <div class="panel-body">
         <div class="details-grid">
             <form asp-action="Regenerate" asp-route-id="@p.Id" method="post">
-                <div class="field"><label>Regenerate QR token — type REGENERATE</label><input class="input" name="confirmation" autocomplete="off"></div>
-                <button class="btn danger">Regenerate & invalidate old QR</button>
+                <div class="field"><label>@L("إعادة توليد رمز QR — اكتب REGENERATE", "Regenerate QR token — type REGENERATE")</label><input class="input" name="confirmation" autocomplete="off"></div>
+                <button class="btn danger">@L("إعادة التوليد وإبطال QR القديم", "Regenerate & invalidate old QR")</button>
             </form>
             <form asp-action="Revoke" asp-route-id="@p.Id" method="post">
-                <div class="field"><label>Revoke QR/page — type REVOKE</label><input class="input" name="confirmation" autocomplete="off"></div>
-                <button class="btn danger">Revoke</button>
+                <div class="field"><label>@L("إلغاء QR/الصفحة — اكتب REVOKE", "Revoke QR/page — type REVOKE")</label><input class="input" name="confirmation" autocomplete="off"></div>
+                <button class="btn danger">@L("إلغاء", "Revoke")</button>
             </form>
             <form asp-action="ResetCounter" asp-route-id="@p.Id" method="post">
-                <div class="field"><label>Reset access/open counters — type RESET</label><input class="input" name="confirmation" autocomplete="off"></div>
-                <button class="btn danger">Reset counters</button>
+                <div class="field"><label>@L("تصفير عدادات الوصول/الفتح — اكتب RESET", "Reset access/open counters — type RESET")</label><input class="input" name="confirmation" autocomplete="off"></div>
+                <button class="btn danger">@L("تصفير العدادات", "Reset counters")</button>
             </form>
             <form asp-controller="SecurePages" asp-action="Toggle" asp-route-id="@p.Id" method="post">
-                <div class="field"><label>Availability</label><p class="muted">Server-side active/disabled state.</p></div>
-                <button class="btn secondary">@(p.IsActive ? "Disable" : "Enable") QR/Page</button>
+                <div class="field"><label>@L("الإتاحة", "Availability")</label><p class="muted">@L("حالة التفعيل/التعطيل محفوظة على الخادم.", "Server-side active/disabled state.")</p></div>
+                <button class="btn secondary">@(p.IsActive ? L("تعطيل QR/الصفحة", "Disable QR/Page") : L("تفعيل QR/الصفحة", "Enable QR/Page"))</button>
             </form>
         </div>
     </div>
