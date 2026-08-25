@@ -196,7 +196,11 @@ builder.Services.AddScoped<MobileSessionService>();
 builder.Services.AddScoped<MobileOtpService>();
 builder.Services.AddScoped<MobileDeviceService>();
 builder.Services.AddScoped<MobileDeliveryAccessService>();
-builder.Services.AddScoped<IMobilePushDispatchService, UnavailableMobilePushDispatchService>();
+builder.Services.Configure<FirebasePushOptions>(builder.Configuration.GetSection("Firebase"));
+builder.Services.AddSingleton<IFirebasePushProvider, FirebaseAdminPushProvider>();
+builder.Services.AddScoped<MobilePushDeviceStore>();
+builder.Services.AddScoped<MobilePushAttemptService>();
+builder.Services.AddScoped<IMobilePushDispatchService, FirebaseMobilePushDispatchService>();
 builder.Services.AddScoped<MobileDeliveryAdminService>();
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddCaptchaSecurity();
@@ -229,7 +233,16 @@ app.UseSession();
 app.UseAuthentication();
 app.UseAuthorization();
 
-app.MapGet("/health", () => Results.Ok(new { status = "ok", version = AppVersion.Current }));
+app.MapGet("/health", async (IFirebasePushProvider pushProvider, CancellationToken ct) =>
+{
+    var push = await pushProvider.CheckHealthAsync(ct);
+    return Results.Ok(new
+    {
+        status = "ok",
+        version = AppVersion.Current,
+        pushProvider = new { provider = "FirebaseFCM", status = push.Status, detailCode = push.DetailCode }
+    });
+});
 
 app.MapControllerRoute(
     name: "areas",
