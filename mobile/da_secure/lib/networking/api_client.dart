@@ -57,8 +57,10 @@ class ApiClient {
     ErrorInterceptorHandler handler,
   ) async {
     final request = error.requestOptions;
+    final responseCode = _apiErrorCode(error.response?.data);
     final canRefresh =
         error.response?.statusCode == 401 &&
+        responseCode == 'SESSION_EXPIRED' &&
         request.extra['skipAuth'] != true &&
         request.extra['skipRefresh'] != true &&
         request.extra['retriedAfterRefresh'] != true &&
@@ -167,6 +169,19 @@ class ApiClient {
   static AppFailure mapError(DioException error) => AppFailure.fromDio(error);
 
   static Map<String, dynamic> jsonMap(dynamic value) => _jsonMap(value);
+}
+
+String? _apiErrorCode(dynamic value) {
+  if (value is! Map) return null;
+
+  final nested = value['error'];
+  if (nested is Map) {
+    final code = nested['code']?.toString().trim();
+    if (code != null && code.isNotEmpty) return code;
+  }
+
+  final code = value['code']?.toString().trim();
+  return code == null || code.isEmpty ? null : code;
 }
 
 Map<String, dynamic> _jsonMap(dynamic value) {
