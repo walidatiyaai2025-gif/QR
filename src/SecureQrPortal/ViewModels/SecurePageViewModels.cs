@@ -70,6 +70,8 @@ public sealed class QrShareAdminVm
     public string ShareUrl { get; set; } = "";
     public string MessageTemplate { get; set; } = "";
     public string Message { get; set; } = "";
+    public string WhatsAppUrl { get; set; } = "";
+    public string EmailUrl { get; set; } = "";
 }
 
 public sealed class QrShareAuditVm
