@@ -1,6 +1,5 @@
 using System.Globalization;
 using System.Security.Cryptography;
-using System.Text;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Mvc;
 using SecureQrPortal.Models;
@@ -16,7 +15,7 @@ public sealed class QrShareController(
     TokenService tokens,
     IDataProtectionProvider protection) : Controller
 {
-    private readonly IDataProtector _receiptProtector = protection.CreateProtector("SecureQrPortal.QrShare.Receipt.v1");
+    private readonly IDataProtector _receiptProtector = protection.CreateProtector("SecureQrPortal.QrShare.Receipt.v2");
 
     [HttpGet("{token}")]
     public async Task<IActionResult> Open(string token, CancellationToken ct)
@@ -24,8 +23,8 @@ public sealed class QrShareController(
         var share = await shares.FindByTokenAsync(token, ct);
         if (share is null) return View("Unavailable");
 
-        if (TryReadRevealReceipt(share, out var resumedPassword))
-            return View("Reveal", BuildRevealVm(share, resumedPassword));
+        if (TryGetValidCookieReceipt(share, out _))
+            return View("Reveal", BuildRevealVm(share));
 
         var now = DateTime.UtcNow;
         var canReveal = share.RevokedAtUtc is null &&
@@ -46,20 +45,37 @@ public sealed class QrShareController(
     public async Task<IActionResult> Reveal(string token, CancellationToken ct)
     {
         var existing = await shares.FindByTokenAsync(token, ct);
-        if (existing is not null && TryReadRevealReceipt(existing, out _))
-            return RedirectToAction(nameof(Open), new { token });
+        if (existing is not null && TryGetValidCookieReceipt(existing, out var existingReceipt))
+            return RedirectToAction(nameof(Credentials), new { token, receipt = existingReceipt });
 
         var result = await shares.RevealAsync(token, ct);
         if (result is null) return View("Unavailable");
 
-        WriteRevealReceipt(result.Share, result.Password);
+        var receipt = CreateRevealReceipt(result.Share);
+        WriteRevealReceiptCookie(result.Share, receipt);
 
-        // Post/Redirect/Get: the reveal is counted exactly once, then the same recipient
-        // is allowed to reopen the credential screen until the hard access deadline.
-        return RedirectToAction(nameof(Open), new { token });
+        // Use a protected resume receipt in the redirect as the primary continuation proof.
+        // This avoids depending on browser cookie timing after a one-time reveal.
+        return RedirectToAction(nameof(Credentials), new { token, receipt });
     }
 
-    private QrShareRevealVm BuildRevealVm(QrShareLink share, string password)
+    [HttpGet("{token}/credentials")]
+    public async Task<IActionResult> Credentials(string token, string? receipt, CancellationToken ct)
+    {
+        var share = await shares.FindByTokenAsync(token, ct);
+        if (share is null) return View("Unavailable");
+
+        if (!TryValidateRevealReceipt(share, receipt))
+        {
+            if (!TryGetValidCookieReceipt(share, out receipt))
+                return View("Unavailable");
+        }
+
+        WriteRevealReceiptCookie(share, receipt!);
+        return View("Reveal", BuildRevealVm(share));
+    }
+
+    private QrShareRevealVm BuildRevealVm(QrShareLink share)
     {
         var ar = CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "ar";
         var publicToken = tokens.Unprotect(share.SecurePage.ProtectedPublicToken);
@@ -72,23 +88,29 @@ public sealed class QrShareController(
             PageTitle = ar ? share.SecurePage.TitleArabic : share.SecurePage.TitleEnglish,
             PublicQrUrl = publicUrl,
             Username = share.Username,
-            Password = password
+            Password = shares.GetPassword(share)
         };
     }
 
-    private void WriteRevealReceipt(QrShareLink share, string password)
+    private string CreateRevealReceipt(QrShareLink share)
     {
         if (share.AccessWindowEndsAtUtc is not DateTime accessEnd)
             throw new InvalidOperationException("A revealed share must have an access-window deadline.");
 
         var utcEnd = DateTime.SpecifyKind(accessEnd, DateTimeKind.Utc);
-        var encodedPassword = Convert.ToBase64String(Encoding.UTF8.GetBytes(password));
-        var payload = $"{share.Id}|{share.TokenHash}|{utcEnd.Ticks}|{encodedPassword}";
-        var protectedPayload = _receiptProtector.Protect(payload);
+        var payload = $"{share.Id}|{share.TokenHash}|{utcEnd.Ticks}";
+        return _receiptProtector.Protect(payload);
+    }
 
+    private void WriteRevealReceiptCookie(QrShareLink share, string receipt)
+    {
+        if (share.AccessWindowEndsAtUtc is not DateTime accessEnd)
+            return;
+
+        var utcEnd = DateTime.SpecifyKind(accessEnd, DateTimeKind.Utc);
         Response.Cookies.Append(
             ReceiptCookieName(share.Id),
-            protectedPayload,
+            receipt,
             new CookieOptions
             {
                 HttpOnly = true,
@@ -100,36 +122,39 @@ public sealed class QrShareController(
             });
     }
 
-    private bool TryReadRevealReceipt(QrShareLink share, out string password)
+    private bool TryGetValidCookieReceipt(QrShareLink share, out string receipt)
     {
-        password = string.Empty;
+        receipt = string.Empty;
+        if (!Request.Cookies.TryGetValue(ReceiptCookieName(share.Id), out var candidate) ||
+            string.IsNullOrWhiteSpace(candidate) ||
+            !TryValidateRevealReceipt(share, candidate))
+            return false;
 
-        if (share.RevokedAtUtc is not null ||
+        receipt = candidate;
+        return true;
+    }
+
+    private bool TryValidateRevealReceipt(QrShareLink share, string? receipt)
+    {
+        if (string.IsNullOrWhiteSpace(receipt) ||
+            share.RevokedAtUtc is not null ||
             share.AccessWindowEndsAtUtc is not DateTime accessEnd ||
             accessEnd <= DateTime.UtcNow)
             return false;
 
-        if (!Request.Cookies.TryGetValue(ReceiptCookieName(share.Id), out var protectedPayload) ||
-            string.IsNullOrWhiteSpace(protectedPayload))
-            return false;
-
         try
         {
-            var payload = _receiptProtector.Unprotect(protectedPayload);
-            var parts = payload.Split('|', 4);
-            if (parts.Length != 4 ||
+            var payload = _receiptProtector.Unprotect(receipt);
+            var parts = payload.Split('|', 3);
+            if (parts.Length != 3 ||
                 !long.TryParse(parts[0], out var shareId) ||
                 !long.TryParse(parts[2], out var expiryTicks))
                 return false;
 
             var expectedTicks = DateTime.SpecifyKind(accessEnd, DateTimeKind.Utc).Ticks;
-            if (shareId != share.Id ||
-                expiryTicks != expectedTicks ||
-                !string.Equals(parts[1], share.TokenHash, StringComparison.Ordinal))
-                return false;
-
-            password = Encoding.UTF8.GetString(Convert.FromBase64String(parts[3]));
-            return true;
+            return shareId == share.Id &&
+                   expiryTicks == expectedTicks &&
+                   string.Equals(parts[1], share.TokenHash, StringComparison.Ordinal);
         }
         catch (CryptographicException)
         {
