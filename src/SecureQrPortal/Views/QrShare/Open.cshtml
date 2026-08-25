@@ -32,6 +32,10 @@
             <form id="revealCredentialsForm" method="post" action="@revealUrl">
                 @Html.AntiForgeryToken()
                 <input type="hidden" name="revealRequestId" value="@revealRequestId" />
+                @if (ViewBag.RuntimeInspectorEnabled == true)
+                {
+                    <input type="hidden" name="inspect" value="true" />
+                }
                 <button id="revealCredentialsButton" class="btn primary block" type="submit">@(ar ? "إظهار بيانات الدخول الآن" : "Reveal credentials now")</button>
             </form>
             <p class="share-hint">@(ar ? "لا يتم احتساب زيارة هذه الصفحة وحدها. يتم احتساب الفتح عند الضغط على زر إظهار بيانات الدخول، وأي إعادة إرسال لنفس الطلب لا تُحتسب مرة ثانية." : "Simply visiting this landing page does not consume an opening. The opening is consumed only when you reveal credentials, and an automatic retry of the same request is not counted twice.")</p>
@@ -41,6 +45,7 @@
             <div class="alert danger">@(ar ? "الرابط منتهي أو تم استخدام العدد المسموح أو تم إلغاؤه." : "This share link is expired, fully used, or revoked.")</div>
         }
     </div>
+    <partial name="_RuntimeInspector" />
 </section>
 @if (Model.CanReveal)
 {
