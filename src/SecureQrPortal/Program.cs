@@ -195,6 +195,7 @@ builder.Services.AddScoped<AuditService>();
 builder.Services.AddScoped<AdminIdentityService>();
 builder.Services.AddScoped<AppSettingsService>();
 builder.Services.AddScoped<SecureMessageSecuritySettingsService>();
+builder.Services.AddScoped<SecureMessageSecurityAdministrationService>();
 builder.Services.AddScoped<SecureMessageEncryptionService>();
 builder.Services.AddScoped<SecureMessageKeyLifecycleProcessor>();
 builder.Services.AddHostedService<SecureMessageKeyLifecycleBackgroundService>();
