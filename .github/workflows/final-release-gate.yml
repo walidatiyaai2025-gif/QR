@@ -219,10 +219,27 @@ jobs:
           set -euo pipefail
           apk='build/app/outputs/flutter-apk/app-debug.apk'
           test -s "$apk"
-          unzip -l "$apk" | tee /tmp/apk-files.txt >/dev/null
-          grep -Fq 'assets/flutter_assets/assets/brand/diwan_crest.png' /tmp/apk-files.txt
-          grep -Fq 'assets/flutter_assets/assets/fonts/noto_sans_arabic/NotoSansArabic[wdth,wght].ttf' /tmp/apk-files.txt
-          grep -Eq 'res/.*/ic_launcher[^/]*\.png' /tmp/apk-files.txt
+
+          # Flutter bundle content is verified by its stable asset basenames rather than
+          # assuming an APK ZIP directory layout that can vary by Android tooling.
+          unzip -Z1 "$apk" | tee /tmp/apk-files.txt >/dev/null
+          grep -Fq 'diwan_crest.png' /tmp/apk-files.txt
+          grep -Fq 'NotoSansArabic' /tmp/apk-files.txt
+
+          # Verify the compiled application identity and launcher resources through AAPT.
+          sdk_root="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}"
+          test -n "$sdk_root"
+          aapt_bin="$(find "$sdk_root/build-tools" -type f -name aapt -perm -111 | sort -V | tail -n 1)"
+          test -x "$aapt_bin"
+          "$aapt_bin" dump badging "$apk" | tee /tmp/apk-badging.txt
+          grep -Fq "package: name='com.qr.mobile.da'" /tmp/apk-badging.txt
+          grep -Fq "application-label:'DA Secure'" /tmp/apk-badging.txt
+          grep -Eq "application: label='DA Secure'.*icon='res/[^']+'" /tmp/apk-badging.txt
+
+          "$aapt_bin" dump resources "$apk" | tee /tmp/apk-resources.txt >/dev/null
+          grep -Fq 'mipmap/ic_launcher' /tmp/apk-resources.txt
+          grep -Fq 'mipmap/ic_launcher_round' /tmp/apk-resources.txt
+
           cp "$apk" "$GITHUB_WORKSPACE/DA-Secure-FINAL.apk"
           printf 'FINAL_SHA=%s\nAPK_SOURCE_SHA=%s\n' "$GITHUB_SHA" "$GITHUB_SHA" > "$GITHUB_WORKSPACE/APK-SOURCE-SHA.txt"
           sha256sum "$GITHUB_WORKSPACE/DA-Secure-FINAL.apk" > "$GITHUB_WORKSPACE/DA-Secure-FINAL.apk.sha256"
