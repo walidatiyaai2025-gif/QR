@@ -316,6 +316,11 @@ public sealed class SecureMessageEncryptionSecurityTests
         ProtectedPublicToken = "protected"
     };
 
+    private sealed class FixedHttpContextAccessor : IHttpContextAccessor
+    {
+        public HttpContext? HttpContext { get; set; }
+    }
+
     private sealed class Fixture : IAsyncDisposable
     {
         private readonly SqliteConnection _connection;
@@ -344,7 +349,7 @@ public sealed class SecureMessageEncryptionSecurityTests
                 .Options);
             await db.Database.EnsureCreatedAsync();
 
-            var accessor = new HttpContextAccessor();
+            IHttpContextAccessor accessor = new FixedHttpContextAccessor();
             if (withAdministratorHttpContext)
             {
                 var http = new DefaultHttpContext();
