@@ -118,25 +118,60 @@ function Ensure-AppPool {
     Set-ItemProperty "IIS:\AppPools\$AppPoolName" -Name startMode -Value 'AlwaysRunning'
 }
 
+function Test-CertificateMatchesDeployment {
+    param(
+        [Parameter(Mandatory)]$Certificate,
+        [Parameter(Mandatory)][string]$CertificatePattern,
+        [Parameter(Mandatory)][string]$HostName
+    )
+
+    if (-not $Certificate.HasPrivateKey -or $Certificate.NotAfter -le (Get-Date).AddMinutes(5)) {
+        return $false
+    }
+
+    if ($Certificate.Subject -match [regex]::Escape("CN=$CertificatePattern")) {
+        return $true
+    }
+
+    if ($Certificate.DnsNameList) {
+        $dnsNames = @($Certificate.DnsNameList | ForEach-Object { $_.Unicode })
+        if ($dnsNames -contains $CertificatePattern -or $dnsNames -contains $HostName) {
+            return $true
+        }
+    }
+
+    return $false
+}
+
 function Get-EligibleCertificate {
     param(
         [Parameter(Mandatory)][string]$CertificatePattern,
         [Parameter(Mandatory)][string]$HostName
     )
 
-    $now = Get-Date
     $certificate = Get-ChildItem Cert:\LocalMachine\My | Where-Object {
-        $_.HasPrivateKey -and $_.NotAfter -gt $now.AddMinutes(5) -and (
-            $_.Subject -match [regex]::Escape("CN=$CertificatePattern") -or
-            ($_.DnsNameList -and ($_.DnsNameList.Unicode -contains $CertificatePattern)) -or
-            ($_.DnsNameList -and ($_.DnsNameList.Unicode -contains $HostName))
-        )
+        Test-CertificateMatchesDeployment -Certificate $_ -CertificatePattern $CertificatePattern -HostName $HostName
     } | Sort-Object NotAfter -Descending | Select-Object -First 1
 
     if (-not $certificate) {
         throw "No valid LocalMachine\\My certificate matching '$CertificatePattern' or '$HostName' with a private key was found."
     }
     return $certificate
+}
+
+function Get-NormalizedSslBindingThumbprint {
+    param($SslBinding)
+
+    if (-not $SslBinding) { return $null }
+    foreach ($candidate in @($SslBinding.Thumbprint,$SslBinding.CertificateHash)) {
+        if ($null -eq $candidate) { continue }
+        if ($candidate -is [byte[]]) {
+            return (($candidate | ForEach-Object { $_.ToString('X2') }) -join '')
+        }
+        $text = ([string]$candidate -replace '\s','').ToUpperInvariant()
+        if ($text) { return $text }
+    }
+    return $null
 }
 
 function Ensure-SiteAndHttpsBinding {
@@ -149,7 +184,6 @@ function Ensure-SiteAndHttpsBinding {
     )
 
     Import-IISAdministration
-    $certificate = Get-EligibleCertificate -CertificatePattern $CertificatePattern -HostName $HostName
 
     if (-not (Test-Path "IIS:\Sites\$SiteName")) {
         Write-Step "Creating IIS site '$SiteName'."
@@ -160,22 +194,58 @@ function Ensure-SiteAndHttpsBinding {
         Set-ItemProperty "IIS:\Sites\$SiteName" -Name applicationPool -Value $AppPoolName
     }
 
-    Get-WebBinding -Name $SiteName -Protocol https -ErrorAction SilentlyContinue |
-        Where-Object { $_.bindingInformation -eq "*:443:$HostName" } |
-        Remove-WebBinding
-    New-WebBinding -Name $SiteName -Protocol https -Port 443 -HostHeader $HostName -SslFlags 1
+    $bindingInformation = "*:443:$HostName"
+    $httpsBinding = Get-WebBinding -Name $SiteName -Protocol https -ErrorAction SilentlyContinue |
+        Where-Object { $_.bindingInformation -eq $bindingInformation } |
+        Select-Object -First 1
+
+    if (-not $httpsBinding) {
+        Write-Step "Creating HTTPS binding for $HostName."
+        New-WebBinding -Name $SiteName -Protocol https -Port 443 -HostHeader $HostName -SslFlags 1
+    } elseif ([int]$httpsBinding.sslFlags -ne 1) {
+        Write-Step "Updating existing HTTPS binding for $HostName to use SNI."
+        Set-WebBinding -Name $SiteName -BindingInformation $bindingInformation -PropertyName sslFlags -Value 1
+    } else {
+        Write-Step "Reusing existing HTTPS binding for $HostName."
+    }
 
     $sslPath = "IIS:\SslBindings\0.0.0.0!443!$HostName"
-    Remove-Item -LiteralPath $sslPath -Force -ErrorAction SilentlyContinue
-    Get-Item "Cert:\LocalMachine\My\$($certificate.Thumbprint)" |
-        New-Item -Path $sslPath -SSLFlags 1 -Force | Out-Null
+    $currentSslBinding = Get-Item -LiteralPath $sslPath -ErrorAction SilentlyContinue
+    $currentThumbprint = Get-NormalizedSslBindingThumbprint -SslBinding $currentSslBinding
+    $certificate = $null
+
+    if ($currentThumbprint) {
+        $currentCertificate = Get-Item -LiteralPath "Cert:\LocalMachine\My\$currentThumbprint" -ErrorAction SilentlyContinue
+        if ($currentCertificate -and (Test-CertificateMatchesDeployment -Certificate $currentCertificate -CertificatePattern $CertificatePattern -HostName $HostName)) {
+            $certificate = $currentCertificate
+            Write-Step 'Existing HTTPS certificate is valid for the configured host and will be preserved.'
+        }
+    }
+
+    if (-not $certificate) {
+        $certificate = Get-EligibleCertificate -CertificatePattern $CertificatePattern -HostName $HostName
+    }
+
+    $desiredThumbprint = ($certificate.Thumbprint -replace '\s','').ToUpperInvariant()
+    if (-not $currentSslBinding) {
+        Get-Item -LiteralPath "Cert:\LocalMachine\My\$desiredThumbprint" |
+            New-Item -Path $sslPath -SSLFlags 1 | Out-Null
+        Write-Step 'HTTPS certificate binding created.'
+    } elseif ($currentThumbprint -eq $desiredThumbprint) {
+        Write-Step 'Existing HTTPS certificate binding already matches the required certificate.'
+    } else {
+        Write-Step 'Existing HTTPS certificate is missing, invalid, or mismatched; replacing only the certificate binding.'
+        Remove-Item -LiteralPath $sslPath -Force -ErrorAction Stop
+        Get-Item -LiteralPath "Cert:\LocalMachine\My\$desiredThumbprint" |
+            New-Item -Path $sslPath -SSLFlags 1 | Out-Null
+    }
 
     Get-WebBinding -Name $SiteName -Protocol http -ErrorAction SilentlyContinue |
         Where-Object { $_.bindingInformation -eq "*:80:$HostName" } |
         Remove-WebBinding
 
-    $suffix = $certificate.Thumbprint.Substring([Math]::Max(0, $certificate.Thumbprint.Length - 8))
-    Write-Step "HTTPS binding configured for $HostName with certificate thumbprint ending $suffix."
+    $suffix = $desiredThumbprint.Substring([Math]::Max(0, $desiredThumbprint.Length - 8))
+    Write-Step "HTTPS-only binding configured for $HostName with certificate thumbprint ending $suffix."
 }
 
 function Set-HostsFileEntry {
@@ -255,6 +325,19 @@ function Configure-FirebaseCredential {
     return 'UNCHANGED'
 }
 
+function Resolve-ScriptRelativePath {
+    param(
+        [Parameter(Mandatory)][string]$Path,
+        [Parameter(Mandatory)][string]$ScriptRoot
+    )
+
+    if ([IO.Path]::IsPathRooted($Path)) {
+        return [IO.Path]::GetFullPath($Path)
+    }
+
+    return [IO.Path]::GetFullPath((Join-Path $ScriptRoot $Path))
+}
+
 function Invoke-RobocopyChecked {
     param(
         [Parameter(Mandatory)][string]$Source,
@@ -322,11 +405,15 @@ function Set-StdoutDiagnostics {
     $webConfig = Join-Path $StagePath 'web.config'
     if (-not (Test-Path -LiteralPath $webConfig -PathType Leaf)) { throw 'Published web.config was not found.' }
     [xml]$xml = Get-Content -LiteralPath $webConfig -Raw
-    $aspNetCore = $xml.configuration.'system.webServer'.aspNetCore
-    if (-not $aspNetCore) { throw 'Published web.config does not contain system.webServer/aspNetCore.' }
+    $aspNetCoreNodes = $xml.SelectNodes('/configuration/system.webServer/aspNetCore | /configuration/location/system.webServer/aspNetCore')
+    if (-not $aspNetCoreNodes -or $aspNetCoreNodes.Count -eq 0) {
+        throw 'Published web.config does not contain configuration/system.webServer/aspNetCore or configuration/location/system.webServer/aspNetCore.'
+    }
 
-    $aspNetCore.stdoutLogEnabled = if ($Enable) { 'true' } else { 'false' }
-    $aspNetCore.stdoutLogFile = '.\App_Data\logs\stdout'
+    foreach ($aspNetCore in $aspNetCoreNodes) {
+        $aspNetCore.SetAttribute('stdoutLogEnabled',$(if ($Enable) { 'true' } else { 'false' }))
+        $aspNetCore.SetAttribute('stdoutLogFile','.\App_Data\logs\stdout')
+    }
     $xml.Save($webConfig)
     Write-Step ("ASP.NET Core stdout diagnostics are {0}." -f $(if ($Enable) { 'ENABLED' } else { 'disabled' }))
 }
@@ -441,26 +528,56 @@ function Invoke-Deployment {
     $stagePath = Join-Path $stageRoot ([guid]::NewGuid().ToString('N'))
     New-Item -ItemType Directory -Path $stagePath -Force | Out-Null
     $backupPath = $null
+    $deploymentState = [ordered]@{
+        AppPoolStateCaptured = $false
+        AppPoolWasRunning = $false
+        AppPoolStoppedByDeployment = $false
+        BackupCreated = $false
+        PayloadReplacementStarted = $false
+    }
 
     try {
-        Write-Step 'Preparing deployment staging directory.'
+        Write-Step 'Preparing deployment staging directory while the existing application remains available.'
         Invoke-RobocopyChecked -Source $publishFull -Destination $stagePath
         Copy-PreservedConfiguration -TargetPath $TargetPath -StagePath $stagePath
         Set-StdoutDiagnostics -StagePath $stagePath -Enable:$EnableStdoutLog
 
-        Stop-AppPoolSafely -AppPoolName $AppPoolName
+        Import-IISAdministration
+        $currentPoolState = (Get-WebAppPoolState -Name $AppPoolName).Value
+        $deploymentState.AppPoolStateCaptured = $true
+        $deploymentState.AppPoolWasRunning = ($currentPoolState -eq 'Started')
+
+        if ($deploymentState.AppPoolWasRunning) {
+            Stop-AppPoolSafely -AppPoolName $AppPoolName
+            $deploymentState.AppPoolStoppedByDeployment = $true
+        }
+
         $backupPath = New-DeploymentBackup -TargetPath $TargetPath -BackupRoot $BackupRoot
+        $deploymentState.BackupCreated = [bool]$backupPath
 
         Write-Step 'Deploying staged payload. App_Data is explicitly excluded from mirroring/deletion.'
         New-Item -ItemType Directory -Path $TargetPath -Force | Out-Null
+        $deploymentState.PayloadReplacementStarted = $true
         Invoke-RobocopyChecked -Source $stagePath -Destination $TargetPath -ExtraArguments @('/XD',(Join-Path $TargetPath 'App_Data'))
         Set-DeploymentPermissions -TargetPath $TargetPath -AppPoolName $AppPoolName
         Start-AppPoolSafely -AppPoolName $AppPoolName
         return Wait-ForHealth -HealthUrl $HealthUrl -RequireFirebaseReady:$RequireFirebaseReady
     } catch {
         $deploymentError = $_
-        Write-Warning "Deployment health/startup failed: $($deploymentError.Exception.Message)"
-        if ($backupPath) {
+        Write-Warning "Deployment failed: $($deploymentError.Exception.Message)"
+
+        if (-not $deploymentState.PayloadReplacementStarted) {
+            if ($deploymentState.AppPoolStoppedByDeployment -and $deploymentState.AppPoolWasRunning) {
+                try {
+                    Start-AppPoolSafely -AppPoolName $AppPoolName
+                    Write-Warning 'Deployment failed before payload replacement; the previously-running application pool was restarted and the existing payload was left untouched.'
+                } catch {
+                    Write-Error "Failed to restart the previously-running application pool after an early deployment failure: $($_.Exception.Message)"
+                }
+            } else {
+                Write-Warning 'Deployment failed before payload replacement; existing application state was left untouched.'
+            }
+        } elseif ($deploymentState.BackupCreated -and $backupPath) {
             Write-Warning 'Automatic rollback is starting.'
             try {
                 Restore-DeploymentBackup -BackupPath $backupPath -TargetPath $TargetPath -AppPoolName $AppPoolName -HealthUrl $HealthUrl -RequireFirebaseReady:$RequireFirebaseReady | Out-Null
@@ -470,7 +587,7 @@ function Invoke-Deployment {
             }
         } else {
             Stop-AppPoolSafely -AppPoolName $AppPoolName
-            Write-Warning 'No previous deployment backup existed; application pool was stopped.'
+            Write-Warning 'Payload replacement started without a usable previous deployment backup; application pool was stopped to avoid serving a partially deployed payload.'
         }
         throw $deploymentError
     } finally {
