@@ -52,7 +52,7 @@ public sealed class AdminHotfixLocalizationTests
         using var englishSwitch = await client.GetAsync("/Localization/Switch?culture=en&returnUrl=%2FAdmin%2FMobileDelivery%2FHistory");
         Assert.Equal(HttpStatusCode.Redirect, englishSwitch.StatusCode);
         using var englishResponse = await client.GetAsync("/Admin/MobileDelivery/History");
-        var english = await englishResponse.Content.ReadAsStringAsync();
+        var english = WebUtility.HtmlDecode(await englishResponse.Content.ReadAsStringAsync());
         Assert.Equal(HttpStatusCode.OK, englishResponse.StatusCode);
         Assert.Contains("DA Secure Delivery History", english, StringComparison.Ordinal);
         Assert.Contains("Provider accepted", english, StringComparison.Ordinal);
@@ -63,7 +63,7 @@ public sealed class AdminHotfixLocalizationTests
         using var arabicSwitch = await client.GetAsync("/Localization/Switch?culture=ar&returnUrl=%2FAdmin%2FMobileDelivery%2FHistory");
         Assert.Equal(HttpStatusCode.Redirect, arabicSwitch.StatusCode);
         using var arabicResponse = await client.GetAsync("/Admin/MobileDelivery/History");
-        var arabic = await arabicResponse.Content.ReadAsStringAsync();
+        var arabic = WebUtility.HtmlDecode(await arabicResponse.Content.ReadAsStringAsync());
         Assert.Equal(HttpStatusCode.OK, arabicResponse.StatusCode);
         Assert.Contains("تم قبول الإرسال من المزود", arabic, StringComparison.Ordinal);
         Assert.Contains("فشل الإرسال", arabic, StringComparison.Ordinal);
@@ -80,13 +80,13 @@ public sealed class AdminHotfixLocalizationTests
         Assert.Equal(HttpStatusCode.Redirect, cultureSwitch.StatusCode);
 
         using var organizationResponse = await client.GetAsync("/Admin/Organizations/Create");
-        var organizationHtml = await organizationResponse.Content.ReadAsStringAsync();
+        var organizationHtml = WebUtility.HtmlDecode(await organizationResponse.Content.ReadAsStringAsync());
         Assert.Equal(HttpStatusCode.OK, organizationResponse.StatusCode);
         Assert.Contains("هوية النظام ثابتة للديوان الأميري", organizationHtml, StringComparison.Ordinal);
         Assert.DoesNotContain("System branding is fixed to Al Diwan Al Amiri", organizationHtml, StringComparison.Ordinal);
 
         using var settingsResponse = await client.GetAsync("/Admin/Settings/General");
-        var settingsHtml = await settingsResponse.Content.ReadAsStringAsync();
+        var settingsHtml = WebUtility.HtmlDecode(await settingsResponse.Content.ReadAsStringAsync());
         Assert.Equal(HttpStatusCode.OK, settingsResponse.StatusCode);
         Assert.Contains("هوية التطبيق ثابتة مركزياً", settingsHtml, StringComparison.Ordinal);
         Assert.Contains("هوية النظام الثابتة", settingsHtml, StringComparison.Ordinal);
