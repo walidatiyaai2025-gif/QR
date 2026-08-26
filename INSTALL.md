@@ -73,16 +73,51 @@ Application binaries/static content need read/execute access only.
 Important runtime state under `App_Data` includes:
 
 - `SecureQrPortal.db` — default SQLite database
-- `keys` — ASP.NET Core Data Protection key ring
+- `keys` — ASP.NET Core Data Protection key ring when the default local key-ring path is used
 - `backups` — local SQLite backups
 - `database.settings.json` — protected runtime database-provider configuration when present
 - temporary/staged restore state when a SQLite restore is pending
 
-Treat `App_Data/keys` as sensitive. Back it up with the application data and restrict ACLs to the administrators and application identity that require access.
+Treat the Data Protection key ring as sensitive. Back it up with application security state and restrict ACLs to the administrators and application identities that require access.
+
+### 6.1 Secure Message encryption and key-ring continuity
+
+Secure Message bodies are stored as authenticated ciphertext. Each message has a random data-encryption key that is wrapped by ASP.NET Core Data Protection. The Data Protection key ring is therefore required for every still-valid encrypted Secure Message and for other existing server-protected state.
+
+Single-node default:
+
+`App_Data/keys`
+
+For any multi-node or active/passive deployment, every node that may become active **must use the same durable Data Protection key ring**. Configure the same secured shared path on all nodes using one of:
+
+- configuration key `Security:DataProtectionKeyRingPath`
+- environment variable `Security__DataProtectionKeyRingPath`
+
+Example environment value:
+
+```text
+\\secure-fileserver\DA-Secure\DataProtectionKeys
+```
+
+The shared path must be writable/readable by the application-pool identity under the approved infrastructure identity model. Do not give broad user access. Do not create separate independent key rings on the two application nodes.
+
+If an explicitly configured key-ring path is unavailable or unauthorized, application startup fails instead of silently generating an unrelated local key ring. Correct storage/ACL/connectivity and restart.
+
+Before failover testing, create and successfully reveal a real encrypted Secure Message on node A, switch application traffic to node B, and prove the same still-valid message can be revealed there through the normal authorized flow. This evidence is mandatory before a multi-node release is called verified.
+
+### 6.2 Trusted reverse proxy client IP
+
+Security audit IPs use ASP.NET Core forwarded-header processing. Add only real trusted proxy/load-balancer addresses to `ReverseProxy:KnownProxies` (or `ReverseProxy__KnownProxies__0`, `__1`, etc.).
+
+Never configure arbitrary client networks as trusted proxies merely to make `X-Forwarded-For` appear in logs. If the deployment connects directly to IIS with no proxy, leave the list empty.
+
+After proxy deployment, verify an administrator security-setting change records the real client IP, while a forged forwarded header sent directly by an untrusted client does not override the authoritative connection IP.
 
 ## 7. First run
 
 With the default configuration, the application starts on SQLite and automatically applies EF Core migrations.
+
+On startup after the Secure Message encryption feature is introduced, legacy Secure Message rows are converted to authenticated ciphertext before the application begins accepting normal traffic. If that secure migration fails, the application remains unavailable; do not bypass it or restore plaintext behavior.
 
 On the first visit, if no administrator account exists, use the one-time setup page to create the initial administrator. The application creates the `Administrator` role during database initialization. There is no default administrator password in source control.
 
@@ -98,11 +133,11 @@ SQLite requires no external database server. Ensure the application-pool identit
 
 For upgrades:
 
-1. back up the current `App_Data` directory;
+1. back up the current `App_Data` directory and the configured Data Protection key ring if it is external;
 2. preserve `App_Data` while replacing application binaries/static files;
 3. start/recycle the application pool;
-4. allow the application to apply pending migrations;
-5. verify administrator login and a real QR access path.
+4. allow the application to apply pending migrations and secure legacy-content migration;
+5. verify administrator login and a real encrypted QR/Secure Message access path.
 
 ## 9. SQL Server 2022 configuration
 
@@ -135,11 +170,11 @@ The Admin backup feature creates local SQLite backups in `App_Data/backups` and 
 
 A restore upload is validated and staged; the pending restore is applied during application startup. After staging a restore, perform the required application restart/recycle and verify the restored database before normal use.
 
-Also back up the Data Protection key ring in `App_Data/keys`.
+Also back up the effective Data Protection key ring (`App_Data/keys` by default, or the configured external/shared key-ring path).
 
 ### SQL Server
 
-The built-in local-file backup workflow is not the SQL Server backup mechanism. Use SQL Server-native backup/restore procedures and your normal infrastructure retention policy.
+The built-in local-file backup workflow is not the SQL Server backup mechanism. Use SQL Server-native backup/restore procedures and your normal infrastructure retention policy. The Data Protection key ring is separate security state and must also be preserved.
 
 ## 12. HTTPS and production hosting
 
@@ -152,7 +187,8 @@ After deployment verify:
 - the HTTPS binding points to the intended certificate;
 - HTTP redirects to HTTPS as expected;
 - the application pool is started;
-- `App_Data` remains writable by the application identity but is not publicly served.
+- `App_Data` remains writable by the application identity but is not publicly served;
+- the effective Data Protection key ring is accessible and durable.
 
 ## 13. Configuration and secrets
 
@@ -166,6 +202,7 @@ Never commit:
 - production connection strings
 - copied production SQLite databases
 - Data Protection keys
+- Secure Message wrapped/unwrapped keys or message plaintext
 
 ## 14. CI and release gate
 
@@ -193,10 +230,21 @@ After installation or upgrade verify at minimum:
 - administrator login works;
 - Organizations and Secure Pages load;
 - QR Code Registry loads;
+- Admin → Settings → Security loads only for Administrator;
+- Secure Message Encryption shows ACTIVE by default;
+- Secure Message Reveal shows ACTIVE by default;
+- a newly generated Secure Message is stored without plaintext body in the database;
+- disabling creation requires `DISABLE` and then blocks new/replacement content without modifying existing ciphertext;
+- blocking reveal requires `BLOCK-REVEAL`, blocks browser/mobile reveal and does not destroy still-valid message keys;
+- re-enabling reveal restores normal authorized access;
+- security-setting audit events contain administrator identity, UTC timestamp, old/new state and authoritative client IP, with no message/key/password secrets;
 - a newly generated QR resolves through its public token;
 - page credential login works;
 - counters/access logs update;
 - SQLite backup works when SQLite is active;
-- Arabic displays RTL and English displays LTR.
+- Arabic displays RTL and English displays LTR;
+- multi-node deployments pass cross-node encrypted-message failover verification.
 
-If any of these checks fail, keep the prior deployment/data backup available and do not label the build as the approved v1.0.0 release.
+If any of these checks fail, keep the prior deployment/data/key-ring backup available and do not label the build as the approved v1.0.0 release.
+
+See `SECURE_MESSAGE_ENCRYPTION_CONTROL.md` for the authoritative encryption/reveal security contract and release gates.
