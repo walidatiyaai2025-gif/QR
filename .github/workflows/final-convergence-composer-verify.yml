@@ -1,0 +1,65 @@
+name: DA Secure Final Convergence Composer Verify
+
+on:
+  push:
+    branches:
+      - worker/da-secure-final-convergence-composer
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    name: backend-restore-build-test-admin-qr
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout exact composer head
+        uses: actions/checkout@v4
+
+      - name: Install .NET 10 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.400'
+
+      - name: Restore
+        run: dotnet restore SecureQrPortal.sln
+
+      - name: Build Release
+        run: dotnet build SecureQrPortal.sln --configuration Release --no-restore
+
+      - name: Test Release
+        run: dotnet test SecureQrPortal.sln --configuration Release --no-build
+
+      - name: Admin QR regression
+        run: dotnet test tests/SecureQrPortal.Tests/SecureQrPortal.Tests.csproj --configuration Release --no-build --filter FullyQualifiedName~QrRegistryMvcTests
+
+  flutter:
+    name: flutter-pub-format-analyze-test
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: mobile/da_secure
+    steps:
+      - name: Checkout exact composer head
+        uses: actions/checkout@v4
+
+      - name: Install Flutter stable
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Flutter pub get
+        run: flutter pub get
+
+      - name: Dart format gate
+        run: dart format --output=none --set-exit-if-changed lib test
+
+      - name: Flutter analyze
+        run: flutter analyze
+
+      - name: Flutter test
+        run: flutter test
