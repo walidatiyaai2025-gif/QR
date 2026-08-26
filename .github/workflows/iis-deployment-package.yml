@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - worker/da-secure-iis-deployment-closure
+      - worker/da-secure-iis-update-hotfix
       - lead/da-secure-runtime-convergence
     paths:
       - 'deployment/iis/**'
@@ -58,6 +59,12 @@ jobs:
             }
           }
 
+      - name: IIS update regression validation
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          & .\deployment\iis\Test-QR-IIS.Regression.ps1
+
       - name: Deployment and provenance safety policy checks
         shell: powershell
         run: |
@@ -70,7 +77,12 @@ jobs:
             'Automatic rollback is starting',
             'Firebase__CredentialPath',
             'GOOGLE_APPLICATION_CREDENTIALS',
-            'Wait-ForHealth'
+            'Wait-ForHealth',
+            'Resolve-ScriptRelativePath',
+            'PayloadReplacementStarted',
+            'AppPoolStoppedByDeployment',
+            '/configuration/location/system.webServer/aspNetCore',
+            'Existing HTTPS certificate binding already matches the required certificate.'
           )) {
             if (-not $common.Contains($required)) { throw "Missing deployment safety marker: $required" }
           }
@@ -79,6 +91,14 @@ jobs:
             if ($text -match '(?im)Remove-Item[^\r\n]*App_Data') {
               throw "Unsafe App_Data deletion expression found in $($_.Name)."
             }
+            if ($text -match '(?i)ServerCertificateValidationCallback|SkipCertificateCheck') {
+              throw "TLS certificate validation bypass is forbidden: $($_.Name)."
+            }
+          }
+
+          $update = Get-Content deployment/iis/Update-QR-IIS.ps1 -Raw
+          if (-not $update.Contains('Resolve-ScriptRelativePath -Path $PublishPath -ScriptRoot $PSScriptRoot')) {
+            throw 'Update-QR-IIS.ps1 must resolve relative PublishPath from PSScriptRoot.'
           }
 
           $workflow = Get-Content .github/workflows/iis-deployment-package.yml -Raw
@@ -152,7 +172,7 @@ jobs:
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
-          $packageVersion = '1.0.0-iis.2'
+          $packageVersion = '1.0.0-iis.3'
           $sourceBranch = '${{ steps.identity.outputs.source_branch }}'
           $sourceSha = '${{ steps.identity.outputs.build_sha }}'.ToLowerInvariant()
           $checkedOutSha = (& git rev-parse HEAD).Trim().ToLowerInvariant()
@@ -168,6 +188,7 @@ jobs:
           Copy-Item deployment/iis/Update-QR-IIS.ps1 $packageRoot
           Copy-Item deployment/iis/Rollback-QR-IIS.ps1 $packageRoot
           Copy-Item deployment/iis/QR-IIS.Common.ps1 $packageRoot
+          Copy-Item deployment/iis/Test-QR-IIS.Regression.ps1 $packageRoot
           Copy-Item deployment/iis/README.md $packageRoot
 
           $payload = Join-Path $packageRoot 'publish/SecureQrPortal.dll'
@@ -203,7 +224,7 @@ jobs:
       - name: Upload IIS deployment package
         uses: actions/upload-artifact@v4
         with:
-          name: da-secure-iis-1.0.0-iis.2-${{ github.sha }}
-          path: out/DA-Secure-IIS-1.0.0-iis.2
+          name: da-secure-iis-1.0.0-iis.3-${{ github.sha }}
+          path: out/DA-Secure-IIS-1.0.0-iis.3
           if-no-files-found: error
           retention-days: 14
