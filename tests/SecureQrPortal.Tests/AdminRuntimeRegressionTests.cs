@@ -173,6 +173,20 @@ public sealed class AdminRuntimeRegressionTests
     }
 
     [Fact]
+    public async Task Secure_page_create_with_zero_organization_returns_validation_view()
+    {
+        await using var factory = new AdminRuntimeRegressionFactory();
+        using var client = factory.CreateAdminClient();
+
+        using var response = await client.PostAsync("/Admin/SecurePages/Edit", ValidSecurePageForm(0, 0, includePassword: true));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        Assert.False(await db.SecurePages.AnyAsync());
+    }
+
+    [Fact]
     public async Task Restore_backup_without_file_returns_redirect_instead_of_500()
     {
         await using var factory = new AdminRuntimeRegressionFactory();
@@ -182,6 +196,21 @@ public sealed class AdminRuntimeRegressionTests
         {
             ["confirmation"] = "RESTORE"
         }));
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        Assert.Contains("Backup", response.Headers.Location?.OriginalString, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task Restore_backup_with_malformed_sqlite_file_returns_redirect_instead_of_500()
+    {
+        await using var factory = new AdminRuntimeRegressionFactory();
+        using var client = factory.CreateAdminClient();
+        using var form = new MultipartFormDataContent();
+        form.Add(new StringContent("RESTORE"), "confirmation");
+        form.Add(new ByteArrayContent(Enumerable.Repeat((byte)'X', 256).ToArray()), "backupFile", "malformed.db");
+
+        using var response = await client.PostAsync("/Admin/Settings/RestoreBackup", form);
 
         Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
         Assert.Contains("Backup", response.Headers.Location?.OriginalString, StringComparison.OrdinalIgnoreCase);
