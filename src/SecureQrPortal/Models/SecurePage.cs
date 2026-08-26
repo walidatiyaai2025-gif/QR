@@ -15,8 +15,15 @@ public sealed class SecurePage
 
     [MaxLength(250)] public string TitleArabic { get; set; } = string.Empty;
     [MaxLength(250)] public string TitleEnglish { get; set; } = string.Empty;
+
+    // These columns contain only versioned authenticated ciphertext once the
+    // Secure Message encryption migration has run. They intentionally retain
+    // their historical names to avoid a destructive schema rename during rollout.
     public string ContentArabicHtml { get; set; } = string.Empty;
     public string ContentEnglishHtml { get; set; } = string.Empty;
+    public string? ProtectedContentKey { get; set; }
+    public int ContentEncryptionVersion { get; set; }
+    public DateTime? ContentKeyDestroyedAtUtc { get; set; }
 
     public bool IsActive { get; set; } = true;
     public DateTime? ValidFromUtc { get; set; }
