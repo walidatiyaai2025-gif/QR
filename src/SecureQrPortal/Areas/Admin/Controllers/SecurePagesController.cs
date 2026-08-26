@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Security.Cryptography;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -17,10 +18,15 @@ public sealed class SecurePagesController(
     ApplicationDbContext db,
     TokenService tokens,
     HtmlContentService html,
+    SecureMessageSecuritySettingsService security,
+    SecureMessageEncryptionService secureMessages,
     AdminIdentityService admin,
     AuditService audit,
     UiText text) : Controller
 {
+    private const string EncryptionDisabledMessage = "تشفير الرسائل الآمنة متوقف حاليًا من إعدادات النظام. لا يمكن حفظ رسالة آمنة جديدة حتى يتم إعادة تفعيل التشفير. / Secure Message encryption is currently disabled by system settings. New or replacement secure messages cannot be saved until encryption is enabled again.";
+    private const string RevealBlockedMessage = "فتح الرسائل المشفرة متوقف مؤقتًا من إعدادات النظام. / Secure Message reveal is temporarily blocked by system settings.";
+
     public async Task<IActionResult> Index(string? q, string? statusFilter, long? organizationId, int page = 1, int pageSize = 20, string sort = "created_desc", CancellationToken ct = default)
     {
         page = Math.Max(1, page);
@@ -70,11 +76,27 @@ public sealed class SecurePagesController(
     {
         var p = await db.SecurePages.Include(x => x.Credential).SingleOrDefaultAsync(x => x.Id == id, ct);
         if (p is null) return NotFound();
+        SecureMessageBody body;
+        try
+        {
+            body = await secureMessages.RevealAsync(p, ct);
+        }
+        catch (SecureMessageRevealBlockedException)
+        {
+            TempData["Error"] = RevealBlockedMessage;
+            return RedirectToAction("Details", "Qr", new { area = "Admin", id });
+        }
+        catch (CryptographicException)
+        {
+            TempData["Error"] = "تعذر فتح محتوى الرسالة المشفرة بأمان. / Secure Message content is cryptographically unavailable.";
+            return RedirectToAction("Details", "Qr", new { area = "Admin", id });
+        }
+
         await Lists(ct);
         return View(new SecurePageEditVm
         {
             Id = p.Id, OrganizationId = p.OrganizationId, TitleArabic = p.TitleArabic, TitleEnglish = p.TitleEnglish,
-            ContentArabicHtml = p.ContentArabicHtml, ContentEnglishHtml = p.ContentEnglishHtml, IsActive = p.IsActive,
+            ContentArabicHtml = body.ArabicHtml, ContentEnglishHtml = body.EnglishHtml, IsActive = p.IsActive,
             ValidFromLocal = p.ValidFromUtc?.ToLocalTime(), ExpiresAtLocal = p.ExpiresAtUtc?.ToLocalTime(),
             AccessLimitMode = p.AccessLimitMode, MaxAccessCount = p.MaxAccessCount, PageUsername = p.Credential?.Username ?? "", QrReference = p.QrReference
         });
@@ -93,6 +115,10 @@ public sealed class SecurePagesController(
         if (vm.OrganizationId > 0 && !await db.Organizations.AsNoTracking().AnyAsync(x => x.Id == vm.OrganizationId, ct))
             ModelState.AddModelError(nameof(vm.OrganizationId), "الجهة المحددة لم تعد موجودة / The selected organization no longer exists.");
 
+        var securityState = await security.GetStateAsync(ct);
+        if (!securityState.EncryptionEnabled)
+            ModelState.AddModelError("", EncryptionDisabledMessage);
+
         if (!ModelState.IsValid)
         {
             ModelState.AddModelError("", text["ValidationCorrectFields"]);
@@ -100,6 +126,7 @@ public sealed class SecurePagesController(
             return View(vm);
         }
 
+        await using var tx = await db.Database.BeginTransactionAsync(ct);
         var userId = admin.CurrentUserId;
         SecurePage p;
         PageCredential cred;
@@ -137,8 +164,20 @@ public sealed class SecurePagesController(
         p.OrganizationId = vm.OrganizationId;
         p.TitleArabic = vm.TitleArabic.Trim();
         p.TitleEnglish = vm.TitleEnglish.Trim();
-        p.ContentArabicHtml = html.Sanitize(vm.ContentArabicHtml);
-        p.ContentEnglishHtml = html.Sanitize(vm.ContentEnglishHtml);
+        var sanitizedArabic = html.Sanitize(vm.ContentArabicHtml);
+        var sanitizedEnglish = html.Sanitize(vm.ContentEnglishHtml);
+        try
+        {
+            await secureMessages.EncryptAndStoreAsync(p, sanitizedArabic, sanitizedEnglish, ct);
+        }
+        catch (SecureMessageEncryptionDisabledException)
+        {
+            await tx.RollbackAsync(ct);
+            ModelState.AddModelError("", EncryptionDisabledMessage);
+            await Lists(ct);
+            return View(vm);
+        }
+
         p.IsActive = vm.IsActive;
         p.ValidFromUtc = vm.ValidFromLocal?.ToUniversalTime();
         p.ExpiresAtUtc = vm.ExpiresAtLocal?.ToUniversalTime();
@@ -153,6 +192,7 @@ public sealed class SecurePagesController(
             cred.PasswordHash = new PasswordHasher<PageCredential>().HashPassword(cred, vm.PagePassword);
 
         await db.SaveChangesAsync(ct);
+        await tx.CommitAsync(ct);
         await audit.WriteAsync(creating ? "SECURE_PAGE_CREATE" : "SECURE_PAGE_EDIT", "SecurePage", p.Id.ToString(), p.QrReference, ct);
         return RedirectToAction("Details", "Qr", new { area = "Admin", id = p.Id });
     }
@@ -161,14 +201,54 @@ public sealed class SecurePagesController(
     public async Task<IActionResult> Preview(long id, CancellationToken ct)
     {
         var p = await db.SecurePages.Include(x => x.Organization).AsNoTracking().SingleOrDefaultAsync(x => x.Id == id, ct);
-        return p is null ? NotFound() : View(p);
+        if (p is null) return NotFound();
+        try
+        {
+            var body = await secureMessages.RevealAsync(p, ct);
+            p.ContentArabicHtml = body.ArabicHtml;
+            p.ContentEnglishHtml = body.EnglishHtml;
+            return View(p);
+        }
+        catch (SecureMessageRevealBlockedException)
+        {
+            TempData["Error"] = RevealBlockedMessage;
+            return RedirectToAction("Details", "Qr", new { area = "Admin", id });
+        }
+        catch (CryptographicException)
+        {
+            TempData["Error"] = "تعذر فتح محتوى الرسالة المشفرة بأمان. / Secure Message content is cryptographically unavailable.";
+            return RedirectToAction("Details", "Qr", new { area = "Admin", id });
+        }
     }
 
     [HttpPost]
     public async Task<IActionResult> Duplicate(long id, CancellationToken ct)
     {
+        var securityState = await security.GetStateAsync(ct);
+        if (!securityState.EncryptionEnabled)
+        {
+            TempData["Error"] = EncryptionDisabledMessage;
+            return RedirectToAction("Details", "Qr", new { area = "Admin", id });
+        }
+
         var source = await db.SecurePages.Include(x => x.Credential).AsNoTracking().SingleOrDefaultAsync(x => x.Id == id, ct);
         if (source is null) return NotFound();
+        SecureMessageBody sourceBody;
+        try
+        {
+            sourceBody = await secureMessages.RevealAsync(source, ct);
+        }
+        catch (SecureMessageRevealBlockedException)
+        {
+            TempData["Error"] = RevealBlockedMessage;
+            return RedirectToAction("Details", "Qr", new { area = "Admin", id });
+        }
+        catch (CryptographicException)
+        {
+            TempData["Error"] = "تعذر نسخ محتوى الرسالة المشفرة بأمان. / Secure Message content cannot be duplicated because its ciphertext is unavailable.";
+            return RedirectToAction("Details", "Qr", new { area = "Admin", id });
+        }
+
         await using var tx = await db.Database.BeginTransactionAsync(ct);
         var now = DateTime.UtcNow;
         var raw = tokens.GenerateToken();
@@ -181,8 +261,6 @@ public sealed class SecurePagesController(
             CurrentTokenCreatedAtUtc = now,
             TitleArabic = source.TitleArabic + " — نسخة",
             TitleEnglish = source.TitleEnglish + " — Copy",
-            ContentArabicHtml = source.ContentArabicHtml,
-            ContentEnglishHtml = source.ContentEnglishHtml,
             IsActive = false,
             ValidFromUtc = source.ValidFromUtc,
             ExpiresAtUtc = source.ExpiresAtUtc,
@@ -196,6 +274,16 @@ public sealed class SecurePagesController(
         db.SecurePages.Add(copy);
         await db.SaveChangesAsync(ct);
         copy.QrReference = $"QR-{now.Year}-{copy.Id:000000}";
+        try
+        {
+            await secureMessages.EncryptAndStoreAsync(copy, sourceBody.ArabicHtml, sourceBody.EnglishHtml, ct);
+        }
+        catch (SecureMessageEncryptionDisabledException)
+        {
+            await tx.RollbackAsync(ct);
+            TempData["Error"] = EncryptionDisabledMessage;
+            return RedirectToAction("Details", "Qr", new { area = "Admin", id });
+        }
         if (source.Credential is not null)
             db.PageCredentials.Add(new PageCredential { SecurePageId = copy.Id, Username = source.Credential.Username, PasswordHash = source.Credential.PasswordHash, UpdatedAtUtc = now });
         await db.SaveChangesAsync(ct);
