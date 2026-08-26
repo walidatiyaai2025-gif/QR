@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   flutter:
@@ -22,31 +22,17 @@ jobs:
     steps:
       - name: Checkout exact typography head
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
-      - name: Bootstrap exact official Google Fonts binary once
+      - name: Verify bundled official Google Fonts binary
         shell: bash
         run: |
           set -euo pipefail
           font='assets/fonts/noto_sans_arabic/NotoSansArabic[wdth,wght].ttf'
           expected_blob='f1d01edce4ebaedcbe9a06fc75fec07b304ec3df'
-          if [[ ! -f "$font" ]]; then
-            mkdir -p "$(dirname "$font")"
-            curl --fail --location --retry 3 \
-              --output "$font" \
-              'https://raw.githubusercontent.com/google/fonts/main/ofl/notosansarabic/NotoSansArabic%5Bwdth%2Cwght%5D.ttf'
-          fi
+          test -s "$font"
           size="$(wc -c < "$font" | tr -d ' ')"
           actual_blob="$( (printf 'blob %s\0' "$size"; cat "$font") | sha1sum | awk '{print $1}' )"
           test "$actual_blob" = "$expected_blob"
-          if [[ -n "$(git status --porcelain -- "$font")" ]]; then
-            git config user.name 'da-secure-typography-bot'
-            git config user.email 'actions@users.noreply.github.com'
-            git add "$font"
-            git commit -m 'chore(typography): bundle official Noto Sans Arabic font'
-            git push origin HEAD:worker/da-secure-google-font-closure
-          fi
 
       - name: Verify local-only font contract
         shell: bash
