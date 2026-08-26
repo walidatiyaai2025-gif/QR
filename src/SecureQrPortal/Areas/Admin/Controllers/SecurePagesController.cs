@@ -89,6 +89,10 @@ public sealed class SecurePagesController(
             ModelState.AddModelError(nameof(vm.MaxAccessCount), text["ValidationMaxAccessRequired"]);
         if (vm.Id == 0 && string.IsNullOrWhiteSpace(vm.PagePassword))
             ModelState.AddModelError(nameof(vm.PagePassword), text["ValidationPasswordRequired"]);
+
+        if (vm.OrganizationId > 0 && !await db.Organizations.AsNoTracking().AnyAsync(x => x.Id == vm.OrganizationId, ct))
+            ModelState.AddModelError(nameof(vm.OrganizationId), "الجهة المحددة لم تعد موجودة / The selected organization no longer exists.");
+
         if (!ModelState.IsValid)
         {
             ModelState.AddModelError("", text["ValidationCorrectFields"]);
@@ -123,7 +127,9 @@ public sealed class SecurePagesController(
         }
         else
         {
-            p = await db.SecurePages.Include(x => x.Credential).SingleOrDefaultAsync(x => x.Id == vm.Id, ct) ?? throw new InvalidOperationException("Page not found");
+            var existing = await db.SecurePages.Include(x => x.Credential).SingleOrDefaultAsync(x => x.Id == vm.Id, ct);
+            if (existing is null) return NotFound();
+            p = existing;
             cred = p.Credential ?? new PageCredential { SecurePageId = p.Id };
             if (p.Credential is null) db.PageCredentials.Add(cred);
         }

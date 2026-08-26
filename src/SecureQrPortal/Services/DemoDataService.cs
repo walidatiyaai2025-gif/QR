@@ -31,7 +31,31 @@ public sealed class DemoDataService(ApplicationDbContext db, TokenService tokens
 
     public async Task<int> DeleteAsync(CancellationToken ct = default)
     {
-        var pages=await db.SecurePages.Where(x=>x.IsDemo).ToListAsync(ct); db.SecurePages.RemoveRange(pages); await db.SaveChangesAsync(ct);
-        var orgs=await db.Organizations.Where(x=>x.IsDemo && !x.SecurePages.Any()).ToListAsync(ct); db.Organizations.RemoveRange(orgs); await db.SaveChangesAsync(ct); return pages.Count;
+        var pageIds = await db.SecurePages.Where(x => x.IsDemo).Select(x => x.Id).ToListAsync(ct);
+        if (pageIds.Count > 0)
+        {
+            var deliveries = await db.MobileDeliveries.Where(x => pageIds.Contains(x.SecurePageId)).ToListAsync(ct);
+            if (deliveries.Count > 0)
+            {
+                db.MobileDeliveries.RemoveRange(deliveries);
+                await db.SaveChangesAsync(ct);
+            }
+        }
+
+        var pages = await db.SecurePages.Where(x => x.IsDemo).ToListAsync(ct);
+        db.SecurePages.RemoveRange(pages);
+        await db.SaveChangesAsync(ct);
+
+        var orgs = await db.Organizations
+            .Where(x => x.IsDemo &&
+                        !x.SecurePages.Any() &&
+                        !db.MobileOtpChallenges.Any(m => m.OrganizationId == x.Id) &&
+                        !db.MobileSessions.Any(m => m.OrganizationId == x.Id) &&
+                        !db.MobileDevices.Any(m => m.OrganizationId == x.Id) &&
+                        !db.MobileDeliveries.Any(m => m.OrganizationId == x.Id))
+            .ToListAsync(ct);
+        db.Organizations.RemoveRange(orgs);
+        await db.SaveChangesAsync(ct);
+        return pages.Count;
     }
 }
