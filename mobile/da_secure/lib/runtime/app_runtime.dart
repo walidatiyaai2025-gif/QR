@@ -81,7 +81,28 @@ class AppRuntime extends AppNavigationState {
         return;
       }
 
+      // Server validation remains authoritative. Biometric unlock is only a
+      // local convenience gate applied after /me proves the stored session is
+      // still valid; it never creates or refreshes server authentication.
       _currentUser = await auth.getCurrentUser();
+      if (await storage.biometricEnabled()) {
+        var unlocked = false;
+        try {
+          unlocked = await biometrics.unlockExistingSession(arabic: isArabic);
+        } on Object {
+          unlocked = false;
+        }
+        if (!unlocked) {
+          // Fail closed locally. The user can establish a fresh mobile session
+          // through OTP, and can then choose whether to re-enable biometrics.
+          await storage.clearSession();
+          _currentUser = null;
+          _booting = false;
+          await invalidateSessionPreservingPending();
+          return;
+        }
+      }
+
       completeAuthentication();
       _booting = false;
       notifyListeners();
@@ -225,6 +246,7 @@ class AppRuntime extends AppNavigationState {
 
   Future<void> skipBiometrics() async {
     if (_biometricState.isBusy) return;
+    await storage.setBiometricEnabled(false);
     await finishAuthentication();
   }
 
@@ -457,7 +479,9 @@ class AppRuntime extends AppNavigationState {
       'EXPIRED' => SecureDeliveryUiPhase.expired,
       'REVOKED' => SecureDeliveryUiPhase.revoked,
       'LIMITREACHED' => SecureDeliveryUiPhase.limitReached,
+      'LIMIT_REACHED' => SecureDeliveryUiPhase.limitReached,
       'SUCCESS' => SecureDeliveryUiPhase.ready,
+      'ACTIVE' => SecureDeliveryUiPhase.ready,
       _ => SecureDeliveryUiPhase.error,
     };
     return SecureLoginUiState(

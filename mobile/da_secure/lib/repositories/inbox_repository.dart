@@ -1,5 +1,6 @@
 import 'package:da_secure/models/mobile_models.dart';
 import 'package:da_secure/networking/api_client.dart';
+import 'package:da_secure/networking/app_failure.dart';
 import 'package:dio/dio.dart';
 
 class InboxRepository {
@@ -21,6 +22,8 @@ class InboxRepository {
       return InboxPage.fromJson(ApiClient.jsonMap(response.data));
     } on DioException catch (error) {
       throw ApiClient.mapError(error);
+    } on FormatException {
+      throw AppFailure.invalidResponse();
     }
   }
 
@@ -37,6 +40,8 @@ class InboxRepository {
       return DeliveryDetails.fromJson(ApiClient.jsonMap(envelope['delivery']));
     } on DioException catch (error) {
       throw ApiClient.mapError(error);
+    } on FormatException {
+      throw AppFailure.invalidResponse();
     }
   }
 
@@ -55,6 +60,8 @@ class InboxRepository {
       return RevealGrant.fromJson(ApiClient.jsonMap(response.data));
     } on DioException catch (error) {
       throw ApiClient.mapError(error);
+    } on FormatException {
+      throw AppFailure.invalidResponse();
     }
   }
 
@@ -72,6 +79,8 @@ class InboxRepository {
       return SecureMessage.fromJson(ApiClient.jsonMap(response.data));
     } on DioException catch (error) {
       throw ApiClient.mapError(error);
+    } on FormatException {
+      throw AppFailure.invalidResponse();
     }
   }
 }

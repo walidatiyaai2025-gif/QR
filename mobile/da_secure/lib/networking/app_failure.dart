@@ -46,12 +46,19 @@ class AppFailure implements Exception {
     );
   }
 
+  factory AppFailure.invalidResponse() => const AppFailure(
+    kind: AppFailureKind.server,
+    code: 'INVALID_API_RESPONSE',
+    messageArabic: 'استجابة الخادم غير صالحة. حاول مرة أخرى.',
+    messageEnglish: 'The server returned an invalid response. Try again.',
+  );
+
   factory AppFailure.fromDio(DioException error) {
     switch (error.type) {
       case DioExceptionType.connectionTimeout:
-      case DioExceptionType.transformTimeout:
       case DioExceptionType.sendTimeout:
       case DioExceptionType.receiveTimeout:
+      case DioExceptionType.transformTimeout:
         return const AppFailure(
           kind: AppFailureKind.timeout,
           code: 'TIMEOUT',
