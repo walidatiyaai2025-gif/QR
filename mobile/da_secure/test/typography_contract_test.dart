@@ -11,25 +11,24 @@ void main() {
     expect(theme.textTheme.titleLarge?.fontFamily, 'NotoSansArabic');
   });
 
-  testWidgets(
-    'mixed Arabic and Latin content inherits DA Secure typography',
-    (tester) async {
-      const mixedText = 'الديوان الأميري — DA Secure 1234 !?';
+  testWidgets('mixed Arabic and Latin content inherits DA Secure typography', (
+    tester,
+  ) async {
+    const mixedText = 'الديوان الأميري — DA Secure 1234 !?';
 
-      await tester.pumpWidget(
-        MaterialApp(
-          theme: DaSecureTheme.light,
-          home: const Scaffold(body: Text(mixedText)),
-        ),
-      );
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: DaSecureTheme.light,
+        home: const Scaffold(body: Text(mixedText)),
+      ),
+    );
 
-      final context = tester.element(find.text(mixedText));
-      expect(
-        Theme.of(context).textTheme.bodyMedium?.fontFamily,
-        'NotoSansArabic',
-      );
-      expect(find.text(mixedText), findsOneWidget);
-      expect(tester.takeException(), isNull);
-    },
-  );
+    final context = tester.element(find.text(mixedText));
+    expect(
+      Theme.of(context).textTheme.bodyMedium?.fontFamily,
+      'NotoSansArabic',
+    );
+    expect(find.text(mixedText), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
 }
