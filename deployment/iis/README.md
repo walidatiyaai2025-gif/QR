@@ -162,14 +162,27 @@ Do not leave stdout logging enabled longer than required for diagnostics.
 
 The scripts never automatically delete deployment backups or `App_Data\backups`. Retention/archival is an explicit operator responsibility.
 
+## Build provenance and release authority
+
+The checked-in `BUILD-MANIFEST.json` is a template only. Its source branch, source SHA, build timestamp and payload hash are generated during the packaging job and must not be treated as release evidence before a CI artifact exists.
+
+The packaging workflow derives the authoritative build commit from `git rev-parse HEAD`, requires it to equal `GITHUB_SHA`, and passes that exact SHA to `dotnet publish` as `SourceRevisionId`. The published DLL is checked for the exact source revision. The generated package manifest is then re-read and its `sourceSha` must equal the checked-out HEAD before artifact upload is allowed.
+
+A successfully generated artifact proves deployment tooling against the commit recorded in that artifact's manifest. It is **not** a final-release-authoritative artifact unless that exact manifest SHA is the formally selected final convergence candidate. When the convergence candidate changes, rebuild the package from the new exact candidate SHA.
+
 ## Validation scope
 
 CI performs:
 
 - Windows PowerShell AST/parser validation for every package `.ps1` file.
-- Static persistence and credential-safety policy checks.
-- `.NET 10` restore/publish.
+- Static persistence, Firebase credential and provenance policy checks.
+- `git rev-parse HEAD == GITHUB_SHA` build identity assertion.
+- `.NET 10` restore.
+- Two clean deterministic Release publishes using the exact checked-out SHA as `SourceRevisionId`.
+- Published DLL source-revision assertion.
+- Identical SHA-256 assertion for both clean publish DLLs.
 - Service-account JSON exclusion check on the publish output.
+- Generated manifest `sourceSha == git rev-parse HEAD == GITHUB_SHA` assertion.
 - SHA-256 calculation for `publish\SecureQrPortal.dll`.
 - GitHub Actions artifact upload of the full IIS package.
 
