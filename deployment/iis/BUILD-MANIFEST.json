@@ -2,12 +2,12 @@
   "packageVersion": "1.0.0-iis.1",
   "sourceBranch": "lead/da-secure-runtime-convergence",
   "sourceSha": "e9c62cd8ba215e5f1e038cdddb9776acc70990bb",
-  "buildTimestampUtc": "2026-08-26T00:16:02.8143700Z",
+  "buildTimestampUtc": "2026-08-26T00:20:37.6679327Z",
   "dotnetTargetFramework": "net10.0",
   "dotnetVersion": "10.0.400",
   "artifactHash": {
     "algorithm": "SHA256",
     "target": "publish/SecureQrPortal.dll",
-    "value": "86792c0b029a114aa1e51532cd75ece551d929b7ee5d21fd8fac4ddaea104690"
+    "value": "ce9f63e14fe1e699c5b2a3a30f3583d1e69d2e188357377cb67ca080cf70f455"
   }
 }
