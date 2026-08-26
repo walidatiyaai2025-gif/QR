@@ -18,6 +18,8 @@ param(
 
 . (Join-Path $PSScriptRoot 'QR-IIS.Common.ps1')
 
+$PublishPath = Resolve-ScriptRelativePath -Path $PublishPath -ScriptRoot $PSScriptRoot
+
 Assert-WindowsAdministrator
 Enable-RequiredIISFeatures
 Import-IISAdministration
