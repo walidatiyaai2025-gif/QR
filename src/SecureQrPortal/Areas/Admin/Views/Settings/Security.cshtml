@@ -1,0 +1,83 @@
+@using System.Globalization
+@model SecuritySettingsVm
+@{
+    var ar = CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "ar";
+    ViewData["Title"] = ar ? "أمان الرسائل المشفرة" : "Secure Message Encryption";
+}
+
+<section class="page-heading">
+    <div>
+        <span class="eyebrow">@(ar ? "الإعدادات • الأمان" : "SETTINGS • SECURITY")</span>
+        <h1>@(ar ? "أمان الرسائل المشفرة" : "Secure Message Encryption")</h1>
+        <p class="muted">@(ar ? "إعدادات مركزية من الخادم. تطبيق الهاتف والمتصفح لا يحددان وضع التشفير." : "Server-authoritative controls. Mobile and browser clients never choose the encryption mode.")</p>
+    </div>
+</section>
+
+@if (!Model.EncryptionSettingHealthy || !Model.RevealSettingHealthy)
+{
+    <div class="alert danger">
+        @(ar
+            ? "تم اكتشاف إعداد أمني مفقود أو غير صالح. تم تطبيق الوضع الآمن تلقائيًا: التشفير مطلوب وفتح الرسائل غير الموثوق به محظور."
+            : "A missing or invalid security setting was detected. Fail-secure behavior is active: encryption is required and untrusted reveal is blocked.")
+    </div>
+}
+
+<div class="dashboard-grid two-col">
+    <article class="premium-card">
+        <div class="card-header-row">
+            <div>
+                <span class="eyebrow">@(ar ? "تشفير الرسائل الآمنة" : "SECURE MESSAGE ENCRYPTION")</span>
+                <h2>@(ar ? "تشفير الرسائل الآمنة" : "Secure Message Encryption")</h2>
+            </div>
+            <span class="status-badge @(Model.EncryptionEnabled ? "success" : "danger")">
+                @(Model.EncryptionEnabled ? (ar ? "مفعّل" : "ACTIVE") : (ar ? "متوقف" : "DISABLED"))
+            </span>
+        </div>
+        <p>@(ar
+            ? "عند التفعيل، تُحفظ الرسائل الجديدة أو المستبدلة كتشفير موثّق فقط. عند الإيقاف، يمنع الخادم إنشاء أو استبدال محتوى الرسالة بدلًا من تخزين نص صريح."
+            : "When enabled, new or replacement messages are stored only with authenticated encryption. When disabled, the server blocks creation/replacement instead of storing plaintext.")</p>
+        <form method="post" asp-action="Security">
+            <input type="hidden" name="command" value="encryption" />
+            <label class="form-check">
+                <input asp-for="EncryptionEnabled" type="checkbox" />
+                <span>@(ar ? "تشفير الرسائل الآمنة — مفعّل / متوقف" : "Secure Message Encryption — Enabled / Disabled")</span>
+            </label>
+            <label asp-for="Confirmation">@(ar ? "تأكيد الإيقاف" : "Disable confirmation")</label>
+            <input asp-for="Confirmation" autocomplete="off" placeholder="DISABLE" />
+            <small class="muted">@(ar ? "اكتب DISABLE لتأكيد إيقاف إنشاء الرسائل الآمنة الجديدة." : "Type DISABLE to confirm disabling new Secure Message creation.")</small>
+            <div class="form-actions"><button class="btn primary" type="submit">@(ar ? "حفظ حالة التشفير" : "Save encryption state")</button></div>
+        </form>
+    </article>
+
+    <article class="premium-card">
+        <div class="card-header-row">
+            <div>
+                <span class="eyebrow">@(ar ? "الفتح العام" : "GLOBAL REVEAL")</span>
+                <h2>@(ar ? "فتح الرسائل المشفرة" : "Secure Message Reveal")</h2>
+            </div>
+            <span class="status-badge @(Model.AllowReveal ? "success" : "danger")">
+                @(Model.AllowReveal ? (ar ? "مفعّل" : "ACTIVE") : (ar ? "محظور" : "BLOCKED"))
+            </span>
+        </div>
+        <p>@(ar
+            ? "إيقاف الفتح يمنع فك تشفير جميع الرسائل مؤقتًا دون حذف مفاتيحها. انتهاء الصلاحية أو الإلغاء فقط يدفع دورة الإنهاء المشفرة."
+            : "Blocking reveal temporarily prevents all Secure Message decryption without destroying message keys. Expiry/revocation remains the terminal key-lifecycle trigger.")</p>
+        <form method="post" asp-action="Security">
+            <input type="hidden" name="command" value="reveal" />
+            <label class="form-check">
+                <input asp-for="AllowReveal" type="checkbox" />
+                <span>@(ar ? "السماح بفتح الرسائل المشفرة" : "Allow Secure Message reveal")</span>
+            </label>
+            <label asp-for="Confirmation">@(ar ? "تأكيد الحظر" : "Block confirmation")</label>
+            <input asp-for="Confirmation" autocomplete="off" placeholder="BLOCK-REVEAL" />
+            <small class="muted">@(ar ? "اكتب BLOCK-REVEAL لتأكيد إيقاف فتح جميع الرسائل المشفرة مؤقتًا." : "Type BLOCK-REVEAL to confirm temporarily blocking Secure Message reveal.")</small>
+            <div class="form-actions"><button class="btn primary" type="submit">@(ar ? "حفظ حالة الفتح" : "Save reveal state")</button></div>
+        </form>
+    </article>
+</div>
+
+<div class="alert info" style="margin-top:1rem">
+    @(ar
+        ? "لا تعرض هذه الصفحة مفاتيح التشفير أو النصوص أو الـ ciphertext. كل تغيير يُسجل في سجل التدقيق مع هوية المسؤول وعنوان العميل المعتمد."
+        : "This page never exposes encryption keys, plaintext, or ciphertext. Every change is written to the audit log with administrator identity and authoritative client IP.")
+</div>
