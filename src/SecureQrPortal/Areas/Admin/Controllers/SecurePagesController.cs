@@ -90,7 +90,7 @@ public sealed class SecurePagesController(
         if (vm.Id == 0 && string.IsNullOrWhiteSpace(vm.PagePassword))
             ModelState.AddModelError(nameof(vm.PagePassword), text["ValidationPasswordRequired"]);
 
-        if (vm.OrganizationId > 0 && !await db.Organizations.AsNoTracking().AnyAsync(x => x.Id == vm.OrganizationId, ct))
+        if (vm.OrganizationId <= 0 || !await db.Organizations.AsNoTracking().AnyAsync(x => x.Id == vm.OrganizationId, ct))
             ModelState.AddModelError(nameof(vm.OrganizationId), "الجهة المحددة لم تعد موجودة / The selected organization no longer exists.");
 
         if (!ModelState.IsValid)
