@@ -2,6 +2,7 @@ using System.Net;
 using System.Security.Claims;
 using System.Text.Encodings.Web;
 using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
@@ -104,6 +105,12 @@ public sealed class AdminHotfixLocalizationTests
                     options.DefaultAuthenticateScheme = TestAdminAuthenticationHandler.AuthenticationSchemeName;
                     options.DefaultChallengeScheme = TestAdminAuthenticationHandler.AuthenticationSchemeName;
                 }).AddScheme<AuthenticationSchemeOptions, TestAdminAuthenticationHandler>(TestAdminAuthenticationHandler.AuthenticationSchemeName, _ => { });
+                services.AddAuthorization(options =>
+                {
+                    options.DefaultPolicy = new AuthorizationPolicyBuilder(TestAdminAuthenticationHandler.AuthenticationSchemeName)
+                        .RequireAuthenticatedUser()
+                        .Build();
+                });
             });
         });
     }
