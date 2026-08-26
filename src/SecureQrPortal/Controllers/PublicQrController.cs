@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Security.Cryptography;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using SecureQrPortal.Models;
@@ -11,7 +12,9 @@ namespace SecureQrPortal.Controllers;
 public sealed class PublicQrController(
     SecurePageAccessService access,
     QrStatusService status,
-    AppSettingsService settings) : Controller
+    AppSettingsService settings,
+    SecureMessageSecuritySettingsService security,
+    SecureMessageEncryptionService secureMessages) : Controller
 {
     [HttpGet("{token}")]
     public async Task<IActionResult> Open(string token, CancellationToken ct)
@@ -86,6 +89,26 @@ public sealed class PublicQrController(
         var alreadyCounted = HttpContext.Session.GetString(CountedKey(page.Id, hash)) == "1";
         if (!CanContinueAuthenticatedSession(page, state, hash, alreadyCounted)) return View("Invalid");
 
+        var securityState = await security.GetStateAsync(ct);
+        if (!securityState.AllowReveal)
+            return View("SecureMessageUnavailable");
+
+        SecureMessageBody body;
+        try
+        {
+            // Decrypt into a local value before any access counter is consumed.
+            // The tracked entity remains ciphertext while access/audit persistence runs.
+            body = await secureMessages.RevealAsync(page, ct);
+        }
+        catch (SecureMessageRevealBlockedException)
+        {
+            return View("SecureMessageUnavailable");
+        }
+        catch (CryptographicException)
+        {
+            return View("SecureMessageUnavailable");
+        }
+
         if (!alreadyCounted)
         {
             var result = await access.RegisterSuccessfulAccessAsync(page, HttpContext, allowQrOpenLimitSession: true, ct);
@@ -93,6 +116,10 @@ public sealed class PublicQrController(
             HttpContext.Session.SetString(CountedKey(page.Id, hash), "1");
         }
 
+        // Only now place plaintext in the request-local view model; no subsequent
+        // SaveChanges operation occurs in this request.
+        page.ContentArabicHtml = body.ArabicHtml;
+        page.ContentEnglishHtml = body.EnglishHtml;
         ViewBag.ShowExpiry = bool.TryParse(await settings.GetAsync("ShowExpiryPublicly", "true", ct), out var show) && show;
         ViewBag.HardSessionExpiresAtUtc = hardExpiry;
         return View(page);
