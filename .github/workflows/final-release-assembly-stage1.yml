@@ -1,0 +1,146 @@
+name: DA Secure Final Release Assembly Stage 1
+
+on:
+  push:
+    branches:
+      - worker/da-secure-final-release-assembly
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  assembly-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact assembly head
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify Stage 1 composition and preserve P2
+        shell: bash
+        run: |
+          set -euo pipefail
+          base='ff0de0dbf305e50472f446b0ad751cf550a2c3e2'
+          preflight='7e638b5d95ea7c03ec7c45946077f8f6127928e1'
+
+          git cat-file -e "$base^{commit}"
+          git cat-file -e "$preflight^{commit}"
+          git merge-base --is-ancestor "$base" HEAD
+          git merge-base --is-ancestor "$preflight" HEAD
+
+          unexpected="$(git diff --name-only "$preflight" HEAD | grep -Ev '^(\.github/workflows/final-release-assembly-stage1\.yml|\.github/workflows/iis-deployment-package\.yml|deployment/iis/(BUILD-MANIFEST\.json|Install-QR-IIS\.ps1|QR-IIS\.Common\.ps1|README\.md|Rollback-QR-IIS\.ps1|Test-QR-IIS\.Regression\.ps1|Update-QR-IIS\.ps1))$' || true)"
+          if test -n "$unexpected"; then
+            echo 'Unexpected changes relative to proven mobile preflight:' >&2
+            echo "$unexpected" >&2
+            exit 1
+          fi
+
+          if test -e mobile/da_secure/assets/brand/diwan_crest.png; then
+            echo 'Branding must remain excluded from Stage 1 until READY-FOR-FINAL-ASSEMBLY is explicitly returned.' >&2
+            exit 1
+          fi
+
+          grep -Fq 'DaPresentationText.localizedRuntimeDate' mobile/da_secure/lib/features/inbox/presentation/inbox_screen.dart
+          grep -Fq 'DaPresentationText.isolateTechnical' mobile/da_secure/lib/features/inbox/presentation/inbox_screen.dart
+          grep -Fq 'DaPresentationText.localizedRuntimeDate' mobile/da_secure/lib/features/inbox/presentation/secure_message_screen.dart
+          grep -Fq 'DaPresentationText.isolateDynamic' mobile/da_secure/lib/features/inbox/presentation/secure_message_screen.dart
+          grep -Fq 'Flexible(' mobile/da_secure/lib/features/inbox/presentation/secure_message_screen.dart
+          grep -Fq 'softWrap: true' mobile/da_secure/lib/features/inbox/presentation/secure_message_screen.dart
+          grep -Fq 'label: strings.home' mobile/da_secure/lib/features/inbox/presentation/inbox_screen.dart
+          grep -Fq 'label: strings.inbox' mobile/da_secure/lib/features/inbox/presentation/inbox_screen.dart
+          grep -Fq 'label: strings.profile' mobile/da_secure/lib/features/inbox/presentation/inbox_screen.dart
+          grep -Fq "String get home => isArabic ? 'الرئيسية' : 'Home';" mobile/da_secure/lib/localization/da_strings.dart
+          grep -Fq "String get profile => isArabic ? 'الملف الشخصي' : 'Profile';" mobile/da_secure/lib/localization/da_strings.dart
+          test -f mobile/da_secure/test/localization_p2_presentation_test.dart
+          grep -Fq 'Navigation shell exposes localized labels in Arabic' mobile/da_secure/test/mobile_ui_contract_test.dart
+          grep -Fq 'Navigation shell exposes localized labels in English' mobile/da_secure/test/mobile_ui_contract_test.dart
+
+          test "$(git rev-parse HEAD:.github/workflows/iis-deployment-package.yml)" = '8099025a168cbf8a546c1eeedf9e80316ad5702e'
+          test "$(git rev-parse HEAD:deployment/iis/BUILD-MANIFEST.json)" = 'cc0cecb45d711e3ebc3ee4973d6be9e4cfef366a'
+          test "$(git rev-parse HEAD:deployment/iis/Install-QR-IIS.ps1)" = 'afe95ca427d2e5f874dc6becfacf8aa5d7cd0fb8'
+          test "$(git rev-parse HEAD:deployment/iis/QR-IIS.Common.ps1)" = '3f6e45fab997a12c5c6ba39c30a9d0e723a99bfd'
+          test "$(git rev-parse HEAD:deployment/iis/README.md)" = '3ffb2884306074408aa5214cc98cd989479fe741'
+          test "$(git rev-parse HEAD:deployment/iis/Rollback-QR-IIS.ps1)" = 'a54d7f4a346e17e528cfb88b6e2217eba005958d'
+          test "$(git rev-parse HEAD:deployment/iis/Test-QR-IIS.Regression.ps1)" = '82e212399f39b54182c1da324544bcdb02d4f476'
+          test "$(git rev-parse HEAD:deployment/iis/Update-QR-IIS.ps1)" = '27059794d072a82bb2c73e318f92839dfdbd7fae'
+
+  backend:
+    needs: assembly-contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout exact assembly head
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.400'
+
+      - name: Restore
+        run: dotnet restore
+
+      - name: Build Release
+        run: dotnet build -c Release
+
+      - name: Test
+        run: dotnet test
+
+  mobile:
+    needs: assembly-contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    defaults:
+      run:
+        working-directory: mobile/da_secure
+    steps:
+      - name: Checkout exact assembly head
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.1'
+          channel: stable
+          cache: true
+
+      - name: Resolve dependencies
+        run: flutter pub get
+
+      - name: Dart format verification
+        run: dart format --output=none --set-exit-if-changed lib test
+
+      - name: Analyze
+        run: flutter analyze
+
+      - name: Test and enforce non-decreasing count
+        shell: bash
+        run: |
+          set -euo pipefail
+          flutter test 2>&1 | tee /tmp/da-secure-flutter-tests.log
+          count="$(grep -oE '[0-9]+ tests passed' /tmp/da-secure-flutter-tests.log | tail -n 1 | awk '{print $1}')"
+          if test -z "$count"; then
+            echo 'Unable to determine Flutter passing test count.' >&2
+            exit 1
+          fi
+          if test "$count" -lt 120; then
+            echo "Flutter test count decreased: $count < 120" >&2
+            exit 1
+          fi
+          echo "Flutter tests passed: $count (baseline: 120)"
+
+      - name: Build debug APK
+        run: flutter build apk --debug

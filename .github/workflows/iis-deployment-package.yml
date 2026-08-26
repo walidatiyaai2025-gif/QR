@@ -1,0 +1,230 @@
+name: DA Secure IIS Deployment Package
+
+on:
+  push:
+    branches:
+      - worker/da-secure-iis-deployment-closure
+      - worker/da-secure-iis-update-hotfix
+      - lead/da-secure-runtime-convergence
+    paths:
+      - 'deployment/iis/**'
+      - 'src/SecureQrPortal/**'
+      - '.github/workflows/iis-deployment-package.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate-and-package:
+    runs-on: windows-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.400'
+
+      - name: Capture authoritative build identity
+        id: identity
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $checkedOutSha = (& git rev-parse HEAD).Trim().ToLowerInvariant()
+          $githubSha = "$env:GITHUB_SHA".Trim().ToLowerInvariant()
+          $sourceBranch = "$env:GITHUB_REF_NAME".Trim()
+          if ($checkedOutSha -notmatch '^[0-9a-f]{40}$') { throw "Invalid checked-out Git SHA: $checkedOutSha" }
+          if ($githubSha -notmatch '^[0-9a-f]{40}$') { throw "Invalid GITHUB_SHA: $githubSha" }
+          if ($checkedOutSha -ne $githubSha) { throw "Checked-out HEAD does not equal GITHUB_SHA. HEAD=$checkedOutSha GITHUB_SHA=$githubSha" }
+          if ([string]::IsNullOrWhiteSpace($sourceBranch)) { throw 'GITHUB_REF_NAME is empty; source branch/ref provenance is unavailable.' }
+          "build_sha=$checkedOutSha" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "source_branch=$sourceBranch" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          Write-Host "Authoritative checked-out SHA: $checkedOutSha"
+          Write-Host "Authoritative source branch/ref: $sourceBranch"
+
+      - name: PowerShell parser validation
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Get-ChildItem deployment/iis -Filter '*.ps1' | ForEach-Object {
+            $tokens = $null
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile($_.FullName, [ref]$tokens, [ref]$errors) | Out-Null
+            if ($errors.Count -gt 0) {
+              $errors | ForEach-Object { Write-Error ("{0}: {1}" -f $_.Extent.Text, $_.Message) }
+              throw "PowerShell parse failed: $($_.Name)"
+            }
+          }
+
+      - name: IIS update regression validation
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          & .\deployment\iis\Test-QR-IIS.Regression.ps1
+
+      - name: Deployment and provenance safety policy checks
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $common = Get-Content deployment/iis/QR-IIS.Common.ps1 -Raw
+          foreach ($required in @(
+            "'/XD'",
+            "'App_Data'",
+            'Assert-NoFirebaseCredentialInPublish',
+            'Automatic rollback is starting',
+            'Firebase__CredentialPath',
+            'GOOGLE_APPLICATION_CREDENTIALS',
+            'Wait-ForHealth',
+            'Resolve-ScriptRelativePath',
+            'PayloadReplacementStarted',
+            'AppPoolStoppedByDeployment',
+            '/configuration/location/system.webServer/aspNetCore',
+            'Existing HTTPS certificate binding already matches the required certificate.'
+          )) {
+            if (-not $common.Contains($required)) { throw "Missing deployment safety marker: $required" }
+          }
+          Get-ChildItem deployment/iis -Filter '*.ps1' | ForEach-Object {
+            $text = Get-Content $_.FullName -Raw
+            if ($text -match '(?im)Remove-Item[^\r\n]*App_Data') {
+              throw "Unsafe App_Data deletion expression found in $($_.Name)."
+            }
+            if ($text -match '(?i)ServerCertificateValidationCallback|SkipCertificateCheck') {
+              throw "TLS certificate validation bypass is forbidden: $($_.Name)."
+            }
+          }
+
+          $update = Get-Content deployment/iis/Update-QR-IIS.ps1 -Raw
+          if (-not $update.Contains('Resolve-ScriptRelativePath -Path $PublishPath -ScriptRoot $PSScriptRoot')) {
+            throw 'Update-QR-IIS.ps1 must resolve relative PublishPath from PSScriptRoot.'
+          }
+
+          $workflow = Get-Content .github/workflows/iis-deployment-package.yml -Raw
+          if ($workflow -match '(?i)-p:SourceRevisionId=[0-9a-f]{40}') {
+            throw 'A hardcoded 40-character SHA is forbidden in dotnet publish SourceRevisionId.'
+          }
+          $manifestTemplate = Get-Content deployment/iis/BUILD-MANIFEST.json -Raw
+          if ($manifestTemplate -match '(?i)"sourceSha"\s*:\s*"[0-9a-f]{40}"') {
+            throw 'A hardcoded source SHA is forbidden in the checked-in BUILD-MANIFEST template.'
+          }
+
+      - name: Restore
+        run: dotnet restore src/SecureQrPortal/SecureQrPortal.csproj
+
+      - name: Publish Release A
+        run: dotnet publish src/SecureQrPortal/SecureQrPortal.csproj -c Release --no-restore -o out/publish-a -p:ContinuousIntegrationBuild=true -p:Deterministic=true -p:SourceRevisionId=${{ steps.identity.outputs.build_sha }}
+
+      - name: Verify published DLL source revision
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $expectedSha = '${{ steps.identity.outputs.build_sha }}'.ToLowerInvariant()
+          $payload = Resolve-Path 'out/publish-a/SecureQrPortal.dll'
+          $binaryText = [System.Text.Encoding]::ASCII.GetString([System.IO.File]::ReadAllBytes($payload))
+          if (-not $binaryText.Contains($expectedSha)) {
+            throw "Published DLL does not contain the exact checked-out SourceRevisionId $expectedSha."
+          }
+          $workflow = Get-Content .github/workflows/iis-deployment-package.yml -Raw
+          if ($workflow -match '(?i)-p:SourceRevisionId=[0-9a-f]{40}') {
+            throw 'Published SourceRevisionId must come from the runtime build identity, never a stale constant.'
+          }
+          Write-Host "Published DLL SourceRevisionId verified against checked-out SHA: $expectedSha"
+
+      - name: Clean and restore for reproducibility check
+        shell: powershell
+        run: |
+          dotnet clean src/SecureQrPortal/SecureQrPortal.csproj -c Release
+          if ($LASTEXITCODE -ne 0) { throw 'dotnet clean failed.' }
+          dotnet restore src/SecureQrPortal/SecureQrPortal.csproj
+          if ($LASTEXITCODE -ne 0) { throw 'second dotnet restore failed.' }
+
+      - name: Publish Release B
+        run: dotnet publish src/SecureQrPortal/SecureQrPortal.csproj -c Release --no-restore -o out/publish-b -p:ContinuousIntegrationBuild=true -p:Deterministic=true -p:SourceRevisionId=${{ steps.identity.outputs.build_sha }}
+
+      - name: Verify reproducible payload hash
+        id: payload
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $payloadA = 'out/publish-a/SecureQrPortal.dll'
+          $payloadB = 'out/publish-b/SecureQrPortal.dll'
+          if (-not (Test-Path $payloadA) -or -not (Test-Path $payloadB)) { throw 'SecureQrPortal.dll is missing from one of the publish outputs.' }
+          $hashA = (Get-FileHash -Algorithm SHA256 $payloadA).Hash.ToLowerInvariant()
+          $hashB = (Get-FileHash -Algorithm SHA256 $payloadB).Hash.ToLowerInvariant()
+          if ($hashA -ne $hashB) { throw "Two clean publishes in the same runner produced different DLL hashes: A=$hashA B=$hashB" }
+          Write-Host "Reproducible payload SHA256: $hashA"
+          "payload_hash=$hashA" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+
+      - name: Reject service-account credentials from publish
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Get-ChildItem out/publish-a -Filter '*.json' -File -Recurse | ForEach-Object {
+            $text = Get-Content $_.FullName -Raw
+            if ($text -match '"private_key"\s*:' -and $text -match '"client_email"\s*:') {
+              throw "Service-account credential JSON must not be packaged: $($_.Name)"
+            }
+          }
+
+      - name: Build IIS deployment artifact and authoritative manifest
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $packageVersion = '1.0.0-iis.3'
+          $sourceBranch = '${{ steps.identity.outputs.source_branch }}'
+          $sourceSha = '${{ steps.identity.outputs.build_sha }}'.ToLowerInvariant()
+          $checkedOutSha = (& git rev-parse HEAD).Trim().ToLowerInvariant()
+          $githubSha = "$env:GITHUB_SHA".Trim().ToLowerInvariant()
+          if ($sourceSha -ne $checkedOutSha -or $sourceSha -ne $githubSha) {
+            throw "Build identity changed before packaging. manifestCandidate=$sourceSha HEAD=$checkedOutSha GITHUB_SHA=$githubSha"
+          }
+
+          $packageRoot = Join-Path $PWD "out/DA-Secure-IIS-$packageVersion"
+          New-Item -ItemType Directory -Path $packageRoot -Force | Out-Null
+          Copy-Item out/publish-a (Join-Path $packageRoot 'publish') -Recurse
+          Copy-Item deployment/iis/Install-QR-IIS.ps1 $packageRoot
+          Copy-Item deployment/iis/Update-QR-IIS.ps1 $packageRoot
+          Copy-Item deployment/iis/Rollback-QR-IIS.ps1 $packageRoot
+          Copy-Item deployment/iis/QR-IIS.Common.ps1 $packageRoot
+          Copy-Item deployment/iis/Test-QR-IIS.Regression.ps1 $packageRoot
+          Copy-Item deployment/iis/README.md $packageRoot
+
+          $payload = Join-Path $packageRoot 'publish/SecureQrPortal.dll'
+          $hash = (Get-FileHash -Algorithm SHA256 $payload).Hash.ToLowerInvariant()
+          if ($hash -ne '${{ steps.payload.outputs.payload_hash }}') { throw 'Packaged DLL hash differs from verified reproducible publish hash.' }
+          $dotnetVersion = (& dotnet --version).Trim()
+          $manifest = [ordered]@{
+            packageVersion = $packageVersion
+            sourceBranch = $sourceBranch
+            sourceSha = $sourceSha
+            buildTimestampUtc = [DateTime]::UtcNow.ToString('o')
+            dotnetVersion = $dotnetVersion
+            targetFramework = 'net10.0'
+            artifactHash = [ordered]@{
+              algorithm = 'SHA256'
+              target = 'publish/SecureQrPortal.dll'
+              value = $hash
+            }
+          }
+          $manifestPath = Join-Path $packageRoot 'BUILD-MANIFEST.json'
+          $manifest | ConvertTo-Json -Depth 5 | Set-Content $manifestPath -Encoding utf8
+
+          $writtenManifest = Get-Content $manifestPath -Raw | ConvertFrom-Json
+          if ($writtenManifest.sourceSha.ToLowerInvariant() -ne $checkedOutSha) {
+            throw "Manifest sourceSha does not equal git rev-parse HEAD. manifest=$($writtenManifest.sourceSha) HEAD=$checkedOutSha"
+          }
+          if ($writtenManifest.sourceSha.ToLowerInvariant() -ne $githubSha) {
+            throw "Manifest sourceSha does not equal GITHUB_SHA. manifest=$($writtenManifest.sourceSha) GITHUB_SHA=$githubSha"
+          }
+          Write-Host "Manifest source SHA verified: $checkedOutSha"
+          Write-Host "Package manifest payload SHA256: $hash"
+
+      - name: Upload IIS deployment package
+        uses: actions/upload-artifact@v4
+        with:
+          name: da-secure-iis-1.0.0-iis.3-${{ github.sha }}
+          path: out/DA-Secure-IIS-1.0.0-iis.3
+          if-no-files-found: error
+          retention-days: 14
