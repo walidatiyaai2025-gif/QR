@@ -65,8 +65,8 @@ jobs:
       - name: Restore
         run: dotnet restore src/SecureQrPortal/SecureQrPortal.csproj
 
-      - name: Publish Release
-        run: dotnet publish src/SecureQrPortal/SecureQrPortal.csproj -c Release --no-restore -o out/publish
+      - name: Publish deterministic Release
+        run: dotnet publish src/SecureQrPortal/SecureQrPortal.csproj -c Release --no-restore -o out/publish -p:ContinuousIntegrationBuild=true -p:SourceRevisionId=e9c62cd8ba215e5f1e038cdddb9776acc70990bb
 
       - name: Reject service-account credentials from publish
         shell: powershell
