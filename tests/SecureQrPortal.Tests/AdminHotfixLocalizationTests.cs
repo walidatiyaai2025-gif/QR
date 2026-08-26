@@ -2,7 +2,6 @@ using System.Net;
 using System.Security.Claims;
 using System.Text.Encodings.Web;
 using Microsoft.AspNetCore.Authentication;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
@@ -48,18 +47,21 @@ public sealed class AdminHotfixLocalizationTests
     public async Task Admin_mobile_delivery_history_renders_localized_status_labels()
     {
         await using var factory = CreateFactory();
-        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = true, HandleCookies = true });
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false, HandleCookies = true });
 
-        await client.GetAsync("/Localization/Switch?culture=en&returnUrl=%2FAdmin%2FMobileDelivery%2FHistory");
+        using var englishSwitch = await client.GetAsync("/Localization/Switch?culture=en&returnUrl=%2FAdmin%2FMobileDelivery%2FHistory");
+        Assert.Equal(HttpStatusCode.Redirect, englishSwitch.StatusCode);
         using var englishResponse = await client.GetAsync("/Admin/MobileDelivery/History");
         var english = await englishResponse.Content.ReadAsStringAsync();
         Assert.Equal(HttpStatusCode.OK, englishResponse.StatusCode);
+        Assert.Contains("DA Secure Delivery History", english, StringComparison.Ordinal);
         Assert.Contains("Provider accepted", english, StringComparison.Ordinal);
         Assert.Contains("Send failed", english, StringComparison.Ordinal);
         Assert.DoesNotContain(">PROVIDER_ACCEPTED<", english, StringComparison.Ordinal);
         Assert.DoesNotContain(">SEND_FAILED<", english, StringComparison.Ordinal);
 
-        await client.GetAsync("/Localization/Switch?culture=ar&returnUrl=%2FAdmin%2FMobileDelivery%2FHistory");
+        using var arabicSwitch = await client.GetAsync("/Localization/Switch?culture=ar&returnUrl=%2FAdmin%2FMobileDelivery%2FHistory");
+        Assert.Equal(HttpStatusCode.Redirect, arabicSwitch.StatusCode);
         using var arabicResponse = await client.GetAsync("/Admin/MobileDelivery/History");
         var arabic = await arabicResponse.Content.ReadAsStringAsync();
         Assert.Equal(HttpStatusCode.OK, arabicResponse.StatusCode);
@@ -73,8 +75,9 @@ public sealed class AdminHotfixLocalizationTests
     public async Task Arabic_admin_branding_help_is_not_english_only()
     {
         await using var factory = CreateFactory();
-        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = true, HandleCookies = true });
-        await client.GetAsync("/Localization/Switch?culture=ar&returnUrl=%2FAdmin%2FOrganizations%2FCreate");
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false, HandleCookies = true });
+        using var cultureSwitch = await client.GetAsync("/Localization/Switch?culture=ar&returnUrl=%2FAdmin%2FOrganizations%2FCreate");
+        Assert.Equal(HttpStatusCode.Redirect, cultureSwitch.StatusCode);
 
         using var organizationResponse = await client.GetAsync("/Admin/Organizations/Create");
         var organizationHtml = await organizationResponse.Content.ReadAsStringAsync();
@@ -100,16 +103,14 @@ public sealed class AdminHotfixLocalizationTests
             builder.UseSetting("SecureQrPortal:DefaultSqliteFile", dbPath);
             builder.ConfigureTestServices(services =>
             {
-                services.AddAuthentication(options =>
+                services.AddAuthentication(TestAdminAuthenticationHandler.AuthenticationSchemeName)
+                    .AddScheme<AuthenticationSchemeOptions, TestAdminAuthenticationHandler>(TestAdminAuthenticationHandler.AuthenticationSchemeName, _ => { });
+                services.PostConfigure<AuthenticationOptions>(options =>
                 {
+                    options.DefaultScheme = TestAdminAuthenticationHandler.AuthenticationSchemeName;
                     options.DefaultAuthenticateScheme = TestAdminAuthenticationHandler.AuthenticationSchemeName;
                     options.DefaultChallengeScheme = TestAdminAuthenticationHandler.AuthenticationSchemeName;
-                }).AddScheme<AuthenticationSchemeOptions, TestAdminAuthenticationHandler>(TestAdminAuthenticationHandler.AuthenticationSchemeName, _ => { });
-                services.AddAuthorization(options =>
-                {
-                    options.DefaultPolicy = new AuthorizationPolicyBuilder(TestAdminAuthenticationHandler.AuthenticationSchemeName)
-                        .RequireAuthenticatedUser()
-                        .Build();
+                    options.DefaultForbidScheme = TestAdminAuthenticationHandler.AuthenticationSchemeName;
                 });
             });
         });
