@@ -118,10 +118,26 @@ public sealed class AccountController(
     [Authorize, HttpPost]
     public async Task<IActionResult> ChangePassword(ChangePasswordVm vm)
     {
-        if(!ModelState.IsValid) return View(vm); var user=await users.GetUserAsync(User); if(user is null) return Challenge();
-        var result=await users.ChangePasswordAsync(user,vm.CurrentPassword,vm.NewPassword);
-        if(!result.Succeeded){ foreach(var e in result.Errors) ModelState.AddModelError("",e.Description); return View(vm); }
-        await signIn.RefreshSignInAsync(user); await audit.WriteAsync("PASSWORD_CHANGE","AdminUser",user.Id,"Admin password changed"); TempData["Success"]="Password changed."; return RedirectToAction(nameof(ChangePassword));
+        if (!ModelState.IsValid)
+        {
+            ModelState.AddModelError("", AdminAccountText.ChangePasswordValidation(IsArabic));
+            return View(vm);
+        }
+
+        var user = await users.GetUserAsync(User);
+        if (user is null) return Challenge();
+        var result = await users.ChangePasswordAsync(user, vm.CurrentPassword, vm.NewPassword);
+        if (!result.Succeeded)
+        {
+            foreach (var error in result.Errors)
+                ModelState.AddModelError("", AdminAccountText.ChangePasswordError(error.Code, IsArabic));
+            return View(vm);
+        }
+
+        await signIn.RefreshSignInAsync(user);
+        await audit.WriteAsync("PASSWORD_CHANGE", "AdminUser", user.Id, "Admin password changed");
+        TempData["Success"] = AdminAccountText.PasswordChanged(IsArabic);
+        return RedirectToAction(nameof(ChangePassword));
     }
 
     private LoginVm NewLoginModel(LoginVm? source = null)

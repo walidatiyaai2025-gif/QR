@@ -18,11 +18,11 @@
     <div class="panel-body">
         <div class="mobile-delivery-readiness">
             <div><span class="muted">@(ar ? "مرجع QR" : "QR Reference")</span><strong class="mobile-delivery-reference">@Model.QrReference</strong></div>
-            <div><span class="muted">@(ar ? "حالة الصفحة المصدر" : "Source Secure Page")</span><strong><span class="badge @Model.SecurePageStatus">@Model.SecurePageStatus</span></strong></div>
+            <div><span class="muted">@(ar ? "حالة الصفحة المصدر" : "Source Secure Page")</span><strong><span class="badge @Model.SecurePageStatus">@AdminMobileDeliveryText.SecurePageStatus(Model.SecurePageStatus, ar)</span></strong></div>
             <div><span class="muted">@(ar ? "رقم الجوال المسجل للتطبيق" : "Registered Mobile Number")</span><strong class="numeric">@Mobile(Model.OrganizationMobileNumber)</strong></div>
             <div><span class="muted">@(ar ? "الأجهزة" : "Devices")</span><strong class="numeric">@Model.ActiveDeviceCount / @Model.RegisteredDeviceCount</strong><small>@(ar ? "نشط للإشعارات / مسجل" : "push-ready / registered")</small></div>
             <div><span class="muted">@(ar ? "انتهاء الصفحة" : "Secure Page Expiry")</span><strong class="numeric">@Local(Model.SecurePageExpiresAtUtc)</strong></div>
-            <div><span class="muted">@(ar ? "سياسة الوصول الحالية" : "Authoritative Access Policy")</span><strong>@Model.AccessLimitMode</strong><small>@(Model.RemainingAccesses.HasValue ? $"{(ar ? "المتبقي" : "Remaining")}: {Model.RemainingAccesses}" : (ar ? "غير محدود" : "Unlimited"))</small></div>
+            <div><span class="muted">@(ar ? "سياسة الوصول الحالية" : "Authoritative Access Policy")</span><strong>@AdminMobileDeliveryText.AccessLimitMode(Model.AccessLimitMode, ar)</strong><small>@(Model.RemainingAccesses.HasValue ? $"{(ar ? "المتبقي" : "Remaining")}: {Model.RemainingAccesses}" : (ar ? "غير محدود" : "Unlimited"))</small></div>
         </div>
 
         @if (!ready)
@@ -68,7 +68,7 @@
             <h3>@(ar ? "آخر إرسال" : "Latest Delivery")</h3>
             <div class="mobile-delivery-readiness">
                 <div><span class="muted">ID</span><strong class="numeric">@latest.Id</strong></div>
-                <div><span class="muted">@(ar ? "الحالة" : "Status")</span><strong>@latest.DeliveryStatus</strong></div>
+                <div><span class="muted">@(ar ? "الحالة" : "Status")</span><strong>@AdminMobileDeliveryText.DeliveryStatus(latest.DeliveryStatus, ar)</strong></div>
                 <div><span class="muted">Firebase</span><strong>@(latest.FirebaseStatus ?? "—")</strong></div>
                 <div><span class="muted">@(ar ? "الفتح" : "Opened")</span><strong>@(latest.FirstRevealedAtUtc.HasValue ? (ar ? "تم فتح الرسالة" : "Message Opened") : (ar ? "غير مفتوحة" : "Unread"))</strong></div>
                 <div><span class="muted">@(ar ? "التذكيرات" : "Reminders")</span><strong class="numeric">@latest.ReminderCount</strong></div>

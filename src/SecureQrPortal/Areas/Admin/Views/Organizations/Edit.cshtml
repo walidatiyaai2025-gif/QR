@@ -17,8 +17,8 @@
 <section class="panel">
     <div class="panel-body">
         <div class="branding-policy-note">
-            <img src="@Branding.LogoPath" alt="@Branding.EnglishName">
-            <div><strong>@Branding.EnglishName</strong><span>System branding is fixed to Al Diwan Al Amiri. Organizations provide names only; organization-specific logos are not used.</span></div>
+            <img src="@Branding.LogoPath" alt="@Branding.Name(ar)">
+            <div><strong>@Branding.Name(ar)</strong><span>@(ar ? "هوية النظام ثابتة للديوان الأميري. الجهات توفر الأسماء فقط ولا تستخدم شعارات خاصة بالجهة." : "System branding is fixed to Al Diwan Al Amiri. Organizations provide names only; organization-specific logos are not used.")</span></div>
         </div>
         <form method="post" asp-action="Edit">
             <input type="hidden" asp-for="Id" />
