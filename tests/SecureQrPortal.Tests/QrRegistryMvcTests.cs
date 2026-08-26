@@ -2,7 +2,6 @@ using System.Net;
 using System.Security.Claims;
 using System.Text.Encodings.Web;
 using Microsoft.AspNetCore.Authentication;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
@@ -27,23 +26,21 @@ public sealed class QrRegistryMvcTests
             builder.UseSetting("SecureQrPortal:DefaultSqliteFile", dbPath);
             builder.ConfigureTestServices(services =>
             {
-                services.AddAuthentication(options =>
+                services.AddAuthentication(TestAdminAuthenticationHandler.AuthenticationSchemeName)
+                    .AddScheme<AuthenticationSchemeOptions, TestAdminAuthenticationHandler>(TestAdminAuthenticationHandler.AuthenticationSchemeName, _ => { });
+                services.PostConfigure<AuthenticationOptions>(options =>
                 {
+                    options.DefaultScheme = TestAdminAuthenticationHandler.AuthenticationSchemeName;
                     options.DefaultAuthenticateScheme = TestAdminAuthenticationHandler.AuthenticationSchemeName;
                     options.DefaultChallengeScheme = TestAdminAuthenticationHandler.AuthenticationSchemeName;
-                }).AddScheme<AuthenticationSchemeOptions, TestAdminAuthenticationHandler>(TestAdminAuthenticationHandler.AuthenticationSchemeName, _ => { });
-                services.AddAuthorization(options =>
-                {
-                    options.DefaultPolicy = new AuthorizationPolicyBuilder(TestAdminAuthenticationHandler.AuthenticationSchemeName)
-                        .RequireAuthenticatedUser()
-                        .Build();
+                    options.DefaultForbidScheme = TestAdminAuthenticationHandler.AuthenticationSchemeName;
                 });
             });
         });
 
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {
-            AllowAutoRedirect = true,
+            AllowAutoRedirect = false,
             HandleCookies = true
         });
 
@@ -79,13 +76,16 @@ public sealed class QrRegistryMvcTests
                 MaxAccessCount = 10
             });
             await db.SaveChangesAsync();
+            Assert.Equal(1, await db.SecurePages.CountAsync());
         }
 
-        await client.GetAsync("/Localization/Switch?culture=ar&returnUrl=%2FAdmin%2FQr");
+        using var cultureSwitch = await client.GetAsync("/Localization/Switch?culture=ar&returnUrl=%2FAdmin%2FQr");
+        Assert.Equal(HttpStatusCode.Redirect, cultureSwitch.StatusCode);
         using var response = await client.GetAsync("/Admin/Qr");
         var html = await response.Content.ReadAsStringAsync();
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("سجل رموز QR", html, StringComparison.Ordinal);
         Assert.Contains("جهة اختبار سجل QR", html, StringComparison.Ordinal);
         Assert.Contains("صفحة اختبار سجل QR", html, StringComparison.Ordinal);
         Assert.DoesNotContain("System.NullReferenceException", html, StringComparison.Ordinal);
