@@ -4,6 +4,18 @@ Canonical base URL: **`https://testapi.da.gov.kw`**
 
 Flutter must use one centralized base URL configuration. Localhost/127.0.0.1/10.0.2.2 may be used only for explicit developer testing; authoritative E2E uses the canonical HTTPS host. TLS validation must remain enabled.
 
+## Server-controlled Secure Message encryption
+
+Secure Message encryption is a server policy. Flutter must never send, infer, cache or override an encryption-enabled/disabled flag or encryption mode.
+
+There is no mobile API for changing `SecureMessageEncryption.Enabled` or `SecureMessageEncryption.AllowReveal`.
+
+Client payloads must not contain `encrypt`, `encryptionMode`, `allowReveal` or equivalent policy fields. Any unknown client-supplied field must never influence server cryptographic behavior.
+
+When server-side creation encryption is disabled, administrator write/replace operations fail; the mobile app does not receive plaintext fallback content.
+
+When global reveal is blocked, the reveal endpoint returns a safe localized unavailable error. Re-enabling reveal restores the normal authorized flow for still-valid messages.
+
 ## Auth
 
 ### POST `/api/mobile/auth/request-otp`
@@ -56,9 +68,16 @@ Implementation may return a short-lived opaque reveal authorization bound to del
 
 ### POST `/api/mobile/inbox/{deliveryId}/reveal`
 
-Server revalidates organization ownership, delivery/page state, expiry/revocation/limits and secure authentication. On success returns exact sanitized Text Editor body, sent/expiry metadata, remaining reveal count, and attachments array (possibly empty). Counter increments exactly once according to authoritative server policy.
+Server revalidates organization ownership, delivery/page state, expiry/revocation/limits, secure authentication and the global server-side reveal policy. On success the server decrypts the authenticated ciphertext only after those checks and returns the exact sanitized Text Editor body, sent/expiry metadata, remaining reveal count, and attachments array (possibly empty). Counter increments exactly once according to authoritative server policy.
+
+A valid reveal authorization must not be consumed merely because global reveal is temporarily blocked or the cryptographic envelope is safely unavailable.
 
 Valid response must support `attachments: []`.
+
+Additional stable reveal failure codes include:
+
+- `SECURE_MESSAGE_REVEAL_BLOCKED` — global server-side reveal policy is temporarily blocked;
+- `SECURE_MESSAGE_CRYPTO_UNAVAILABLE` — encrypted message cannot be safely decrypted; no plaintext fallback is permitted.
 
 ## Admin mobile delivery
 
@@ -90,6 +109,8 @@ Use stable machine-readable code plus localized-safe message fields. Required us
 - expired/revoked delivery
 - reveal limit reached
 - invalid secure credentials
+- global Secure Message reveal blocked
+- encrypted Secure Message safely unavailable
 - no registered device
 - Firebase delivery failure
 
@@ -99,4 +120,4 @@ Do not collapse all failures into a generic message.
 
 Allowed: opaque routing metadata such as `deliveryId` and non-sensitive notification category/version.
 
-Forbidden: OTP, secure username/password, Text Editor body, raw QR/share token, attachment content, bearer/session/refresh secret, Firebase server secret.
+Forbidden: OTP, secure username/password, Text Editor body, raw QR/share token, attachment content, bearer/session/refresh secret, Firebase server secret, encryption key material or server encryption/reveal policy controls.
