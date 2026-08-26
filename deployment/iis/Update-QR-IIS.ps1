@@ -17,6 +17,8 @@ param(
 
 . (Join-Path $PSScriptRoot 'QR-IIS.Common.ps1')
 
+$PublishPath = Resolve-ScriptRelativePath -Path $PublishPath -ScriptRoot $PSScriptRoot
+
 Assert-WindowsAdministrator
 Import-IISAdministration
 if (-not (Test-Path "IIS:\AppPools\$AppPoolName")) { throw "Application pool '$AppPoolName' does not exist. Run Install-QR-IIS.ps1 first." }
