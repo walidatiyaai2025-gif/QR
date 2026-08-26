@@ -1,0 +1,103 @@
+name: DA Secure Final E2E Device QA
+
+on:
+  push:
+    branches:
+      - worker/da-secure-final-e2e-device-qa
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backend-admin-security:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.400'
+
+      - name: Restore
+        run: dotnet restore SecureQrPortal.sln
+
+      - name: Build Release
+        run: dotnet build SecureQrPortal.sln --configuration Release --no-restore
+
+      - name: Backend and Admin E2E QA tests
+        run: dotnet test SecureQrPortal.sln --configuration Release --no-build --logger "trx;LogFileName=da-secure-final-e2e-qa.trx" --results-directory TestResults
+
+      - name: Canonical HTTPS and TLS policy static gate
+        shell: pwsh
+        run: ./scripts/qa/Invoke-DaSecureFinalE2E.ps1 -Mode Static -OutputPath TestResults/final-static-qa.json
+
+      - name: Upload backend QA evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: da-secure-final-e2e-backend-evidence
+          path: |
+            TestResults/**/*.trx
+            TestResults/final-static-qa.json
+          if-no-files-found: error
+          retention-days: 30
+
+  flutter-security-apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.1'
+          channel: stable
+          cache: true
+
+      - name: Get Flutter dependencies
+        working-directory: mobile/da_secure
+        run: flutter pub get
+
+      - name: Format gate
+        working-directory: mobile/da_secure
+        run: dart format --output=none --set-exit-if-changed lib test
+
+      - name: Analyze
+        working-directory: mobile/da_secure
+        run: flutter analyze
+
+      - name: Flutter E2E and security contracts
+        working-directory: mobile/da_secure
+        run: flutter test
+
+      - name: Verify Android identity
+        shell: bash
+        run: |
+          grep -F 'applicationId = "com.qr.mobile.da"' mobile/da_secure/android/app/build.gradle.kts
+          grep -F 'android:label="DA Secure"' mobile/da_secure/android/app/src/main/AndroidManifest.xml
+          grep -F '"package_name": "com.qr.mobile.da"' mobile/da_secure/android/app/google-services.json
+
+      - name: Build debug APK
+        working-directory: mobile/da_secure
+        run: flutter build apk --debug
+
+      - name: Verify APK exists
+        shell: bash
+        run: |
+          test -s mobile/da_secure/build/app/outputs/flutter-apk/app-debug.apk
+          sha256sum mobile/da_secure/build/app/outputs/flutter-apk/app-debug.apk
+
+      - name: Upload final QA APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: da-secure-final-e2e-debug-apk
+          path: mobile/da_secure/build/app/outputs/flutter-apk/app-debug.apk
+          if-no-files-found: error
+          retention-days: 30
