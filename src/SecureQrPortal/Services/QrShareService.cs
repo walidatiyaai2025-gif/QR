@@ -15,9 +15,23 @@ public sealed record QrShareCredentialResult(bool Success, DateTime? HardExpires
 
 public sealed record QrShareRevealResult(QrShareLink Share, string Password);
 
-public sealed class QrShareService(ApplicationDbContext db, IDataProtectionProvider protection)
+public sealed class QrShareService
 {
-    private readonly IDataProtector _secretProtector = protection.CreateProtector("SecureQrPortal.QrShare.Secret.v1");
+    private readonly ApplicationDbContext db;
+    private readonly TimeProvider clock;
+    private readonly IDataProtector _secretProtector;
+
+    public QrShareService(ApplicationDbContext db, IDataProtectionProvider protection)
+        : this(db, protection, TimeProvider.System)
+    {
+    }
+
+    public QrShareService(ApplicationDbContext db, IDataProtectionProvider protection, TimeProvider clock)
+    {
+        this.db = db;
+        this.clock = clock;
+        _secretProtector = protection.CreateProtector("SecureQrPortal.QrShare.Secret.v1");
+    }
 
     public async Task<QrShareLink> CreateAsync(
         SecurePage page,
@@ -48,7 +62,7 @@ public sealed class QrShareService(ApplicationDbContext db, IDataProtectionProvi
         var rawToken = GenerateToken();
         var password = pagePassword;
         var username = page.Credential.Username;
-        var now = DateTime.UtcNow;
+        var now = QrShareTime.UtcNow(clock);
 
         var share = new QrShareLink
         {
@@ -78,10 +92,12 @@ public sealed class QrShareService(ApplicationDbContext db, IDataProtectionProvi
     public async Task<QrShareLink?> FindByTokenAsync(string rawToken, CancellationToken ct = default)
     {
         var hash = TokenService.HashToken(rawToken);
-        return await db.QrShareLinks
+        var share = await db.QrShareLinks
             .Include(x => x.SecurePage).ThenInclude(x => x.Organization)
             .AsNoTracking()
             .SingleOrDefaultAsync(x => x.TokenHash == hash, ct);
+        if (share is not null) QrShareTime.NormalizeMaterializedUtc(share);
+        return share;
     }
 
     public Task<QrShareRevealResult?> RevealAsync(string rawToken, CancellationToken ct = default) =>
@@ -97,18 +113,22 @@ public sealed class QrShareService(ApplicationDbContext db, IDataProtectionProvi
 
         var tokenHash = TokenService.HashToken(rawToken);
         var requestHash = TokenService.HashToken(revealRequestId.Trim());
-        var now = DateTime.UtcNow;
+        var now = QrShareTime.UtcNow(clock);
         var candidate = await db.QrShareLinks
             .AsNoTracking()
             .SingleOrDefaultAsync(x => x.TokenHash == tokenHash, ct);
 
-        if (candidate is null || candidate.RevokedAtUtc is not null || candidate.ExpiresAtUtc <= now)
+        if (candidate is null)
+            return null;
+
+        QrShareTime.NormalizeMaterializedUtc(candidate);
+        if (candidate.RevokedAtUtc is not null || candidate.ExpiresAtUtc <= now)
             return null;
 
         if (string.Equals(candidate.LastRevealRequestHash, requestHash, StringComparison.Ordinal) &&
             candidate.CurrentOpenCount > 0 &&
             candidate.AccessWindowEndsAtUtc is DateTime existingEnd &&
-            existingEnd > now)
+            QrShareTime.FromStorage(existingEnd) > now)
         {
             return await LoadRevealResultAsync(candidate.Id, ct);
         }
@@ -135,14 +155,18 @@ public sealed class QrShareService(ApplicationDbContext db, IDataProtectionProvi
         var raced = await db.QrShareLinks
             .AsNoTracking()
             .SingleOrDefaultAsync(x => x.Id == candidate.Id, ct);
-        if (raced is not null &&
-            raced.RevokedAtUtc is null &&
-            raced.CurrentOpenCount > 0 &&
-            raced.AccessWindowEndsAtUtc is DateTime racedEnd &&
-            racedEnd > DateTime.UtcNow &&
-            string.Equals(raced.LastRevealRequestHash, requestHash, StringComparison.Ordinal))
+        if (raced is not null)
         {
-            return await LoadRevealResultAsync(candidate.Id, ct);
+            QrShareTime.NormalizeMaterializedUtc(raced);
+            var retryNow = QrShareTime.UtcNow(clock);
+            if (raced.RevokedAtUtc is null &&
+                raced.CurrentOpenCount > 0 &&
+                raced.AccessWindowEndsAtUtc is DateTime racedEnd &&
+                QrShareTime.FromStorage(racedEnd) > retryNow &&
+                string.Equals(raced.LastRevealRequestHash, requestHash, StringComparison.Ordinal))
+            {
+                return await LoadRevealResultAsync(candidate.Id, ct);
+            }
         }
 
         return null;
@@ -154,6 +178,7 @@ public sealed class QrShareService(ApplicationDbContext db, IDataProtectionProvi
             .Include(x => x.SecurePage).ThenInclude(x => x.Organization)
             .AsNoTracking()
             .SingleAsync(x => x.Id == shareId, ct);
+        QrShareTime.NormalizeMaterializedUtc(share);
         return new QrShareRevealResult(share, GetPassword(share));
     }
 
@@ -163,7 +188,7 @@ public sealed class QrShareService(ApplicationDbContext db, IDataProtectionProvi
         string password,
         CancellationToken ct = default)
     {
-        var now = DateTime.UtcNow;
+        var now = QrShareTime.UtcNow(clock);
         var candidates = await db.QrShareLinks
             .AsNoTracking()
             .Where(x => x.SecurePageId == pageId &&
@@ -178,6 +203,7 @@ public sealed class QrShareService(ApplicationDbContext db, IDataProtectionProvi
         var hasher = new PasswordHasher<QrShareLink>();
         foreach (var share in candidates)
         {
+            QrShareTime.NormalizeMaterializedUtc(share);
             if (hasher.VerifyHashedPassword(share, share.PasswordHash, password) != PasswordVerificationResult.Failed)
                 return new QrShareCredentialResult(true, share.AccessWindowEndsAtUtc, share.Id);
         }
@@ -185,12 +211,20 @@ public sealed class QrShareService(ApplicationDbContext db, IDataProtectionProvi
         return QrShareCredentialResult.Failed;
     }
 
-    public async Task<List<QrShareLink>> ListForPageAsync(long pageId, CancellationToken ct = default) =>
-        await db.QrShareLinks.AsNoTracking().Where(x => x.SecurePageId == pageId)
+    public async Task<List<QrShareLink>> ListForPageAsync(long pageId, CancellationToken ct = default)
+    {
+        var shares = await db.QrShareLinks.AsNoTracking().Where(x => x.SecurePageId == pageId)
             .OrderByDescending(x => x.CreatedAtUtc).ToListAsync(ct);
+        foreach (var share in shares) QrShareTime.NormalizeMaterializedUtc(share);
+        return shares;
+    }
 
-    public async Task<QrShareLink?> GetForPageAsync(long shareId, long pageId, CancellationToken ct = default) =>
-        await db.QrShareLinks.SingleOrDefaultAsync(x => x.Id == shareId && x.SecurePageId == pageId, ct);
+    public async Task<QrShareLink?> GetForPageAsync(long shareId, long pageId, CancellationToken ct = default)
+    {
+        var share = await db.QrShareLinks.SingleOrDefaultAsync(x => x.Id == shareId && x.SecurePageId == pageId, ct);
+        if (share is not null) QrShareTime.NormalizeMaterializedUtc(share);
+        return share;
+    }
 
     public async Task<bool> UpdateMessageAsync(long shareId, long pageId, string? messageTemplate, CancellationToken ct = default)
     {
@@ -202,14 +236,14 @@ public sealed class QrShareService(ApplicationDbContext db, IDataProtectionProvi
 
     public async Task<bool> RevokeAsync(long shareId, long pageId, CancellationToken ct = default)
     {
-        var now = DateTime.UtcNow;
+        var now = QrShareTime.UtcNow(clock);
         return await db.QrShareLinks.Where(x => x.Id == shareId && x.SecurePageId == pageId && x.RevokedAtUtc == null)
             .ExecuteUpdateAsync(s => s.SetProperty(x => x.RevokedAtUtc, now), ct) > 0;
     }
 
     public async Task<int> RevokeAllForPageAsync(long pageId, CancellationToken ct = default)
     {
-        var now = DateTime.UtcNow;
+        var now = QrShareTime.UtcNow(clock);
         return await db.QrShareLinks.Where(x => x.SecurePageId == pageId && x.RevokedAtUtc == null)
             .ExecuteUpdateAsync(s => s.SetProperty(x => x.RevokedAtUtc, now), ct);
     }

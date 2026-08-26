@@ -10,13 +10,36 @@ using SecureQrPortal.ViewModels;
 namespace SecureQrPortal.Controllers;
 
 [Route("q/share")]
-public sealed class QrShareController(
-    QrShareService shares,
-    TokenService tokens,
-    IDataProtectionProvider protection,
-    QrShareRuntimeInspector inspector) : Controller
+public sealed class QrShareController : Controller
 {
-    private readonly IDataProtector _receiptProtector = protection.CreateProtector("SecureQrPortal.QrShare.Receipt.v2");
+    private readonly QrShareService shares;
+    private readonly TokenService tokens;
+    private readonly QrShareRuntimeInspector inspector;
+    private readonly TimeProvider clock;
+    private readonly IDataProtector _receiptProtector;
+
+    public QrShareController(
+        QrShareService shares,
+        TokenService tokens,
+        IDataProtectionProvider protection,
+        QrShareRuntimeInspector inspector)
+        : this(shares, tokens, protection, inspector, TimeProvider.System)
+    {
+    }
+
+    public QrShareController(
+        QrShareService shares,
+        TokenService tokens,
+        IDataProtectionProvider protection,
+        QrShareRuntimeInspector inspector,
+        TimeProvider clock)
+    {
+        this.shares = shares;
+        this.tokens = tokens;
+        this.inspector = inspector;
+        this.clock = clock;
+        _receiptProtector = protection.CreateProtector("SecureQrPortal.QrShare.Receipt.v2");
+    }
 
     [HttpGet("{token}")]
     public async Task<IActionResult> Open(string token, bool inspect = false, CancellationToken ct = default)
@@ -34,10 +57,8 @@ public sealed class QrShareController(
             return View("Reveal", BuildRevealVm(share));
         }
 
-        var now = DateTime.UtcNow;
-        var canReveal = share.RevokedAtUtc is null &&
-                        share.ExpiresAtUtc > now &&
-                        share.CurrentOpenCount < share.MaxOpenCount;
+        var now = QrShareTime.UtcNow(clock);
+        var canReveal = QrShareTime.CanReveal(share, now);
         var ar = CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "ar";
         ViewBag.RevealRequestId = Guid.NewGuid().ToString("N");
         ViewBag.RuntimeInspectorEnabled = inspect;
@@ -174,7 +195,7 @@ public sealed class QrShareController(
         if (share.AccessWindowEndsAtUtc is not DateTime accessEnd)
             throw new InvalidOperationException("A revealed share must have an access-window deadline.");
 
-        var utcEnd = DateTime.SpecifyKind(accessEnd, DateTimeKind.Utc);
+        var utcEnd = QrShareTime.FromStorage(accessEnd);
         var payload = $"{share.Id}|{share.TokenHash}|{utcEnd.Ticks}";
         return _receiptProtector.Protect(payload);
     }
@@ -184,7 +205,6 @@ public sealed class QrShareController(
         if (share.AccessWindowEndsAtUtc is not DateTime accessEnd)
             return;
 
-        var utcEnd = DateTime.SpecifyKind(accessEnd, DateTimeKind.Utc);
         Response.Cookies.Append(
             ReceiptCookieName(share.Id),
             receipt,
@@ -195,7 +215,7 @@ public sealed class QrShareController(
                 SameSite = SameSiteMode.Lax,
                 IsEssential = true,
                 Path = "/q/share",
-                Expires = new DateTimeOffset(utcEnd)
+                Expires = QrShareTime.ToCookieExpiry(accessEnd)
             });
     }
 
@@ -215,8 +235,11 @@ public sealed class QrShareController(
     {
         if (string.IsNullOrWhiteSpace(receipt) ||
             share.RevokedAtUtc is not null ||
-            share.AccessWindowEndsAtUtc is not DateTime accessEnd ||
-            accessEnd <= DateTime.UtcNow)
+            share.AccessWindowEndsAtUtc is not DateTime accessEnd)
+            return false;
+
+        var utcEnd = QrShareTime.FromStorage(accessEnd);
+        if (utcEnd <= QrShareTime.UtcNow(clock))
             return false;
 
         try
@@ -228,9 +251,8 @@ public sealed class QrShareController(
                 !long.TryParse(parts[2], out var expiryTicks))
                 return false;
 
-            var expectedTicks = DateTime.SpecifyKind(accessEnd, DateTimeKind.Utc).Ticks;
             return shareId == share.Id &&
-                   expiryTicks == expectedTicks &&
+                   expiryTicks == utcEnd.Ticks &&
                    string.Equals(parts[1], share.TokenHash, StringComparison.Ordinal);
         }
         catch (CryptographicException)
@@ -268,14 +290,8 @@ public sealed class QrShareController(
         ViewBag.RuntimeInspectorLogPath = inspector.LogFilePath;
     }
 
-    private static string BlockReason(QrShareLink share)
-    {
-        var now = DateTime.UtcNow;
-        if (share.RevokedAtUtc is not null) return "REVOKED";
-        if (share.ExpiresAtUtc <= now) return "LINK_EXPIRED";
-        if (share.CurrentOpenCount >= share.MaxOpenCount) return "REVEAL_LIMIT_REACHED";
-        return "REVEAL_SERVICE_REJECTED";
-    }
+    private string BlockReason(QrShareLink share) =>
+        QrShareTime.BlockReason(share, QrShareTime.UtcNow(clock));
 
     private void PrepareSensitiveResponse()
     {
