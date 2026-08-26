@@ -1,7 +1,9 @@
 using System.Globalization;
+using System.Net;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Localization;
 using Microsoft.AspNetCore.Mvc;
@@ -70,6 +72,15 @@ builder.Services.AddSession(options =>
     options.Cookie.SameSite = SameSiteMode.Lax;
     options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
     options.IdleTimeout = TimeSpan.FromMinutes(builder.Configuration.GetValue("SecureQrPortal:SessionTimeoutMinutes", 20));
+});
+
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    options.ForwardLimit = 2;
+    foreach (var raw in builder.Configuration.GetSection("ReverseProxy:KnownProxies").Get<string[]>() ?? Array.Empty<string>())
+        if (IPAddress.TryParse(raw, out var address) && !options.KnownProxies.Contains(address))
+            options.KnownProxies.Add(address);
 });
 
 builder.Services.AddControllersWithViews(options =>
@@ -183,6 +194,10 @@ builder.Services.AddScoped<SecurePageAccessService>();
 builder.Services.AddScoped<AuditService>();
 builder.Services.AddScoped<AdminIdentityService>();
 builder.Services.AddScoped<AppSettingsService>();
+builder.Services.AddScoped<SecureMessageSecuritySettingsService>();
+builder.Services.AddScoped<SecureMessageEncryptionService>();
+builder.Services.AddScoped<SecureMessageKeyLifecycleProcessor>();
+builder.Services.AddHostedService<SecureMessageKeyLifecycleBackgroundService>();
 builder.Services.AddScoped<DatabaseSettingsService>();
 builder.Services.AddScoped<BackupService>();
 builder.Services.AddScoped<DemoDataService>();
@@ -208,6 +223,8 @@ builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddCaptchaSecurity();
 
 var app = builder.Build();
+
+app.UseForwardedHeaders();
 
 if (!app.Environment.IsDevelopment())
 {
