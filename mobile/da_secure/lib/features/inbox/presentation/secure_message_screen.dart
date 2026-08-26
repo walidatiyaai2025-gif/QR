@@ -1,4 +1,5 @@
 import 'package:da_secure/design_system/da_secure_theme.dart';
+import 'package:da_secure/localization/da_presentation_text.dart';
 import 'package:da_secure/localization/da_strings.dart';
 import 'package:da_secure/presentation/mobile_ui_contracts.dart';
 import 'package:flutter/material.dart';
@@ -49,6 +50,7 @@ class SecureMessageScreen extends StatelessWidget {
         );
       case SecureDeliveryUiPhase.ready:
       case SecureDeliveryUiPhase.success:
+        final locale = Localizations.localeOf(context);
         return ListView(
           padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
           children: [
@@ -84,10 +86,12 @@ class SecureMessageScreen extends StatelessWidget {
                   children: [
                     if (state.remainingRevealsLabel != null)
                       Text(
-                        '${strings.remainingReveals}: ${state.remainingRevealsLabel}',
+                        '${strings.remainingReveals}: ${DaPresentationText.isolateTechnical(state.remainingRevealsLabel!)}',
                       ),
                     if (state.expiryLabel != null)
-                      Text('${strings.expiresAt}: ${state.expiryLabel}'),
+                      Text(
+                        '${strings.expiresAt}: ${DaPresentationText.localizedRuntimeDate(state.expiryLabel!, locale)}',
+                      ),
                   ],
                 ),
               ),
@@ -118,10 +122,16 @@ class SecureMessageScreen extends StatelessWidget {
                     Icons.attach_file,
                     color: DaSecureColors.gold,
                   ),
-                  title: Text(attachment.name),
+                  title: Text(
+                    DaPresentationText.isolateDynamic(attachment.name),
+                  ),
                   subtitle: attachment.sizeLabel == null
                       ? null
-                      : Text(attachment.sizeLabel!),
+                      : Text(
+                          DaPresentationText.isolateTechnical(
+                            attachment.sizeLabel!,
+                          ),
+                        ),
                 ),
               ),
             ],
