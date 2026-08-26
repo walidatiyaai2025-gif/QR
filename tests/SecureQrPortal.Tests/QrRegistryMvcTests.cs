@@ -83,7 +83,7 @@ public sealed class QrRegistryMvcTests
         using var cultureSwitch = await client.GetAsync("/Localization/Switch?culture=ar&returnUrl=%2FAdmin%2FQr");
         Assert.Equal(HttpStatusCode.Redirect, cultureSwitch.StatusCode);
         using var response = await client.GetAsync("/Admin/Qr");
-        var html = await response.Content.ReadAsStringAsync();
+        var html = WebUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Contains("سجل رموز QR", html, StringComparison.Ordinal);
