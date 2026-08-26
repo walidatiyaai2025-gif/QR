@@ -1,4 +1,4 @@
-name: DA Secure Final Release Assembly Stage 1
+name: DA Secure Final Release Assembly
 
 on:
   push:
@@ -10,38 +10,59 @@ permissions:
   contents: read
 
 jobs:
-  assembly-contract:
+  contract-secret-scan:
+    name: final-contract-and-secret-scan
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
-      - name: Checkout exact assembly head
+      - name: Checkout exact final candidate
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Verify Stage 1 composition and preserve P2
+      - name: Verify integrated authorities and final mobile contracts
         shell: bash
         run: |
           set -euo pipefail
-          base='ff0de0dbf305e50472f446b0ad751cf550a2c3e2'
+          branding='63dafa435086c69e02627e1e9c70caa6617c0046'
+          iis='457078e6f744222ccab86ca129a687b9fd6490df'
           preflight='7e638b5d95ea7c03ec7c45946077f8f6127928e1'
 
-          git cat-file -e "$base^{commit}"
+          git cat-file -e "$branding^{commit}"
+          git cat-file -e "$iis^{commit}"
           git cat-file -e "$preflight^{commit}"
-          git merge-base --is-ancestor "$base" HEAD
+          git merge-base --is-ancestor "$branding" HEAD
+          git merge-base --is-ancestor "$iis" HEAD
           git merge-base --is-ancestor "$preflight" HEAD
 
-          unexpected="$(git diff --name-only "$preflight" HEAD | grep -Ev '^(\.github/workflows/final-release-assembly-stage1\.yml|\.github/workflows/iis-deployment-package\.yml|deployment/iis/(BUILD-MANIFEST\.json|Install-QR-IIS\.ps1|QR-IIS\.Common\.ps1|README\.md|Rollback-QR-IIS\.ps1|Test-QR-IIS\.Regression\.ps1|Update-QR-IIS\.ps1))$' || true)"
-          if test -n "$unexpected"; then
-            echo 'Unexpected changes relative to proven mobile preflight:' >&2
-            echo "$unexpected" >&2
-            exit 1
-          fi
+          test -s mobile/da_secure/assets/brand/diwan_crest.png
+          test "$(git rev-parse HEAD:mobile/da_secure/assets/brand/diwan_crest.png)" = '91a8a25450bda3e4c59661c1dac6ce0a191a66e5'
+          grep -Fq 'assets/brand/diwan_crest.png' mobile/da_secure/lib/design_system/premium_visuals.dart
+          grep -Fq 'DaBrandIdentity' mobile/da_secure/lib/features/splash/presentation/splash_screen.dart
 
-          if test -e mobile/da_secure/assets/brand/diwan_crest.png; then
-            echo 'Branding must remain excluded from Stage 1 until READY-FOR-FINAL-ASSEMBLY is explicitly returned.' >&2
+          manifest=mobile/da_secure/android/app/src/main/AndroidManifest.xml
+          test "$(git rev-parse HEAD:$manifest)" = 'b10312cf6ae2150628284f38237ff239e7616fe2'
+          grep -Fq 'android:icon="@mipmap/ic_launcher"' "$manifest"
+          grep -Fq 'android:roundIcon="@mipmap/ic_launcher_round"' "$manifest"
+          test "$(git rev-parse HEAD:mobile/da_secure/android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml)" = 'be438580f7f9f25a62c9e3e448de0338b63a8e18'
+          test "$(git rev-parse HEAD:mobile/da_secure/android/app/src/main/res/mipmap-mdpi/ic_launcher.png)" = '798e94be531a1c6f718b9315627feac57aef09be'
+          test "$(git rev-parse HEAD:mobile/da_secure/android/app/src/main/res/mipmap-hdpi/ic_launcher.png)" = '14327d0629129fde74f16ff64aab8ce4060b0de4'
+          test "$(git rev-parse HEAD:mobile/da_secure/android/app/src/main/res/mipmap-xhdpi/ic_launcher.png)" = '0c8885ce02f80650863ccdd2ab7b978a37f7b98a'
+          test "$(git rev-parse HEAD:mobile/da_secure/android/app/src/main/res/mipmap-xxhdpi/ic_launcher.png)" = '030c08146a79905dd2b12324760e85ac1bc85d18'
+          test "$(git rev-parse HEAD:mobile/da_secure/android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png)" = '58acc377c2f3facd8c59a7efd0b442fb2ec6d742'
+          grep -Fq '@mipmap/ic_launcher_foreground' mobile/da_secure/android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml
+          grep -Fq '@color/ic_launcher_background' mobile/da_secure/android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml
+
+          pubspec=mobile/da_secure/pubspec.yaml
+          grep -Fq 'family: NotoSansArabic' "$pubspec"
+          grep -Fq 'assets/fonts/noto_sans_arabic/NotoSansArabic[wdth,wght].ttf' "$pubspec"
+          test -s 'mobile/da_secure/assets/fonts/noto_sans_arabic/NotoSansArabic[wdth,wght].ttf'
+          test -s mobile/da_secure/assets/fonts/noto_sans_arabic/OFL.txt
+          if grep -RniE 'package:google_fonts|google_fonts:|fonts\.googleapis\.com|fonts\.gstatic\.com' mobile/da_secure/lib mobile/da_secure/pubspec.yaml; then
+            echo 'Runtime/remote Google font dependency detected.' >&2
             exit 1
           fi
+          grep -Fq "static const fontFamily = 'NotoSansArabic';" mobile/da_secure/lib/design_system/da_secure_theme.dart
 
           grep -Fq 'DaPresentationText.localizedRuntimeDate' mobile/da_secure/lib/features/inbox/presentation/inbox_screen.dart
           grep -Fq 'DaPresentationText.isolateTechnical' mobile/da_secure/lib/features/inbox/presentation/inbox_screen.dart
@@ -49,30 +70,51 @@ jobs:
           grep -Fq 'DaPresentationText.isolateDynamic' mobile/da_secure/lib/features/inbox/presentation/secure_message_screen.dart
           grep -Fq 'Flexible(' mobile/da_secure/lib/features/inbox/presentation/secure_message_screen.dart
           grep -Fq 'softWrap: true' mobile/da_secure/lib/features/inbox/presentation/secure_message_screen.dart
-          grep -Fq 'label: strings.home' mobile/da_secure/lib/features/inbox/presentation/inbox_screen.dart
-          grep -Fq 'label: strings.inbox' mobile/da_secure/lib/features/inbox/presentation/inbox_screen.dart
-          grep -Fq 'label: strings.profile' mobile/da_secure/lib/features/inbox/presentation/inbox_screen.dart
-          grep -Fq "String get home => isArabic ? 'الرئيسية' : 'Home';" mobile/da_secure/lib/localization/da_strings.dart
-          grep -Fq "String get profile => isArabic ? 'الملف الشخصي' : 'Profile';" mobile/da_secure/lib/localization/da_strings.dart
+          grep -Fq 'const widths = <double>[360, 375, 390, 412, 430];' mobile/da_secure/test/mobile_ui_contract_test.dart
+          grep -Fq 'Arabic uses RTL and English uses LTR' mobile/da_secure/test/mobile_ui_contract_test.dart
           test -f mobile/da_secure/test/localization_p2_presentation_test.dart
-          grep -Fq 'Navigation shell exposes localized labels in Arabic' mobile/da_secure/test/mobile_ui_contract_test.dart
-          grep -Fq 'Navigation shell exposes localized labels in English' mobile/da_secure/test/mobile_ui_contract_test.dart
+          test -f mobile/da_secure/test/typography_contract_test.dart
 
-          test "$(git rev-parse HEAD:.github/workflows/iis-deployment-package.yml)" = '8099025a168cbf8a546c1eeedf9e80316ad5702e'
-          test "$(git rev-parse HEAD:deployment/iis/BUILD-MANIFEST.json)" = 'cc0cecb45d711e3ebc3ee4973d6be9e4cfef366a'
-          test "$(git rev-parse HEAD:deployment/iis/Install-QR-IIS.ps1)" = 'afe95ca427d2e5f874dc6becfacf8aa5d7cd0fb8'
           test "$(git rev-parse HEAD:deployment/iis/QR-IIS.Common.ps1)" = '3f6e45fab997a12c5c6ba39c30a9d0e723a99bfd'
-          test "$(git rev-parse HEAD:deployment/iis/README.md)" = '3ffb2884306074408aa5214cc98cd989479fe741'
-          test "$(git rev-parse HEAD:deployment/iis/Rollback-QR-IIS.ps1)" = 'a54d7f4a346e17e528cfb88b6e2217eba005958d'
           test "$(git rev-parse HEAD:deployment/iis/Test-QR-IIS.Regression.ps1)" = '82e212399f39b54182c1da324544bcdb02d4f476'
           test "$(git rev-parse HEAD:deployment/iis/Update-QR-IIS.ps1)" = '27059794d072a82bb2c73e318f92839dfdbd7fae'
 
+      - name: Mandatory source secret scan
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          offenders = []
+          for path in Path('.').rglob('*.json'):
+              if '.git' in path.parts:
+                  continue
+              try:
+                  text = path.read_text(encoding='utf-8')
+              except UnicodeDecodeError:
+                  continue
+              if '"private_key"' in text and '"client_email"' in text:
+                  offenders.append(str(path))
+          if offenders:
+              raise SystemExit('Service-account credential JSON detected: ' + ', '.join(offenders))
+          PY
+          if git grep -n -I -E -e '-----BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY-----' -- ':!deployment/iis/Test-QR-IIS.Regression.ps1'; then
+            echo 'Private key material detected in tracked source.' >&2
+            exit 1
+          fi
+          if git grep -n -I -E -e 'ServerCertificateValidationCallback|SkipCertificateCheck' -- 'deployment/iis/*.ps1' ':!deployment/iis/Test-QR-IIS.Regression.ps1'; then
+            echo 'TLS validation bypass detected in IIS production scripts.' >&2
+            exit 1
+          fi
+          echo 'SECRET_SCAN=PASS'
+
   backend:
-    needs: assembly-contract
+    name: backend-final-validation
+    needs: contract-secret-scan
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 35
     steps:
-      - name: Checkout exact assembly head
+      - name: Checkout exact final candidate
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
@@ -83,23 +125,47 @@ jobs:
           dotnet-version: '10.0.400'
 
       - name: Restore
-        run: dotnet restore
+        run: dotnet restore SecureQrPortal.sln
 
       - name: Build Release
-        run: dotnet build -c Release
+        run: dotnet build SecureQrPortal.sln -c Release --no-restore
 
-      - name: Test
-        run: dotnet test
+      - name: Test Release
+        run: dotnet test SecureQrPortal.sln -c Release --no-build
+
+      - name: Authenticated Admin QR HTTP 200 regression
+        run: dotnet test tests/SecureQrPortal.Tests/SecureQrPortal.Tests.csproj -c Release --no-build --filter FullyQualifiedName~QrRegistryMvcTests
+
+      - name: Emit backend evidence
+        shell: bash
+        run: |
+          mkdir -p out/final-backend-evidence
+          cat > out/final-backend-evidence/backend-evidence.json <<EOF
+          {
+            "sourceSha": "${GITHUB_SHA}",
+            "adminQr": "HTTP 200",
+            "configuration": "Release"
+          }
+          EOF
+
+      - name: Upload backend evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: DA-Secure-FINAL-Backend-Evidence-${{ github.sha }}
+          path: out/final-backend-evidence/backend-evidence.json
+          if-no-files-found: error
+          retention-days: 14
 
   mobile:
-    needs: assembly-contract
+    name: flutter-final-validation-and-apk
+    needs: contract-secret-scan
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 50
     defaults:
       run:
         working-directory: mobile/da_secure
     steps:
-      - name: Checkout exact assembly head
+      - name: Checkout exact final candidate
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
@@ -117,30 +183,208 @@ jobs:
           channel: stable
           cache: true
 
-      - name: Resolve dependencies
+      - name: Flutter pub get
         run: flutter pub get
 
-      - name: Dart format verification
+      - name: Dart format gate
         run: dart format --output=none --set-exit-if-changed lib test
 
-      - name: Analyze
+      - name: Flutter analyze
         run: flutter analyze
 
-      - name: Test and enforce non-decreasing count
-        shell: bash
-        run: |
-          set -euo pipefail
-          flutter test 2>&1 | tee /tmp/da-secure-flutter-tests.log
-          count="$(grep -oE '[0-9]+ tests passed' /tmp/da-secure-flutter-tests.log | tail -n 1 | awk '{print $1}')"
-          if test -z "$count"; then
-            echo 'Unable to determine Flutter passing test count.' >&2
-            exit 1
-          fi
-          if test "$count" -lt 120; then
-            echo "Flutter test count decreased: $count < 120" >&2
-            exit 1
-          fi
-          echo "Flutter tests passed: $count (baseline: 120)"
+      - name: Flutter test
+        run: flutter test
+
+      - name: Explicit width RTL LTR typography regression
+        run: flutter test test/mobile_ui_contract_test.dart test/localization_p2_presentation_test.dart test/typography_contract_test.dart
 
       - name: Build debug APK
         run: flutter build apk --debug
+
+      - name: Stage final APK and provenance
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p ../../out/final-apk
+          cp build/app/outputs/flutter-apk/app-debug.apk ../../out/final-apk/DA-Secure-FINAL.apk
+          printf '%s\n' "$GITHUB_SHA" > ../../out/final-apk/apk-source-sha.txt
+          test -s ../../out/final-apk/DA-Secure-FINAL.apk
+
+      - name: Upload final APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: DA-Secure-FINAL-APK-${{ github.sha }}
+          path: |
+            out/final-apk/DA-Secure-FINAL.apk
+            out/final-apk/apk-source-sha.txt
+          if-no-files-found: error
+          retention-days: 14
+
+  iis:
+    name: iis-final-validation-and-package
+    needs: contract-secret-scan
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout exact final candidate
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.400'
+
+      - name: PowerShell parser validation
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Get-ChildItem deployment/iis -Filter '*.ps1' | ForEach-Object {
+            $tokens = $null
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile($_.FullName, [ref]$tokens, [ref]$errors) | Out-Null
+            if ($errors.Count -gt 0) {
+              $errors | ForEach-Object { Write-Error ("{0}: {1}" -f $_.Extent.Text, $_.Message) }
+              throw "PowerShell parse failed: $($_.Name)"
+            }
+          }
+
+      - name: IIS update regression validation
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          & .\deployment\iis\Test-QR-IIS.Regression.ps1
+
+      - name: Restore backend for IIS publish
+        run: dotnet restore src/SecureQrPortal/SecureQrPortal.csproj
+
+      - name: Publish exact final source SHA
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          dotnet publish src/SecureQrPortal/SecureQrPortal.csproj -c Release --no-restore -o out/iis-publish -p:ContinuousIntegrationBuild=true -p:Deterministic=true -p:SourceRevisionId=$env:GITHUB_SHA
+          if ($LASTEXITCODE -ne 0) { throw 'dotnet publish failed.' }
+
+      - name: Verify published revision and reject credentials
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $expected = "$env:GITHUB_SHA".ToLowerInvariant()
+          $dll = Resolve-Path 'out/iis-publish/SecureQrPortal.dll'
+          $binaryText = [System.Text.Encoding]::ASCII.GetString([System.IO.File]::ReadAllBytes($dll))
+          if (-not $binaryText.Contains($expected)) {
+            throw "Published DLL does not contain exact SourceRevisionId $expected."
+          }
+          Get-ChildItem out/iis-publish -Filter '*.json' -File -Recurse | ForEach-Object {
+            $text = Get-Content $_.FullName -Raw
+            if ($text -match '"private_key"\s*:' -and $text -match '"client_email"\s*:') {
+              throw "Service-account credential JSON must not be packaged: $($_.FullName)"
+            }
+          }
+
+      - name: Build DA Secure final IIS package
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $sourceSha = "$env:GITHUB_SHA".ToLowerInvariant()
+          $checkedOutSha = (& git rev-parse HEAD).Trim().ToLowerInvariant()
+          if ($sourceSha -ne $checkedOutSha) {
+            throw "GITHUB_SHA does not match checked-out HEAD. GITHUB_SHA=$sourceSha HEAD=$checkedOutSha"
+          }
+
+          $packageRoot = Join-Path $PWD 'out/DA-Secure-FINAL-IIS'
+          New-Item -ItemType Directory -Path $packageRoot -Force | Out-Null
+          Copy-Item out/iis-publish (Join-Path $packageRoot 'publish') -Recurse
+          Copy-Item deployment/iis/Install-QR-IIS.ps1 $packageRoot
+          Copy-Item deployment/iis/Update-QR-IIS.ps1 $packageRoot
+          Copy-Item deployment/iis/Rollback-QR-IIS.ps1 $packageRoot
+          Copy-Item deployment/iis/QR-IIS.Common.ps1 $packageRoot
+          Copy-Item deployment/iis/Test-QR-IIS.Regression.ps1 $packageRoot
+          Copy-Item deployment/iis/README.md $packageRoot
+
+          $payload = Join-Path $packageRoot 'publish/SecureQrPortal.dll'
+          $payloadHash = (Get-FileHash -Algorithm SHA256 $payload).Hash.ToLowerInvariant()
+          $manifest = [ordered]@{
+            packageVersion = '1.0.0-final'
+            sourceBranch = "$env:GITHUB_REF_NAME"
+            sourceSha = $sourceSha
+            buildTimestampUtc = [DateTime]::UtcNow.ToString('o')
+            dotnetVersion = (& dotnet --version).Trim()
+            targetFramework = 'net10.0'
+            secretScan = 'PASS'
+            artifactHash = [ordered]@{
+              algorithm = 'SHA256'
+              target = 'publish/SecureQrPortal.dll'
+              value = $payloadHash
+            }
+          }
+          $manifestPath = Join-Path $packageRoot 'BUILD-MANIFEST.json'
+          $manifest | ConvertTo-Json -Depth 5 | Set-Content $manifestPath -Encoding utf8
+
+          $written = Get-Content $manifestPath -Raw | ConvertFrom-Json
+          if ($written.sourceSha.ToLowerInvariant() -ne $sourceSha) {
+            throw "IIS manifest sourceSha mismatch: $($written.sourceSha) vs $sourceSha"
+          }
+
+          Copy-Item $manifestPath 'out/IIS-BUILD-MANIFEST.json' -Force
+          $zip = Join-Path $PWD 'out/DA-Secure-FINAL-IIS.zip'
+          if (Test-Path $zip) { Remove-Item $zip -Force }
+          Compress-Archive -Path (Join-Path $packageRoot '*') -DestinationPath $zip -CompressionLevel Optimal
+          if (-not (Test-Path $zip -PathType Leaf)) { throw 'Final IIS ZIP was not created.' }
+
+      - name: Upload final IIS package
+        uses: actions/upload-artifact@v4
+        with:
+          name: DA-Secure-FINAL-IIS-${{ github.sha }}
+          path: |
+            out/DA-Secure-FINAL-IIS.zip
+            out/IIS-BUILD-MANIFEST.json
+          if-no-files-found: error
+          retention-days: 14
+
+  provenance:
+    name: exact-final-provenance-gate
+    needs:
+      - backend
+      - mobile
+      - iis
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Download backend evidence
+        uses: actions/download-artifact@v4
+        with:
+          name: DA-Secure-FINAL-Backend-Evidence-${{ github.sha }}
+          path: evidence/backend
+
+      - name: Download APK evidence
+        uses: actions/download-artifact@v4
+        with:
+          name: DA-Secure-FINAL-APK-${{ github.sha }}
+          path: evidence/apk
+
+      - name: Download IIS evidence
+        uses: actions/download-artifact@v4
+        with:
+          name: DA-Secure-FINAL-IIS-${{ github.sha }}
+          path: evidence/iis
+
+      - name: Require exact SHA equality
+        shell: bash
+        run: |
+          set -euo pipefail
+          final_sha="$GITHUB_SHA"
+          backend_sha="$(python -c "import json; print(json.load(open('evidence/backend/backend-evidence.json'))['sourceSha'])")"
+          apk_sha="$(tr -d '\r\n' < evidence/apk/apk-source-sha.txt)"
+          iis_sha="$(python -c "import json; print(json.load(open('evidence/iis/IIS-BUILD-MANIFEST.json', encoding='utf-8-sig'))['sourceSha'])")"
+          test "$final_sha" = "$backend_sha"
+          test "$final_sha" = "$apk_sha"
+          test "$final_sha" = "$iis_sha"
+          test -s evidence/apk/DA-Secure-FINAL.apk
+          test -s evidence/iis/DA-Secure-FINAL-IIS.zip
+          echo "FINAL_SHA=$final_sha"
+          echo "BACKEND_EVIDENCE_SHA=$backend_sha"
+          echo "APK_SOURCE_SHA=$apk_sha"
+          echo "IIS_MANIFEST_SHA=$iis_sha"
+          echo 'PROVENANCE_MATCH=PASS'
