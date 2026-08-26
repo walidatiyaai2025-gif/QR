@@ -80,11 +80,100 @@ public sealed class QrShareTests
             var verified = await service.VerifyCredentialAsync(page.Id, first.Share.Username, first.Password);
             Assert.True(verified.Success);
             Assert.NotNull(verified.HardExpiresAtUtc);
+            Assert.Equal(DateTimeKind.Utc, verified.HardExpiresAtUtc!.Value.Kind);
+            Assert.InRange(
+                verified.HardExpiresAtUtc.Value - DateTime.UtcNow,
+                TimeSpan.FromMinutes(14),
+                TimeSpan.FromMinutes(15));
         }
         finally
         {
             Directory.Delete(keyDir, true);
         }
+    }
+
+    [Fact]
+    public async Task Sqlite_unspecified_utc_clock_is_not_shifted_when_share_credential_is_verified()
+    {
+        await using var connection = new SqliteConnection("Data Source=:memory:");
+        await connection.OpenAsync();
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>().UseSqlite(connection).Options;
+        await using var db = new ApplicationDbContext(options);
+        await db.Database.EnsureCreatedAsync();
+
+        var now = DateTime.UtcNow;
+        var expectedEnd = DateTime.SpecifyKind(now.AddMinutes(15), DateTimeKind.Unspecified);
+        var org = new Organization { NameArabic = "جهة", NameEnglish = "Org", IsActive = true };
+        var page = new SecurePage
+        {
+            Organization = org,
+            QrReference = "QR-2026-UTC001",
+            PublicTokenHash = new string('C', 64),
+            ProtectedPublicToken = "protected",
+            TitleArabic = "صفحة",
+            TitleEnglish = "Page",
+            IsActive = true
+        };
+        var share = new QrShareLink
+        {
+            SecurePage = page,
+            TokenHash = new string('D', 64),
+            ProtectedToken = "protected",
+            Username = "utc-user",
+            ProtectedPassword = "protected",
+            MaxOpenCount = 1,
+            CurrentOpenCount = 1,
+            SessionDurationMinutes = 15,
+            ExpiresAtUtc = DateTime.SpecifyKind(now.AddHours(1), DateTimeKind.Unspecified),
+            AccessWindowEndsAtUtc = expectedEnd,
+            CreatedAtUtc = DateTime.SpecifyKind(now, DateTimeKind.Unspecified)
+        };
+        share.PasswordHash = new PasswordHasher<QrShareLink>().HashPassword(share, "Utc#2026");
+        db.QrShareLinks.Add(share);
+        await db.SaveChangesAsync();
+        db.ChangeTracker.Clear();
+
+        var materialized = await db.QrShareLinks.AsNoTracking().SingleAsync();
+        Assert.Equal(DateTimeKind.Unspecified, materialized.AccessWindowEndsAtUtc!.Value.Kind);
+
+        var keyDir = Path.Combine(Path.GetTempPath(), "qr-share-utc-tests-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(keyDir);
+        try
+        {
+            var service = new QrShareService(db, DataProtectionProvider.Create(new DirectoryInfo(keyDir)));
+            var verified = await service.VerifyCredentialAsync(page.Id, "utc-user", "Utc#2026");
+
+            Assert.True(verified.Success);
+            Assert.NotNull(verified.HardExpiresAtUtc);
+            Assert.Equal(DateTimeKind.Utc, verified.HardExpiresAtUtc!.Value.Kind);
+            Assert.Equal(expectedEnd.Ticks, verified.HardExpiresAtUtc.Value.Ticks);
+            Assert.EndsWith("Z", verified.HardExpiresAtUtc.Value.ToString("O"), StringComparison.Ordinal);
+            Assert.InRange(
+                verified.HardExpiresAtUtc.Value - now,
+                TimeSpan.FromMinutes(14.99),
+                TimeSpan.FromMinutes(15.01));
+        }
+        finally
+        {
+            Directory.Delete(keyDir, true);
+        }
+    }
+
+    [Fact]
+    public void Utc_normalization_preserves_clock_ticks_for_a_one_hour_link_and_real_expiry()
+    {
+        var now = new DateTime(2026, 8, 26, 12, 0, 0, DateTimeKind.Utc);
+        var persistedOneHourEnd = DateTime.SpecifyKind(now.AddHours(1), DateTimeKind.Unspecified);
+        var persistedExpiredEnd = DateTime.SpecifyKind(now.AddSeconds(-1), DateTimeKind.Unspecified);
+
+        var activeEnd = QrShareUtcClock.AsUtc(persistedOneHourEnd);
+        var expiredEnd = QrShareUtcClock.AsUtc(persistedExpiredEnd);
+
+        Assert.Equal(persistedOneHourEnd.Ticks, activeEnd.Ticks);
+        Assert.Equal(DateTimeKind.Utc, activeEnd.Kind);
+        Assert.Equal(TimeSpan.FromHours(1), activeEnd - now);
+        Assert.True(activeEnd > now);
+        Assert.True(expiredEnd <= now);
     }
 
     [Fact]

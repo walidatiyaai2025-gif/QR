@@ -10,7 +10,7 @@
     var publicPath = currentPath.EndsWith("/content", StringComparison.OrdinalIgnoreCase) ? currentPath[..^8] : currentPath;
     var secureUrl = $"{Context.Request.Scheme}://{Context.Request.Host}{Context.Request.PathBase}{publicPath}";
     var pageExpiry = Model.ExpiresAtUtc;
-    DateTime? hardExpiry = ViewBag.HardSessionExpiresAtUtc is DateTime dt ? dt : null;
+    DateTime? hardExpiry = ViewBag.HardSessionExpiresAtUtc is DateTime dt ? QrShareUtcClock.AsUtc(dt) : null;
     ViewData["Title"] = title;
 }
 
@@ -50,9 +50,7 @@
     var hardEndForScript = hardExpiry.GetValueOrDefault();
 <script>
 (function(){
-  const raw='@hardEndForScript.ToString("O")';
-  const utc=raw.endsWith('Z')?raw:raw+'Z';
-  const expires=Date.parse(utc);
+  const expires=Date.parse('@hardEndForScript.ToString("O")');
   function closeWhenExpired(){
     if (Date.now() >= expires) { window.location.replace(window.location.href); return; }
     window.setTimeout(closeWhenExpired, Math.min(1000, expires - Date.now()));

@@ -174,7 +174,7 @@ public sealed class QrShareController(
         if (share.AccessWindowEndsAtUtc is not DateTime accessEnd)
             throw new InvalidOperationException("A revealed share must have an access-window deadline.");
 
-        var utcEnd = DateTime.SpecifyKind(accessEnd, DateTimeKind.Utc);
+        var utcEnd = QrShareUtcClock.AsUtc(accessEnd);
         var payload = $"{share.Id}|{share.TokenHash}|{utcEnd.Ticks}";
         return _receiptProtector.Protect(payload);
     }
@@ -184,7 +184,7 @@ public sealed class QrShareController(
         if (share.AccessWindowEndsAtUtc is not DateTime accessEnd)
             return;
 
-        var utcEnd = DateTime.SpecifyKind(accessEnd, DateTimeKind.Utc);
+        var utcEnd = QrShareUtcClock.AsUtc(accessEnd);
         Response.Cookies.Append(
             ReceiptCookieName(share.Id),
             receipt,
@@ -216,7 +216,7 @@ public sealed class QrShareController(
         if (string.IsNullOrWhiteSpace(receipt) ||
             share.RevokedAtUtc is not null ||
             share.AccessWindowEndsAtUtc is not DateTime accessEnd ||
-            accessEnd <= DateTime.UtcNow)
+            QrShareUtcClock.AsUtc(accessEnd) <= DateTime.UtcNow)
             return false;
 
         try
@@ -228,7 +228,7 @@ public sealed class QrShareController(
                 !long.TryParse(parts[2], out var expiryTicks))
                 return false;
 
-            var expectedTicks = DateTime.SpecifyKind(accessEnd, DateTimeKind.Utc).Ticks;
+            var expectedTicks = QrShareUtcClock.AsUtc(accessEnd).Ticks;
             return shareId == share.Id &&
                    expiryTicks == expectedTicks &&
                    string.Equals(parts[1], share.TokenHash, StringComparison.Ordinal);

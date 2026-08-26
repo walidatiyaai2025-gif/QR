@@ -108,7 +108,7 @@ public sealed class QrShareService(ApplicationDbContext db, IDataProtectionProvi
         if (string.Equals(candidate.LastRevealRequestHash, requestHash, StringComparison.Ordinal) &&
             candidate.CurrentOpenCount > 0 &&
             candidate.AccessWindowEndsAtUtc is DateTime existingEnd &&
-            existingEnd > now)
+            QrShareUtcClock.AsUtc(existingEnd) > now)
         {
             return await LoadRevealResultAsync(candidate.Id, ct);
         }
@@ -139,7 +139,7 @@ public sealed class QrShareService(ApplicationDbContext db, IDataProtectionProvi
             raced.RevokedAtUtc is null &&
             raced.CurrentOpenCount > 0 &&
             raced.AccessWindowEndsAtUtc is DateTime racedEnd &&
-            racedEnd > DateTime.UtcNow &&
+            QrShareUtcClock.AsUtc(racedEnd) > DateTime.UtcNow &&
             string.Equals(raced.LastRevealRequestHash, requestHash, StringComparison.Ordinal))
         {
             return await LoadRevealResultAsync(candidate.Id, ct);
@@ -179,7 +179,10 @@ public sealed class QrShareService(ApplicationDbContext db, IDataProtectionProvi
         foreach (var share in candidates)
         {
             if (hasher.VerifyHashedPassword(share, share.PasswordHash, password) != PasswordVerificationResult.Failed)
-                return new QrShareCredentialResult(true, share.AccessWindowEndsAtUtc, share.Id);
+                return new QrShareCredentialResult(
+                    true,
+                    QrShareUtcClock.AsUtc(share.AccessWindowEndsAtUtc!.Value),
+                    share.Id);
         }
 
         return QrShareCredentialResult.Failed;

@@ -5,7 +5,7 @@
     var brandName = Branding.Name(ar);
     ViewData["Title"] = ar ? "بيانات الوصول الآمن" : "Secure access credentials";
     var rawEnd = Model.Share.AccessWindowEndsAtUtc ?? DateTime.UtcNow;
-    var endUtc = rawEnd.Kind == DateTimeKind.Utc ? rawEnd : DateTime.SpecifyKind(rawEnd, DateTimeKind.Utc);
+    var endUtc = QrShareUtcClock.AsUtc(rawEnd);
 }
 <section class="public-center share-shell">
     <div class="premium-card share-card">

@@ -53,7 +53,9 @@ public sealed class PublicQrController(
         HttpContext.Session.SetString(AuthKey(page.Id), hash);
         HttpContext.Session.Remove(CountedKey(page.Id, hash));
         if (verification.HardExpiresAtUtc.HasValue)
-            HttpContext.Session.SetString(HardExpiryKey(page.Id), verification.HardExpiresAtUtc.Value.ToString("O"));
+            HttpContext.Session.SetString(
+                HardExpiryKey(page.Id),
+                QrShareUtcClock.AsUtc(verification.HardExpiresAtUtc.Value).ToString("O"));
         else
             HttpContext.Session.Remove(HardExpiryKey(page.Id));
 
@@ -74,7 +76,7 @@ public sealed class PublicQrController(
         DateTime? hardExpiry = null;
         if (!string.IsNullOrWhiteSpace(hardExpiryRaw) && DateTime.TryParse(hardExpiryRaw, null, DateTimeStyles.RoundtripKind, out var parsed))
         {
-            hardExpiry = parsed.ToUniversalTime();
+            hardExpiry = QrShareUtcClock.AsUtc(parsed);
             if (DateTime.UtcNow >= hardExpiry.Value)
             {
                 ClearAuthSession(page.Id, hash);

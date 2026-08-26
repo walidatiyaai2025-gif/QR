@@ -1,0 +1,55 @@
+name: DA Secure QR Share Clock Emergency Hotfix
+
+on:
+  push:
+    branches:
+      - hotfix/qr-share-utc-expiry-emergency
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate-and-publish-dll:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.400'
+
+      - name: Restore
+        run: dotnet restore SecureQrPortal.sln
+
+      - name: Build Release
+        run: dotnet build SecureQrPortal.sln -c Release --no-restore
+
+      - name: Test Release
+        run: dotnet test SecureQrPortal.sln -c Release --no-build
+
+      - name: Publish emergency DLL
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          dotnet publish src/SecureQrPortal/SecureQrPortal.csproj -c Release -o ./artifacts/qr-clock-hotfix --no-restore -p:SourceRevisionId=${{ github.sha }}
+          $artifact = './artifacts/DA-Secure-QR-Clock-Hotfix-DLL'
+          New-Item -ItemType Directory -Path $artifact -Force | Out-Null
+          Copy-Item './artifacts/qr-clock-hotfix/SecureQrPortal.dll' $artifact
+          $hash = (Get-FileHash "$artifact/SecureQrPortal.dll" -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  SecureQrPortal.dll" | Set-Content "$artifact/SHA256.txt" -Encoding ascii
+          $files = @(Get-ChildItem $artifact -File)
+          if ($files.Count -ne 2 -or 'SecureQrPortal.dll' -notin $files.Name -or 'SHA256.txt' -notin $files.Name) {
+            throw 'Emergency artifact must contain only SecureQrPortal.dll and SHA256.txt.'
+          }
+          Write-Host "DLL_SHA256=$hash"
+
+      - name: Upload emergency DLL artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: DA-Secure-QR-Clock-Hotfix-DLL
+          path: artifacts/DA-Secure-QR-Clock-Hotfix-DLL
+          if-no-files-found: error
+          retention-days: 30
