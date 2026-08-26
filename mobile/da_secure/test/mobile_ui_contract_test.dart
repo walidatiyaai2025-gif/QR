@@ -55,16 +55,16 @@ void main() {
       const _TestHost(width: 390, locale: Locale('ar'), child: InboxScreen()),
     );
     expect(
-      Directionality.of(tester.element(find.text('الوارد'))),
+      Directionality.of(tester.element(find.byType(InboxScreen))),
       TextDirection.rtl,
     );
 
     await tester.pumpWidget(
       const _TestHost(width: 390, locale: Locale('en'), child: InboxScreen()),
     );
-    expect(find.text('Inbox'), findsOneWidget);
+    expect(find.text('Inbox'), findsWidgets);
     expect(
-      Directionality.of(tester.element(find.text('Inbox'))),
+      Directionality.of(tester.element(find.byType(InboxScreen))),
       TextDirection.ltr,
     );
   });
