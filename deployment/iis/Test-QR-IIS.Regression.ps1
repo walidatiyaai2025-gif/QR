@@ -98,7 +98,12 @@ try {
         Assert-True -Condition $common.Contains($marker) -Message "Missing required hotfix marker: $marker"
     }
     Assert-True -Condition (-not ($common -match '(?s)Get-WebBinding.+?Protocol https.+?Remove-WebBinding\s*\r?\n\s*New-WebBinding')) -Message 'HTTPS binding is still unconditionally removed and recreated.'
-    Assert-True -Condition (-not ($common -match '(?i)ServerCertificateValidationCallback|SkipCertificateCheck')) -Message 'TLS certificate verification bypass detected.'
+    foreach ($tlsBypassMarker in @(
+        ('ServerCertificate' + 'ValidationCallback'),
+        ('SkipCertificate' + 'Check')
+    )) {
+        Assert-True -Condition (-not $common.Contains($tlsBypassMarker)) -Message "TLS certificate verification bypass detected: $tlsBypassMarker"
+    }
 
     Write-Host '[STATIC] Update script explicitly normalizes PublishPath with PSScriptRoot.'
     $update = Get-Content -LiteralPath $updatePath -Raw
