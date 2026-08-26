@@ -1,0 +1,28 @@
+.code,
+.secure-url-admin > span,
+.url-cell .ellipsis {
+    direction: ltr;
+    unicode-bidi: isolate;
+    text-align: start;
+}
+
+.kv dd,
+.qr-registry-table td,
+.mobile-card .row > :last-child {
+    unicode-bidi: plaintext;
+}
+
+.timeline-item small {
+    direction: ltr;
+    unicode-bidi: isolate;
+    text-align: start;
+}
+
+.bidi-technical {
+    direction: ltr;
+    unicode-bidi: isolate;
+}
+
+.bidi-auto {
+    unicode-bidi: plaintext;
+}
