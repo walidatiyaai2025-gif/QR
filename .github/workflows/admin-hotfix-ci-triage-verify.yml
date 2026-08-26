@@ -1,0 +1,57 @@
+name: DA Secure Admin Hotfix CI Triage Verify
+
+on:
+  push:
+    branches:
+      - worker/da-secure-admin-hotfix-ci-triage
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backend-ci-triage:
+    name: targeted-then-full-backend
+    runs-on: windows-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout exact triage head
+        uses: actions/checkout@v4
+
+      - name: Install .NET 10 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.400'
+
+      - name: Restore
+        shell: pwsh
+        run: dotnet restore SecureQrPortal.sln
+
+      - name: Build Release
+        shell: pwsh
+        run: dotnet build SecureQrPortal.sln --configuration Release --no-restore
+
+      - name: Reproduce targeted localization and QR tests
+        shell: pwsh
+        run: >-
+          dotnet test SecureQrPortal.sln --configuration Release --no-build
+          --filter "FullyQualifiedName=SecureQrPortal.Tests.AdminHotfixLocalizationTests.Admin_mobile_delivery_history_renders_localized_status_labels|FullyQualifiedName=SecureQrPortal.Tests.AdminHotfixLocalizationTests.Arabic_admin_branding_help_is_not_english_only|FullyQualifiedName=SecureQrPortal.Tests.QrRegistryMvcTests.Qr_registry_renders_with_real_organization_linked_secure_page"
+          --logger "trx;LogFileName=admin-hotfix-ci-triage-targeted.trx"
+          --results-directory TestResults/Targeted
+
+      - name: Full backend tests
+        shell: pwsh
+        run: >-
+          dotnet test SecureQrPortal.sln --configuration Release --no-build
+          --logger "trx;LogFileName=admin-hotfix-ci-triage-full.trx"
+          --results-directory TestResults/Full
+
+      - name: Upload triage test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: da-secure-admin-hotfix-ci-triage-results
+          path: TestResults/**/*.trx
+          if-no-files-found: error
+          retention-days: 14
