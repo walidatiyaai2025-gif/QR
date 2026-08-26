@@ -68,6 +68,7 @@ public sealed class MobileDelivery
     [MaxLength(40)] public string DeliveryStatus { get; set; } = "CREATED";
     [MaxLength(40)] public string? FirebaseStatus { get; set; }
     [MaxLength(200)] public string? FirebaseProviderMessageId { get; set; }
+    [MaxLength(128)] public string? FirebaseErrorCode { get; set; }
     public DateTime? ExpiresAtUtc { get; set; }
     public DateTime? FirstRevealedAtUtc { get; set; }
     public DateTime? RevokedAtUtc { get; set; }
@@ -77,7 +78,32 @@ public sealed class MobileDelivery
     public DateTime? NextReminderAtUtc { get; set; }
     public DateTime? LastReminderAtUtc { get; set; }
     public int ReminderCount { get; set; }
+    public int ReminderSequence { get; set; }
+    public DateTime? ReminderCycleStartedAtUtc { get; set; }
+    public DateTime? ReminderCycleCompletedAtUtc { get; set; }
+    [MaxLength(64)] public string? ProcessingLeaseId { get; set; }
+    public DateTime? ProcessingLeaseUntilUtc { get; set; }
     [MaxLength(36)] public string ConcurrencyStamp { get; set; } = Guid.NewGuid().ToString("N");
+}
+
+public sealed class MobilePushAttempt
+{
+    public long Id { get; set; }
+    public long MobileDeliveryId { get; set; }
+    public MobileDelivery MobileDelivery { get; set; } = null!;
+    public long? MobileDeviceId { get; set; }
+    [MaxLength(20)] public string Kind { get; set; } = string.Empty;
+    public int Sequence { get; set; }
+    public int RetryNumber { get; set; }
+    [MaxLength(256)] public string CorrelationKey { get; set; } = string.Empty;
+    [MaxLength(128)] public string DeviceId { get; set; } = string.Empty;
+    [MaxLength(64)] public string FcmTokenHash { get; set; } = string.Empty;
+    public DateTime CreatedAtUtc { get; set; }
+    public DateTime? CompletedAtUtc { get; set; }
+    [MaxLength(40)] public string Outcome { get; set; } = "PENDING";
+    [MaxLength(200)] public string? ProviderMessageId { get; set; }
+    [MaxLength(128)] public string? ProviderErrorCode { get; set; }
+    public bool PermanentFailure { get; set; }
 }
 
 public sealed class MobileRevealGrant

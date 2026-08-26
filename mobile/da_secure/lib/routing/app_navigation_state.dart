@@ -1,11 +1,6 @@
 import 'package:flutter/foundation.dart';
 
-enum MobileAuthStage {
-  mobileNumber,
-  otp,
-  biometricOffer,
-  authenticated,
-}
+enum MobileAuthStage { mobileNumber, otp, biometricOffer, authenticated }
 
 class AppNavigationState extends ChangeNotifier {
   MobileAuthStage _stage = MobileAuthStage.mobileNumber;

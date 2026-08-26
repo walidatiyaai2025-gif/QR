@@ -9,13 +9,17 @@ class InboxScreen extends StatelessWidget {
   const InboxScreen({
     this.state = const InboxUiState(),
     this.onRetry,
+    this.onRefresh,
     this.onOpenDelivery,
+    this.onLogout,
     super.key,
   });
 
   final InboxUiState state;
   final VoidCallback? onRetry;
+  final Future<void> Function()? onRefresh;
   final OpenDeliveryCallback? onOpenDelivery;
+  final Future<void> Function()? onLogout;
 
   @override
   Widget build(BuildContext context) {
@@ -25,6 +29,14 @@ class InboxScreen extends StatelessWidget {
       appBar: AppBar(
         title: Text(state.organizationName ?? strings.appName),
         centerTitle: true,
+        actions: [
+          if (onLogout != null)
+            IconButton(
+              tooltip: strings.signOut,
+              onPressed: onLogout,
+              icon: const Icon(Icons.logout),
+            ),
+        ],
       ),
       body: SafeArea(
         child: Padding(
@@ -58,18 +70,9 @@ class InboxScreen extends StatelessWidget {
       bottomNavigationBar: NavigationBar(
         selectedIndex: 1,
         destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.home_outlined),
-            label: '',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.inbox_outlined),
-            label: '',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.person_outline),
-            label: '',
-          ),
+          NavigationDestination(icon: Icon(Icons.home_outlined), label: ''),
+          NavigationDestination(icon: Icon(Icons.inbox_outlined), label: ''),
+          NavigationDestination(icon: Icon(Icons.person_outline), label: ''),
         ],
       ),
     );
@@ -87,11 +90,12 @@ class InboxScreen extends StatelessWidget {
         );
       case UiPhase.success:
         if (state.items.isEmpty) {
-          return _CenteredState(message: strings.inboxEmpty);
+          return _refreshableEmpty(strings);
         }
-        return ListView.separated(
+        final list = ListView.separated(
+          physics: const AlwaysScrollableScrollPhysics(),
           itemCount: state.items.length,
-          separatorBuilder: (_, __) => const SizedBox(height: 12),
+          separatorBuilder: (_, _) => const SizedBox(height: 12),
           itemBuilder: (context, index) {
             final item = state.items[index];
             return _InboxCard(
@@ -106,10 +110,31 @@ class InboxScreen extends StatelessWidget {
             );
           },
         );
+        return onRefresh == null
+            ? list
+            : RefreshIndicator(onRefresh: onRefresh!, child: list);
       case UiPhase.empty:
       case UiPhase.idle:
-        return _CenteredState(message: strings.inboxEmpty);
+        return _refreshableEmpty(strings);
     }
+  }
+
+  Widget _refreshableEmpty(DaStrings strings) {
+    if (onRefresh == null) {
+      return _CenteredState(message: strings.inboxEmpty);
+    }
+    return RefreshIndicator(
+      onRefresh: onRefresh!,
+      child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        children: [
+          SizedBox(
+            height: 320,
+            child: _CenteredState(message: strings.inboxEmpty),
+          ),
+        ],
+      ),
+    );
   }
 }
 
@@ -139,10 +164,7 @@ class _CenteredState extends StatelessWidget {
             ),
             if (actionLabel != null && onAction != null) ...[
               const SizedBox(height: 14),
-              OutlinedButton(
-                onPressed: onAction,
-                child: Text(actionLabel!),
-              ),
+              OutlinedButton(onPressed: onAction, child: Text(actionLabel!)),
             ],
           ],
         ),

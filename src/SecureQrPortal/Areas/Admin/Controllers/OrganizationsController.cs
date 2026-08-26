@@ -103,7 +103,9 @@ public sealed class OrganizationsController(ApplicationDbContext db, AuditServic
         }
         else
         {
-            entity = await db.Organizations.FindAsync([model.Id], ct) ?? throw new InvalidOperationException("Organization not found");
+            var existing = await db.Organizations.FindAsync([model.Id], ct);
+            if (existing is null) return NotFound();
+            entity = existing;
             oldMobile = entity.MobileNumber;
         }
 
@@ -148,9 +150,15 @@ public sealed class OrganizationsController(ApplicationDbContext db, AuditServic
 
         var organization = await db.Organizations.Include(x => x.SecurePages).SingleOrDefaultAsync(x => x.Id == id, ct);
         if (organization is null) return NotFound();
-        if (organization.SecurePages.Count > 0)
+
+        var hasOperationalDependencies = organization.SecurePages.Count > 0 ||
+            await db.MobileOtpChallenges.AnyAsync(x => x.OrganizationId == id, ct) ||
+            await db.MobileSessions.AnyAsync(x => x.OrganizationId == id, ct) ||
+            await db.MobileDevices.AnyAsync(x => x.OrganizationId == id, ct) ||
+            await db.MobileDeliveries.AnyAsync(x => x.OrganizationId == id, ct);
+        if (hasOperationalDependencies)
         {
-            TempData["Error"] = text["OrganizationHasPages"];
+            TempData["Error"] = "لا يمكن حذف الجهة أثناء وجود صفحات آمنة أو بيانات تشغيلية مرتبطة / Organization cannot be deleted while secure pages or related operational data exist.";
             return RedirectToAction(nameof(Index));
         }
 

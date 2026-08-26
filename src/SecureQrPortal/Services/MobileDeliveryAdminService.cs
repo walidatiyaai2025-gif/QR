@@ -87,6 +87,7 @@ public sealed class MobileDeliveryAdminService(
 
         delivery.FirebaseStatus = SafeProviderStatus(provider.ProviderStatus);
         delivery.FirebaseProviderMessageId = provider.ProviderAccepted ? SafeProviderMessageId(provider.ProviderMessageId) : null;
+        delivery.FirebaseErrorCode = provider.ProviderAccepted ? null : SafeProviderErrorCode(provider.ErrorCode);
         delivery.ConcurrencyStamp = Guid.NewGuid().ToString("N");
 
         if (provider.ProviderAccepted)
@@ -297,6 +298,9 @@ public sealed class MobileDeliveryAdminService(
 
     private static string? SafeProviderMessageId(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value.Trim()[..Math.Min(value.Trim().Length, 200)];
+
+    private static string? SafeProviderErrorCode(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? null : value.Trim()[..Math.Min(value.Trim().Length, 128)];
 
     private static string SafeCode(string? value) => string.IsNullOrWhiteSpace(value) ? "NONE" : value.Trim()[..Math.Min(value.Trim().Length, 80)];
     private static MobileDeliveryAdminResult Fail(string code) => new(false, code);

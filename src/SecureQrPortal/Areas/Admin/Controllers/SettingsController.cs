@@ -127,9 +127,9 @@ public sealed class SettingsController(
     }
 
     [HttpPost]
-    public async Task<IActionResult> RestoreBackup(IFormFile backupFile, string confirmation, CancellationToken ct)
+    public async Task<IActionResult> RestoreBackup(IFormFile? backupFile, string confirmation, CancellationToken ct)
     {
-        if (confirmation != "RESTORE" || backupFile.Length == 0)
+        if (confirmation != "RESTORE" || backupFile is null || backupFile.Length == 0)
         {
             TempData["Error"] = text["RestoreConfirmError"];
             return RedirectToAction(nameof(Backup));

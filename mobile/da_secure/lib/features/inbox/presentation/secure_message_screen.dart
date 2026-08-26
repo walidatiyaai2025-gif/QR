@@ -2,6 +2,7 @@ import 'package:da_secure/design_system/da_secure_theme.dart';
 import 'package:da_secure/localization/da_strings.dart';
 import 'package:da_secure/presentation/mobile_ui_contracts.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_html/flutter_html.dart';
 
 class SecureMessageScreen extends StatelessWidget {
   const SecureMessageScreen({
@@ -21,9 +22,7 @@ class SecureMessageScreen extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(title: Text(strings.secureMessage)),
-      body: SafeArea(
-        child: _buildBody(context, strings),
-      ),
+      body: SafeArea(child: _buildBody(context, strings)),
     );
   }
 
@@ -67,10 +66,7 @@ class SecureMessageScreen extends StatelessWidget {
             ],
             Text(
               strings.fixedMessageHeading,
-              style: const TextStyle(
-                fontSize: 21,
-                fontWeight: FontWeight.w700,
-              ),
+              style: const TextStyle(fontSize: 21, fontWeight: FontWeight.w700),
             ),
             if (state.remainingRevealsLabel != null ||
                 state.expiryLabel != null) ...[
@@ -97,10 +93,13 @@ class SecureMessageScreen extends StatelessWidget {
               ),
             ],
             const SizedBox(height: 20),
-            SelectableText(
-              state.bodyText ?? '',
-              style: const TextStyle(fontSize: 16, height: 1.65),
-            ),
+            if (state.bodyHtml != null)
+              Html(data: state.bodyHtml!)
+            else
+              SelectableText(
+                state.bodyText ?? '',
+                style: const TextStyle(fontSize: 16, height: 1.65),
+              ),
             if (state.attachments.isNotEmpty) ...[
               const SizedBox(height: 24),
               Text(
@@ -133,11 +132,7 @@ class SecureMessageScreen extends StatelessWidget {
 }
 
 class _StatusBody extends StatelessWidget {
-  const _StatusBody({
-    required this.message,
-    this.actionLabel,
-    this.onAction,
-  });
+  const _StatusBody({required this.message, this.actionLabel, this.onAction});
 
   final String message;
   final String? actionLabel;
@@ -160,10 +155,7 @@ class _StatusBody extends StatelessWidget {
               ),
               if (actionLabel != null && onAction != null) ...[
                 const SizedBox(height: 14),
-                OutlinedButton(
-                  onPressed: onAction,
-                  child: Text(actionLabel!),
-                ),
+                OutlinedButton(onPressed: onAction, child: Text(actionLabel!)),
               ],
             ],
           ),
