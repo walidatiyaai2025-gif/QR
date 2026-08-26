@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using Microsoft.EntityFrameworkCore;
 using SecureQrPortal.Data;
 using SecureQrPortal.Models;
@@ -15,7 +16,9 @@ public enum MobileDeliveryAccessStatus
     NotStarted,
     LimitReached,
     InvalidCredentials,
-    InvalidRevealGrant
+    InvalidRevealGrant,
+    RevealBlocked,
+    EncryptionUnavailable
 }
 
 public sealed record MobileInboxItem(
@@ -52,6 +55,7 @@ public sealed class MobileDeliveryAccessService(
     SecurePageAccessService access,
     QrStatusService qrStatus,
     MobileTokenService tokens,
+    SecureMessageEncryptionService secureMessages,
     AuditService audit,
     TimeProvider timeProvider)
 {
@@ -153,8 +157,28 @@ public sealed class MobileDeliveryAccessService(
         if (state != MobileDeliveryAccessStatus.Success) return new(state);
 
         var now = timeProvider.GetUtcNow().UtcDateTime;
-        var firstRevealStopsReminders = !delivery.FirstRevealedAtUtc.HasValue && delivery.ReminderEnabled;
         var grantHash = tokens.HashToken(revealToken.Trim());
+        var grantExists = await db.MobileRevealGrants.AsNoTracking().AnyAsync(x =>
+            x.TokenHash == grantHash && x.MobileSessionId == mobileSessionId &&
+            x.MobileDeliveryId == delivery.Id && x.ConsumedAtUtc == null && x.ExpiresAtUtc > now, ct);
+        if (!grantExists)
+            return new(MobileDeliveryAccessStatus.InvalidRevealGrant);
+
+        SecureMessageBody body;
+        try
+        {
+            body = await secureMessages.RevealAsync(delivery.SecurePage, ct);
+        }
+        catch (SecureMessageRevealBlockedException)
+        {
+            return new(MobileDeliveryAccessStatus.RevealBlocked);
+        }
+        catch (CryptographicException)
+        {
+            return new(MobileDeliveryAccessStatus.EncryptionUnavailable);
+        }
+
+        var firstRevealStopsReminders = !delivery.FirstRevealedAtUtc.HasValue && delivery.ReminderEnabled;
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
         var consumed = await db.MobileRevealGrants
             .Where(x => x.TokenHash == grantHash && x.MobileSessionId == mobileSessionId &&
@@ -196,8 +220,8 @@ public sealed class MobileDeliveryAccessService(
 
         return new MobileRevealOutcome(
             MobileDeliveryAccessStatus.Success,
-            refreshed.SecurePage.ContentArabicHtml,
-            refreshed.SecurePage.ContentEnglishHtml,
+            body.ArabicHtml,
+            body.EnglishHtml,
             refreshed.SentAtUtc,
             EffectiveExpiry(refreshed),
             QrStatusService.RemainingAccesses(refreshed.SecurePage),
