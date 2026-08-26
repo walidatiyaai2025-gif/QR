@@ -42,7 +42,7 @@ void main() {
             await tester.pumpWidget(
               _TestHost(width: width, locale: locale, child: screen),
             );
-            await tester.pump(const Duration(milliseconds: 20));
+            await tester.pump(const Duration(milliseconds: 50));
             expect(tester.takeException(), isNull);
           }
         },
@@ -50,23 +50,123 @@ void main() {
     }
   }
 
+  for (final locale in const <Locale>[Locale('ar'), Locale('en')]) {
+    testWidgets(
+      '${locale.languageCode} auth screens stay usable on small height with keyboard',
+      (tester) async {
+        final screens = <Widget>[
+          const MobileNumberScreen(),
+          const OtpScreen(),
+          const SecureLoginScreen(deliveryId: 'delivery-test'),
+        ];
+
+        for (final screen in screens) {
+          await tester.pumpWidget(
+            _TestHost(
+              width: 360,
+              height: 520,
+              locale: locale,
+              textScale: 1.2,
+              viewInsetsBottom: 220,
+              child: screen,
+            ),
+          );
+          await tester.pump(const Duration(milliseconds: 50));
+          expect(tester.takeException(), isNull);
+
+          final scrollable = find.byType(Scrollable).first;
+          expect(scrollable, findsOneWidget);
+        }
+      },
+    );
+
+    testWidgets(
+      '${locale.languageCode} primary screens render on large height and scaled text',
+      (tester) async {
+        final screens = <Widget>[
+          const SplashScreen(),
+          const MobileNumberScreen(),
+          const OtpScreen(),
+          const InboxScreen(),
+        ];
+
+        for (final screen in screens) {
+          await tester.pumpWidget(
+            _TestHost(
+              width: 430,
+              height: 900,
+              locale: locale,
+              textScale: 1.25,
+              child: screen,
+            ),
+          );
+          await tester.pump(const Duration(milliseconds: 50));
+          expect(tester.takeException(), isNull);
+        }
+      },
+    );
+  }
+
   testWidgets('Arabic uses RTL and English uses LTR', (tester) async {
     await tester.pumpWidget(
       const _TestHost(width: 390, locale: Locale('ar'), child: InboxScreen()),
     );
     expect(
-      Directionality.of(tester.element(find.text('الوارد'))),
+      Directionality.of(tester.element(find.text('الوارد').first)),
       TextDirection.rtl,
     );
 
     await tester.pumpWidget(
       const _TestHost(width: 390, locale: Locale('en'), child: InboxScreen()),
     );
-    expect(find.text('Inbox'), findsOneWidget);
+    expect(find.text('Inbox'), findsWidgets);
     expect(
-      Directionality.of(tester.element(find.text('Inbox'))),
+      Directionality.of(tester.element(find.text('Inbox').first)),
       TextDirection.ltr,
     );
+  });
+
+  testWidgets('Navigation shell exposes localized labels in Arabic', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      const _TestHost(width: 390, locale: Locale('ar'), child: InboxScreen()),
+    );
+
+    expect(find.text('الرئيسية'), findsOneWidget);
+    expect(find.text('الوارد'), findsWidgets);
+    expect(find.text('الملف الشخصي'), findsOneWidget);
+  });
+
+  testWidgets('Navigation shell exposes localized labels in English', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      const _TestHost(width: 390, locale: Locale('en'), child: InboxScreen()),
+    );
+
+    expect(find.text('Home'), findsOneWidget);
+    expect(find.text('Inbox'), findsWidgets);
+    expect(find.text('Profile'), findsOneWidget);
+  });
+
+  testWidgets('Sign in contains premium identity and official crest slot', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      const _TestHost(
+        width: 390,
+        locale: Locale('ar'),
+        child: MobileNumberScreen(),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 50));
+
+    expect(find.text('الديوان الأميري'), findsOneWidget);
+    expect(find.text('AL DIWAN AL AMIRI'), findsOneWidget);
+    expect(find.byType(Image), findsOneWidget);
+    expect(find.text('طلب رمز التحقق'), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('Inbox empty state contains no fake delivery cards', (
@@ -154,9 +254,15 @@ class _TestHost extends StatelessWidget {
     required this.width,
     required this.locale,
     required this.child,
+    this.height = 560,
+    this.textScale = 1,
+    this.viewInsetsBottom = 0,
   });
 
   final double width;
+  final double height;
+  final double textScale;
+  final double viewInsetsBottom;
   final Locale locale;
   final Widget child;
 
@@ -167,9 +273,19 @@ class _TestHost extends StatelessWidget {
       locale: locale,
       supportedLocales: const [Locale('ar'), Locale('en')],
       localizationsDelegates: GlobalMaterialLocalizations.delegates,
+      builder: (context, child) {
+        final media = MediaQuery.of(context);
+        return MediaQuery(
+          data: media.copyWith(
+            textScaler: TextScaler.linear(textScale),
+            viewInsets: EdgeInsets.only(bottom: viewInsetsBottom),
+          ),
+          child: child ?? const SizedBox.shrink(),
+        );
+      },
       home: Align(
         alignment: Alignment.topCenter,
-        child: SizedBox(width: width, height: 560, child: child),
+        child: SizedBox(width: width, height: height, child: child),
       ),
     );
   }

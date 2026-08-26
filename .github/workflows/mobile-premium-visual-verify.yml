@@ -1,0 +1,42 @@
+name: DA Secure Mobile Premium Visual Verify
+
+on:
+  push:
+    branches:
+      - worker/da-secure-mobile-premium-visual
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  flutter-visual:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile/da_secure
+
+    steps:
+      - name: Checkout exact worker head
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.1'
+          channel: stable
+          cache: true
+
+      - name: Resolve dependencies
+        run: flutter pub get
+
+      - name: Dart format
+        run: |
+          dart format lib test
+          git diff --exit-code -- lib test
+
+      - name: Flutter analyze
+        run: flutter analyze
+
+      - name: Flutter tests
+        run: flutter test

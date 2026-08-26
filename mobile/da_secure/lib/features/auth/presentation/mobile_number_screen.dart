@@ -1,4 +1,5 @@
 import 'package:da_secure/design_system/da_secure_theme.dart';
+import 'package:da_secure/design_system/premium_visuals.dart';
 import 'package:da_secure/localization/da_strings.dart';
 import 'package:da_secure/presentation/mobile_ui_contracts.dart';
 import 'package:flutter/material.dart';
@@ -52,71 +53,91 @@ class _MobileNumberScreenState extends State<MobileNumberScreen> {
 
     return Scaffold(
       appBar: AppBar(backgroundColor: Colors.transparent),
-      body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(24, 12, 24, 32),
-          children: [
-            const SizedBox(height: 36),
-            Text(
-              strings.diwanArabic,
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: DaSecureColors.goldSoft,
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            const SizedBox(height: 24),
-            Text(
-              strings.signIn,
-              textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w700),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              strings.mobilePrompt,
-              textAlign: TextAlign.center,
-              style: const TextStyle(color: DaSecureColors.textMuted),
-            ),
-            const SizedBox(height: 32),
-            Form(
-              key: _formKey,
-              child: TextFormField(
-                controller: _mobileController,
-                enabled: !widget.state.isSubmitting,
-                keyboardType: TextInputType.phone,
-                textDirection: TextDirection.ltr,
-                decoration: InputDecoration(
-                  labelText: strings.mobileNumber,
-                  prefixText: '+965 ',
-                  hintText: '5555 1234',
+      body: DaPremiumBackdrop(
+        child: SafeArea(
+          top: false,
+          child: DaResponsivePage(
+            centerVertically: true,
+            top: 8,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const DaBrandIdentity(crestSize: 88, showAppName: false),
+                const SizedBox(height: 22),
+                Text(
+                  strings.signIn,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontSize: 29,
+                    fontWeight: FontWeight.w800,
+                    height: 1.2,
+                  ),
                 ),
-                validator: (value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return strings.mobileNumber;
-                  }
-                  return null;
-                },
-              ),
+                const SizedBox(height: 9),
+                Text(
+                  strings.mobilePrompt,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: DaSecureColors.textMuted,
+                    fontSize: 14,
+                    height: 1.55,
+                  ),
+                ),
+                const SizedBox(height: 24),
+                DaPremiumCard(
+                  child: Form(
+                    key: _formKey,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        TextFormField(
+                          controller: _mobileController,
+                          enabled: !widget.state.isSubmitting,
+                          keyboardType: TextInputType.phone,
+                          textInputAction: TextInputAction.done,
+                          textDirection: TextDirection.ltr,
+                          autofillHints: const [AutofillHints.telephoneNumber],
+                          decoration: daPremiumInputDecoration(
+                            labelText: strings.mobileNumber,
+                            prefixIcon: const Icon(Icons.phone_iphone_rounded),
+                            prefixText: '+965 ',
+                            hintText: '5555 1234',
+                          ),
+                          validator: (value) {
+                            if (value == null || value.trim().isEmpty) {
+                              return strings.mobileNumber;
+                            }
+                            return null;
+                          },
+                          onFieldSubmitted: (_) {
+                            if (!widget.state.isSubmitting) {
+                              _submit();
+                            }
+                          },
+                        ),
+                        if (widget.state.errorMessage != null) ...[
+                          const SizedBox(height: 12),
+                          DaInlineError(message: widget.state.errorMessage!),
+                        ],
+                        const SizedBox(height: 18),
+                        FilledButton(
+                          onPressed: widget.state.isSubmitting ? null : _submit,
+                          child: widget.state.isSubmitting
+                              ? const SizedBox.square(
+                                  dimension: 22,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : Text(strings.requestOtp),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
             ),
-            if (widget.state.errorMessage != null) ...[
-              const SizedBox(height: 12),
-              Text(
-                widget.state.errorMessage!,
-                style: const TextStyle(color: Colors.redAccent),
-              ),
-            ],
-            const SizedBox(height: 20),
-            FilledButton(
-              onPressed: widget.state.isSubmitting ? null : _submit,
-              child: widget.state.isSubmitting
-                  ? const SizedBox.square(
-                      dimension: 22,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : Text(strings.requestOtp),
-            ),
-          ],
+          ),
         ),
       ),
     );
