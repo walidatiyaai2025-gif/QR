@@ -134,7 +134,17 @@ public sealed class SettingsController(
             TempData["Error"] = text["RestoreConfirmError"];
             return RedirectToAction(nameof(Backup));
         }
-        await backup.StageRestoreAsync(backupFile.OpenReadStream(), ct);
+
+        try
+        {
+            await backup.StageRestoreAsync(backupFile.OpenReadStream(), ct);
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or Microsoft.Data.Sqlite.SqliteException)
+        {
+            TempData["Error"] = "ملف النسخة الاحتياطية غير صالح / The backup file is not a valid Secure QR Portal SQLite backup.";
+            return RedirectToAction(nameof(Backup));
+        }
+
         await audit.WriteAsync("SQLITE_RESTORE_STAGED", "Database", null, backupFile.FileName, ct);
         TempData["Success"] = text["RestoreStaged"];
         return RedirectToAction(nameof(Backup));
