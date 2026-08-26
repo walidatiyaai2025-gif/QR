@@ -1,5 +1,5 @@
 {
-  "packageVersion": "1.0.0-iis.2",
+  "packageVersion": "1.0.0-iis.3",
   "sourceBranch": "GENERATED_FROM_GITHUB_REF_NAME_DURING_CI",
   "sourceSha": "GENERATED_FROM_GIT_REV_PARSE_HEAD_DURING_CI",
   "buildTimestampUtc": "GENERATED_DURING_CI_PACKAGE_BUILD",
