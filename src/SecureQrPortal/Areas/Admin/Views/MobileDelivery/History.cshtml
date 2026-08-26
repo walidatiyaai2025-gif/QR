@@ -32,7 +32,7 @@
                     <option value="">@(ar ? "كل الحالات" : "All statuses")</option>
                     @foreach (var value in new[] { "CREATED", "PROVIDER_ACCEPTED", "SEND_FAILED", "REVEALED", "REVOKED" })
                     {
-                        <option value="@value" selected="@(Model.Status == value)">@value</option>
+                        <option value="@value" selected="@(Model.Status == value)">@AdminMobileDeliveryText.DeliveryStatus(value, ar)</option>
                     }
                 </select>
             </div>
@@ -59,7 +59,7 @@
     <div class="table-wrap admin-stack">
         <table class="data-table admin-responsive-table mobile-delivery-table">
             <thead><tr>
-                <th>ID</th><th>@(ar ? "QR" : "QR")</th><th>@T["Organization"]</th><th>@(ar ? "الإنشاء" : "Created")</th><th>@(ar ? "الإرسال" : "Sent")</th><th>@T["Status"]</th><th>Firebase</th><th>@(ar ? "الفتح" : "Opened")</th><th>@(ar ? "التذكيرات" : "Reminders")</th><th>@T["Actions"]</th>
+                <th>ID</th><th>QR</th><th>@T["Organization"]</th><th>@(ar ? "الإنشاء" : "Created")</th><th>@(ar ? "الإرسال" : "Sent")</th><th>@T["Status"]</th><th>Firebase</th><th>@(ar ? "الفتح" : "Opened")</th><th>@(ar ? "التذكيرات" : "Reminders")</th><th>@T["Actions"]</th>
             </tr></thead>
             <tbody>
             @foreach (var item in Model.Items)
@@ -70,7 +70,7 @@
                     <td data-label="@T["Organization"]">@(ar ? item.OrganizationArabic : item.OrganizationEnglish)</td>
                     <td data-label="@(ar ? "الإنشاء" : "Created")"><span class="numeric">@Local(item.CreatedAtUtc)</span></td>
                     <td data-label="@(ar ? "الإرسال" : "Sent")"><span class="numeric">@Local(item.SentAtUtc)</span></td>
-                    <td data-label="@T["Status"]"><span class="badge">@item.DeliveryStatus</span></td>
+                    <td data-label="@T["Status"]"><span class="badge">@AdminMobileDeliveryText.DeliveryStatus(item.DeliveryStatus, ar)</span></td>
                     <td data-label="Firebase">@(item.FirebaseStatus ?? "—")</td>
                     <td data-label="@(ar ? "الفتح" : "Opened")">@(item.FirstRevealedAtUtc.HasValue ? (ar ? "تم فتح الرسالة" : "Message Opened") : (ar ? "غير مفتوحة" : "Unread"))</td>
                     <td data-label="@(ar ? "التذكيرات" : "Reminders")"><span class="numeric">@item.ReminderCount</span></td>

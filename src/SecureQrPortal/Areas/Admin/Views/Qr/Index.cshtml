@@ -9,7 +9,7 @@
     var itemIds = Model.Items.Select(x => x.Id).ToList();
     var localizedOrganizations = itemIds.Count == 0
         ? new Dictionary<long, string>()
-        : await Db.SecurePages.AsNoTracking().Where(x => itemIds.Contains(x.Id))
+        : await Db.SecurePages.Include(x => x.Organization).AsNoTracking().Where(x => itemIds.Contains(x.Id))
             .ToDictionaryAsync(x => x.Id, x => ar ? x.Organization.NameArabic : x.Organization.NameEnglish);
     var localizedTitles = itemIds.Count == 0
         ? new Dictionary<long, string>()
