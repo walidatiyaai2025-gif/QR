@@ -224,15 +224,22 @@ class _InfoChip extends StatelessWidget {
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 17, color: DaSecureColors.goldSoft),
+          Padding(
+            padding: const EdgeInsets.only(top: 1),
+            child: Icon(icon, size: 17, color: DaSecureColors.goldSoft),
+          ),
           const SizedBox(width: 7),
-          Text(
-            '$label: $value',
-            style: const TextStyle(
-              color: DaSecureColors.textPrimary,
-              fontSize: 12.5,
-              fontWeight: FontWeight.w600,
+          Flexible(
+            child: Text(
+              '$label: $value',
+              softWrap: true,
+              style: const TextStyle(
+                color: DaSecureColors.textPrimary,
+                fontSize: 12.5,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
         ],
