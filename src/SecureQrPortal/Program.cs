@@ -20,14 +20,21 @@ var builder = WebApplication.CreateBuilder(args);
 var contentRoot = builder.Environment.ContentRootPath;
 var appData = Path.Combine(contentRoot, "App_Data");
 Directory.CreateDirectory(appData);
-Directory.CreateDirectory(Path.Combine(appData, "keys"));
 Directory.CreateDirectory(Path.Combine(appData, "backups"));
 BackupBootstrap.ApplyPendingRestore(contentRoot, builder.Configuration);
+
+var configuredKeyRingPath = builder.Configuration["Security:DataProtectionKeyRingPath"];
+var dataProtectionKeyRingPath = string.IsNullOrWhiteSpace(configuredKeyRingPath)
+    ? Path.Combine(appData, "keys")
+    : Environment.ExpandEnvironmentVariables(configuredKeyRingPath.Trim());
+if (!Path.IsPathRooted(dataProtectionKeyRingPath))
+    dataProtectionKeyRingPath = Path.GetFullPath(Path.Combine(contentRoot, dataProtectionKeyRingPath));
+Directory.CreateDirectory(dataProtectionKeyRingPath);
 
 var runtimeDb = DatabaseBootstrap.Load(contentRoot, builder.Configuration);
 
 builder.Services.AddDataProtection()
-    .PersistKeysToFileSystem(new DirectoryInfo(Path.Combine(appData, "keys")))
+    .PersistKeysToFileSystem(new DirectoryInfo(dataProtectionKeyRingPath))
     .SetApplicationName("SecureQrPortal");
 
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
