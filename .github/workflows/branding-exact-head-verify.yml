@@ -50,7 +50,6 @@ jobs:
           import xml.etree.ElementTree as ET
 
           root = Path('mobile/da_secure')
-          ns = {'android': 'http://schemas.android.com/apk/res/android'}
           android_attr = '{http://schemas.android.com/apk/res/android}'
 
           manifest = ET.parse(root / 'android/app/src/main/AndroidManifest.xml').getroot()
@@ -158,6 +157,7 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
           from zipfile import ZipFile
+          import re
 
           apk = Path('mobile/da_secure/build/app/outputs/flutter-apk/app-debug.apk')
           with ZipFile(apk) as zf:
@@ -170,15 +170,20 @@ jobs:
           if not (crest_candidates & names):
               raise SystemExit('Official crest is not packaged in Flutter assets')
 
+          def has_mipmap_variant(density: str, filename: str) -> bool:
+              pattern = re.compile(
+                  rf'^res/mipmap-{re.escape(density)}(?:-[^/]*)?/{re.escape(filename)}$'
+              )
+              return any(pattern.match(name) for name in names)
+
           for density in ('mdpi', 'hdpi', 'xhdpi', 'xxhdpi', 'xxxhdpi'):
-              required = {
-                  f'res/mipmap-{density}/ic_launcher.png',
-                  f'res/mipmap-{density}/ic_launcher_round.png',
-                  f'res/mipmap-{density}/ic_launcher_foreground.png',
-              }
-              missing = required - names
+              missing = [
+                  filename
+                  for filename in ('ic_launcher.png', 'ic_launcher_round.png', 'ic_launcher_foreground.png')
+                  if not has_mipmap_variant(density, filename)
+              ]
               if missing:
-                  raise SystemExit(f'Missing packaged {density} launcher resources: {sorted(missing)}')
+                  raise SystemExit(f'Missing packaged {density} launcher resources: {missing}')
 
           adaptive_required = {
               'res/mipmap-anydpi-v26/ic_launcher.xml',
