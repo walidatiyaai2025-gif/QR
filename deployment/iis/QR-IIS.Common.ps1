@@ -163,8 +163,10 @@ function Get-NormalizedSslBindingThumbprint {
     param($SslBinding)
 
     if (-not $SslBinding) { return $null }
-    foreach ($candidate in @($SslBinding.Thumbprint,$SslBinding.CertificateHash)) {
-        if ($null -eq $candidate) { continue }
+    foreach ($propertyName in @('Thumbprint','CertificateHash')) {
+        $property = $SslBinding.PSObject.Properties[$propertyName]
+        if ($null -eq $property -or $null -eq $property.Value) { continue }
+        $candidate = $property.Value
         if ($candidate -is [byte[]]) {
             return (($candidate | ForEach-Object { $_.ToString('X2') }) -join '')
         }
@@ -545,7 +547,7 @@ function Invoke-Deployment {
         Import-IISAdministration
         $currentPoolState = (Get-WebAppPoolState -Name $AppPoolName).Value
         $deploymentState.AppPoolStateCaptured = $true
-        $deploymentState.AppPoolWasRunning = ($currentPoolState -eq 'Started')
+        $deploymentState.AppPoolWasRunning = ($currentPoolState -ne 'Stopped')
 
         if ($deploymentState.AppPoolWasRunning) {
             Stop-AppPoolSafely -AppPoolName $AppPoolName
