@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   flutter:
@@ -22,8 +22,6 @@ jobs:
     steps:
       - name: Checkout exact typography head
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
       - name: Verify bundled official Google Fonts binary
         shell: bash
@@ -69,18 +67,8 @@ jobs:
       - name: Get dependencies
         run: flutter pub get
 
-      - name: Apply exact Dart formatter once
-        shell: bash
-        run: |
-          set -euo pipefail
-          dart format lib test
-          if ! git diff --quiet -- lib test; then
-            git config user.name 'da-secure-typography-bot'
-            git config user.email 'actions@users.noreply.github.com'
-            git add lib test
-            git commit -m 'style(typography): apply exact Dart formatter output'
-            git push origin HEAD:worker/da-secure-google-font-closure
-          fi
+      - name: Verify Dart format
+        run: dart format --output=none --set-exit-if-changed lib test
 
       - name: Analyze
         run: flutter analyze
