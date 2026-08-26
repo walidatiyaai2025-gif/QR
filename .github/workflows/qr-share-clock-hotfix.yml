@@ -1,4 +1,5 @@
 name: DA Secure QR Share Clock Emergency Hotfix
+# Emergency validation and DLL-only artifact for the UTC clock regression.
 
 on:
   push:
