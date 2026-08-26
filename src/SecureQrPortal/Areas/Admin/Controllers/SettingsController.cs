@@ -11,6 +11,7 @@ namespace SecureQrPortal.Areas.Admin.Controllers;
 public sealed class SettingsController(
     AppSettingsService settings,
     SecureMessageSecuritySettingsService security,
+    SecureMessageSecurityAdministrationService securityAdmin,
     DatabaseSettingsService database,
     BackupService backup,
     AuditService audit,
@@ -73,43 +74,23 @@ public sealed class SettingsController(
     [HttpPost]
     public async Task<IActionResult> Security(SecuritySettingsVm vm, string command, CancellationToken ct)
     {
-        var previous = await security.GetStateAsync(ct);
+        SecureMessageSecurityChangeResult result;
         if (string.Equals(command, "encryption", StringComparison.OrdinalIgnoreCase))
         {
-            if (!vm.EncryptionEnabled && previous.EncryptionEnabled &&
-                !string.Equals(vm.Confirmation?.Trim(), "DISABLE", StringComparison.Ordinal))
+            result = await securityAdmin.SetEncryptionEnabledAsync(vm.EncryptionEnabled, vm.Confirmation, ct);
+            if (result.Status == SecureMessageSecurityChangeStatus.ConfirmationRequired)
             {
                 TempData["Error"] = "اكتب DISABLE لتأكيد إيقاف إنشاء الرسائل الآمنة الجديدة. / Type DISABLE to confirm disabling new Secure Message creation.";
                 return RedirectToAction(nameof(Security));
             }
-
-            if (vm.EncryptionEnabled != previous.EncryptionEnabled)
-            {
-                await security.SetEncryptionEnabledAsync(vm.EncryptionEnabled, ct);
-                await audit.WriteAsync(
-                    vm.EncryptionEnabled ? "SECURE_MESSAGE_ENCRYPTION_ENABLED" : "SECURE_MESSAGE_ENCRYPTION_DISABLED",
-                    "SecuritySettings",
-                    SecureMessageSecuritySettingsService.EnabledKey,
-                    $"Previous={previous.EncryptionEnabled};New={vm.EncryptionEnabled}", ct);
-            }
         }
         else if (string.Equals(command, "reveal", StringComparison.OrdinalIgnoreCase))
         {
-            if (!vm.AllowReveal && previous.AllowReveal &&
-                !string.Equals(vm.Confirmation?.Trim(), "BLOCK-REVEAL", StringComparison.Ordinal))
+            result = await securityAdmin.SetAllowRevealAsync(vm.AllowReveal, vm.Confirmation, ct);
+            if (result.Status == SecureMessageSecurityChangeStatus.ConfirmationRequired)
             {
                 TempData["Error"] = "اكتب BLOCK-REVEAL لتأكيد إيقاف فتح جميع الرسائل المشفرة مؤقتًا. / Type BLOCK-REVEAL to confirm temporarily blocking Secure Message reveal.";
                 return RedirectToAction(nameof(Security));
-            }
-
-            if (vm.AllowReveal != previous.AllowReveal)
-            {
-                await security.SetAllowRevealAsync(vm.AllowReveal, ct);
-                await audit.WriteAsync(
-                    vm.AllowReveal ? "SECURE_MESSAGE_REVEAL_ENABLED" : "SECURE_MESSAGE_REVEAL_DISABLED",
-                    "SecuritySettings",
-                    SecureMessageSecuritySettingsService.AllowRevealKey,
-                    $"Previous={previous.AllowReveal};New={vm.AllowReveal}", ct);
             }
         }
         else
@@ -117,7 +98,9 @@ public sealed class SettingsController(
             return BadRequest();
         }
 
-        TempData["Success"] = "تم حفظ إعدادات أمان الرسائل المشفرة. / Secure Message security settings saved.";
+        TempData["Success"] = result.Status == SecureMessageSecurityChangeStatus.NoChange
+            ? "لم يتغير إعداد الأمان. / Security setting is unchanged."
+            : "تم حفظ إعدادات أمان الرسائل المشفرة. / Secure Message security settings saved.";
         return RedirectToAction(nameof(Security));
     }
 
