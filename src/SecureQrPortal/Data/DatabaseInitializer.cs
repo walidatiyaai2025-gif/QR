@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using SecureQrPortal.Models;
+using SecureQrPortal.Services;
 
 namespace SecureQrPortal.Data;
 
@@ -17,23 +18,42 @@ public static class DatabaseInitializer
             if (!await roleManager.RoleExistsAsync("Administrator"))
                 await roleManager.CreateAsync(new IdentityRole("Administrator"));
 
-            if (!await db.ApplicationSettings.AnyAsync())
+            await EnsureSettingAsync(db, "ApplicationName", "Secure QR Portal");
+            await EnsureSettingAsync(db, "DefaultLanguage", "ar");
+            await EnsureSettingAsync(db, "LoginFooterText", "Secure access • Authorized users only");
+            await EnsureSettingAsync(db, "DefaultQrSize", "12");
+            await EnsureSettingAsync(db, "SessionTimeoutMinutes", "20");
+            await EnsureSettingAsync(db, "TimeZone", "Asia/Kuwait");
+            await EnsureSettingAsync(db, "ShowExpiryPublicly", "true");
+            await EnsureSettingAsync(db, SecureMessageSecuritySettingsService.EnabledKey, "true");
+            await EnsureSettingAsync(db, SecureMessageSecuritySettingsService.AllowRevealKey, "true");
+            await db.SaveChangesAsync();
+
+            // One-time secure migration for pre-feature rows. This runs after the
+            // schema migration and before the app starts accepting traffic. A
+            // cryptographic failure aborts startup rather than serving plaintext.
+            var crypto = scope.ServiceProvider.GetRequiredService<SecureMessageEncryptionService>();
+            var legacyPages = await db.SecurePages
+                .Where(x => x.ContentEncryptionVersion == 0)
+                .ToListAsync();
+            foreach (var page in legacyPages)
+                crypto.EncryptLegacyPlaintextForMigration(page, page.ContentArabicHtml, page.ContentEnglishHtml);
+            if (legacyPages.Count > 0)
             {
-                db.ApplicationSettings.AddRange(
-                    new ApplicationSetting { Key = "ApplicationName", Value = "Secure QR Portal" },
-                    new ApplicationSetting { Key = "DefaultLanguage", Value = "ar" },
-                    new ApplicationSetting { Key = "LoginFooterText", Value = "Secure access • Authorized users only" },
-                    new ApplicationSetting { Key = "DefaultQrSize", Value = "12" },
-                    new ApplicationSetting { Key = "SessionTimeoutMinutes", Value = "20" },
-                    new ApplicationSetting { Key = "TimeZone", Value = "Asia/Kuwait" },
-                    new ApplicationSetting { Key = "ShowExpiryPublicly", Value = "true" });
                 await db.SaveChangesAsync();
+                logger.LogInformation("Encrypted {Count} legacy Secure Message rows during secure startup migration.", legacyPages.Count);
             }
         }
         catch (Exception ex)
         {
-            logger.LogCritical(ex, "Database initialization failed. Application will remain unavailable until the database issue is corrected.");
+            logger.LogCritical(ex, "Database/security initialization failed. Application will remain unavailable until the issue is corrected.");
             throw;
         }
+    }
+
+    private static async Task EnsureSettingAsync(ApplicationDbContext db, string key, string value)
+    {
+        if (!await db.ApplicationSettings.AnyAsync(x => x.Key == key))
+            db.ApplicationSettings.Add(new ApplicationSetting { Key = key, Value = value, UpdatedAtUtc = DateTime.UtcNow });
     }
 }
