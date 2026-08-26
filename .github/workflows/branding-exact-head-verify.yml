@@ -1,0 +1,230 @@
+name: DA Secure Branding Exact Head Verify
+
+on:
+  push:
+    branches:
+      - worker/da-secure-branding-exact-head-verify
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  BRANDING_SHA: 63dafa435086c69e02627e1e9c70caa6617c0046
+
+jobs:
+  exact-head-verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+
+    steps:
+      - name: Checkout exact official-branding SHA
+        uses: actions/checkout@v4
+        with:
+          ref: 63dafa435086c69e02627e1e9c70caa6617c0046
+          fetch-depth: 2
+
+      - name: Guard exact head and branding source contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$BRANDING_SHA"
+          test -s mobile/da_secure/assets/brand/diwan_crest.png
+          test -s mobile/da_secure/android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml
+          test -s mobile/da_secure/android/app/src/main/res/mipmap-anydpi-v26/ic_launcher_round.xml
+          for density in mdpi hdpi xhdpi xxhdpi xxxhdpi; do
+            test -s "mobile/da_secure/android/app/src/main/res/mipmap-${density}/ic_launcher.png"
+            test -s "mobile/da_secure/android/app/src/main/res/mipmap-${density}/ic_launcher_round.png"
+            test -s "mobile/da_secure/android/app/src/main/res/mipmap-${density}/ic_launcher_foreground.png"
+          done
+          test ! -e mobile/da_secure/android/app/src/main/res/drawable/ic_launcher_foreground.xml
+          test ! -e mobile/da_secure/android/app/src/main/res/drawable-v24/ic_launcher_foreground.xml
+
+      - name: Verify manifest, adaptive icon, background and PNG dimensions
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import struct
+          import xml.etree.ElementTree as ET
+
+          root = Path('mobile/da_secure')
+          ns = {'android': 'http://schemas.android.com/apk/res/android'}
+          android_attr = '{http://schemas.android.com/apk/res/android}'
+
+          manifest = ET.parse(root / 'android/app/src/main/AndroidManifest.xml').getroot()
+          app = manifest.find('application')
+          if app is None:
+              raise SystemExit('Android application element missing')
+          if app.get(android_attr + 'icon') != '@mipmap/ic_launcher':
+              raise SystemExit('Manifest does not use @mipmap/ic_launcher')
+          if app.get(android_attr + 'roundIcon') != '@mipmap/ic_launcher_round':
+              raise SystemExit('Manifest does not use @mipmap/ic_launcher_round')
+
+          for name in ('ic_launcher.xml', 'ic_launcher_round.xml'):
+              adaptive = ET.parse(root / f'android/app/src/main/res/mipmap-anydpi-v26/{name}').getroot()
+              if adaptive.tag != 'adaptive-icon':
+                  raise SystemExit(f'{name} is not an adaptive-icon')
+              background = adaptive.find('background')
+              foreground = adaptive.find('foreground')
+              if background is None or background.get(android_attr + 'drawable') != '@color/ic_launcher_background':
+                  raise SystemExit(f'{name} background contract failed')
+              if foreground is None or foreground.get(android_attr + 'drawable') != '@mipmap/ic_launcher_foreground':
+                  raise SystemExit(f'{name} foreground contract failed')
+
+          colors = ET.parse(root / 'android/app/src/main/res/values/colors.xml').getroot()
+          values = {node.get('name'): (node.text or '').strip().upper() for node in colors.findall('color')}
+          if values.get('ic_launcher_background') != '#061C33':
+              raise SystemExit(f'Unexpected launcher background: {values.get("ic_launcher_background")}')
+
+          def png_size(path: Path):
+              data = path.read_bytes()
+              if len(data) < 24 or data[:8] != b'\x89PNG\r\n\x1a\n' or data[12:16] != b'IHDR':
+                  raise SystemExit(f'Invalid PNG: {path}')
+              return struct.unpack('>II', data[16:24])
+
+          expected = {
+              'mdpi': (48, 108),
+              'hdpi': (72, 162),
+              'xhdpi': (96, 216),
+              'xxhdpi': (144, 324),
+              'xxxhdpi': (192, 432),
+          }
+          for density, (legacy, adaptive) in expected.items():
+              folder = root / f'android/app/src/main/res/mipmap-{density}'
+              for legacy_name in ('ic_launcher.png', 'ic_launcher_round.png'):
+                  size = png_size(folder / legacy_name)
+                  if size != (legacy, legacy):
+                      raise SystemExit(f'{density}/{legacy_name} size {size}, expected {(legacy, legacy)}')
+              size = png_size(folder / 'ic_launcher_foreground.png')
+              if size != (adaptive, adaptive):
+                  raise SystemExit(f'{density}/ic_launcher_foreground.png size {size}, expected {(adaptive, adaptive)}')
+
+          crest_size = png_size(root / 'assets/brand/diwan_crest.png')
+          if crest_size[0] < 128 or crest_size[1] < 128:
+              raise SystemExit(f'Official crest unexpectedly small: {crest_size}')
+          print('Source branding structure: PASS')
+          print('Official crest PNG size:', crest_size)
+          PY
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.1'
+          channel: stable
+          cache: true
+
+      - name: Flutter pub get
+        working-directory: mobile/da_secure
+        run: flutter pub get
+
+      - name: Flutter analyze
+        working-directory: mobile/da_secure
+        run: flutter analyze
+
+      - name: Flutter test
+        working-directory: mobile/da_secure
+        run: flutter test
+
+      - name: Build debug APK
+        working-directory: mobile/da_secure
+        run: flutter build apk --debug
+
+      - name: Inspect APK package and resources with Android tooling
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK='mobile/da_secure/build/app/outputs/flutter-apk/app-debug.apk'
+          test -s "$APK"
+
+          AAPT="$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort -V | tail -n 1)"
+          AAPT2="$(find "$ANDROID_HOME/build-tools" -type f -name aapt2 | sort -V | tail -n 1)"
+          test -x "$AAPT"
+          test -x "$AAPT2"
+
+          "$AAPT" dump badging "$APK" | tee /tmp/aapt-badging.txt
+          PACKAGE_ID="$(sed -n "s/^package: name='\([^']*\)'.*/\1/p" /tmp/aapt-badging.txt | head -n 1)"
+          test "$PACKAGE_ID" = 'com.qr.mobile.da'
+
+          "$AAPT" dump xmltree "$APK" AndroidManifest.xml > /tmp/aapt-manifest.txt
+          "$AAPT2" dump resources "$APK" > /tmp/aapt2-resources.txt
+
+          grep -F 'mipmap/ic_launcher' /tmp/aapt2-resources.txt
+          grep -F 'mipmap/ic_launcher_round' /tmp/aapt2-resources.txt
+          grep -F 'mipmap/ic_launcher_foreground' /tmp/aapt2-resources.txt
+          grep -F 'color/ic_launcher_background' /tmp/aapt2-resources.txt
+
+          python3 - <<'PY'
+          from pathlib import Path
+          from zipfile import ZipFile
+
+          apk = Path('mobile/da_secure/build/app/outputs/flutter-apk/app-debug.apk')
+          with ZipFile(apk) as zf:
+              names = set(zf.namelist())
+
+          crest_candidates = {
+              'assets/flutter_assets/assets/brand/diwan_crest.png',
+              'flutter_assets/assets/brand/diwan_crest.png',
+          }
+          if not (crest_candidates & names):
+              raise SystemExit('Official crest is not packaged in Flutter assets')
+
+          for density in ('mdpi', 'hdpi', 'xhdpi', 'xxhdpi', 'xxxhdpi'):
+              required = {
+                  f'res/mipmap-{density}/ic_launcher.png',
+                  f'res/mipmap-{density}/ic_launcher_round.png',
+                  f'res/mipmap-{density}/ic_launcher_foreground.png',
+              }
+              missing = required - names
+              if missing:
+                  raise SystemExit(f'Missing packaged {density} launcher resources: {sorted(missing)}')
+
+          adaptive_required = {
+              'res/mipmap-anydpi-v26/ic_launcher.xml',
+              'res/mipmap-anydpi-v26/ic_launcher_round.xml',
+          }
+          missing = adaptive_required - names
+          if missing:
+              raise SystemExit(f'Missing packaged adaptive icon resources: {sorted(missing)}')
+
+          legacy_placeholder_candidates = {
+              'res/drawable/ic_launcher_foreground.xml',
+              'res/drawable-v24/ic_launcher_foreground.xml',
+          }
+          present = legacy_placeholder_candidates & names
+          if present:
+              raise SystemExit(f'Legacy/default launcher foreground remains packaged: {sorted(present)}')
+
+          print('Flutter crest asset packaged: PASS')
+          print('All launcher density resources packaged: PASS')
+          print('Adaptive launcher resources packaged: PASS')
+          print('Default Android vector launcher foreground absent: PASS')
+          PY
+
+          sha256sum "$APK" | tee /tmp/apk.sha256
+          {
+            echo "BRANDING_SHA=$BRANDING_SHA"
+            echo "PACKAGE_ID=$PACKAGE_ID"
+            echo 'OFFICIAL_CREST=PASS'
+            echo 'LEGACY_LAUNCHERS=PASS'
+            echo 'ADAPTIVE_ICON=PASS'
+            echo 'DEFAULT_ANDROID_ICON_REMOVED=PASS'
+            echo 'FLUTTER_ASSET_PACKAGED=PASS'
+            echo 'APK_BUILD=PASS'
+            echo 'APK_RESOURCE_INSPECTION=PASS'
+          } | tee /tmp/branding-exact-head-report.txt
+
+      - name: Upload exact-head verification evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: da-secure-branding-exact-head-${{ env.BRANDING_SHA }}
+          path: |
+            mobile/da_secure/build/app/outputs/flutter-apk/app-debug.apk
+            /tmp/aapt-badging.txt
+            /tmp/aapt-manifest.txt
+            /tmp/aapt2-resources.txt
+            /tmp/apk.sha256
+            /tmp/branding-exact-head-report.txt
+          if-no-files-found: error
+          retention-days: 14
