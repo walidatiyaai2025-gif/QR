@@ -1,0 +1,57 @@
+name: DA Secure Localization P2 CI Triage Verify
+
+on:
+  push:
+    branches:
+      - worker/da-secure-localization-p2-ci-triage
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    name: backend-targeted-full
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout exact triage head
+        uses: actions/checkout@v4
+      - name: Install .NET 10 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.400'
+      - name: Restore
+        run: dotnet restore SecureQrPortal.sln
+      - name: Build Release
+        run: dotnet build SecureQrPortal.sln -c Release --no-restore
+      - name: Targeted P2 bidi regression tests
+        run: dotnet test SecureQrPortal.sln -c Release --no-build --filter "FullyQualifiedName~LocalizationP2BidiTests|FullyQualifiedName~LocalizationP2SourceCoverageTests"
+      - name: Full backend tests
+        run: dotnet test SecureQrPortal.sln -c Release --no-build
+
+  flutter:
+    name: flutter-targeted-full
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: mobile/da_secure
+    steps:
+      - name: Checkout exact triage head
+        uses: actions/checkout@v4
+      - name: Install Flutter stable
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Get dependencies
+        run: flutter pub get
+      - name: Verify Dart format
+        run: dart format --output=none --set-exit-if-changed lib test
+      - name: Analyze
+        run: flutter analyze
+      - name: Targeted P2 presentation tests
+        run: flutter test test/localization_p2_presentation_test.dart test/mobile_ui_contract_test.dart
+      - name: Full Flutter tests
+        run: flutter test
