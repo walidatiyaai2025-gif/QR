@@ -55,6 +55,13 @@ void main() {
       const _TestHost(width: 390, locale: Locale('ar'), child: InboxScreen()),
     );
     expect(
+      find.descendant(
+        of: find.byType(NavigationBar),
+        matching: find.text('الوارد'),
+      ),
+      findsOneWidget,
+    );
+    expect(
       Directionality.of(tester.element(find.byType(InboxScreen))),
       TextDirection.rtl,
     );
@@ -62,7 +69,13 @@ void main() {
     await tester.pumpWidget(
       const _TestHost(width: 390, locale: Locale('en'), child: InboxScreen()),
     );
-    expect(find.text('Inbox'), findsWidgets);
+    expect(
+      find.descendant(
+        of: find.byType(NavigationBar),
+        matching: find.text('Inbox'),
+      ),
+      findsOneWidget,
+    );
     expect(
       Directionality.of(tester.element(find.byType(InboxScreen))),
       TextDirection.ltr,
