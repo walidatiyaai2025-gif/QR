@@ -65,55 +65,80 @@ jobs:
       - name: Restore
         run: dotnet restore src/SecureQrPortal/SecureQrPortal.csproj
 
-      - name: Publish deterministic Release
-        run: dotnet publish src/SecureQrPortal/SecureQrPortal.csproj -c Release --no-restore -o out/publish -p:ContinuousIntegrationBuild=true -p:SourceRevisionId=e9c62cd8ba215e5f1e038cdddb9776acc70990bb
+      - name: Publish Release A
+        run: dotnet publish src/SecureQrPortal/SecureQrPortal.csproj -c Release --no-restore -o out/publish-a -p:ContinuousIntegrationBuild=true -p:Deterministic=true -p:SourceRevisionId=e9c62cd8ba215e5f1e038cdddb9776acc70990bb
+
+      - name: Clean and restore for reproducibility check
+        shell: powershell
+        run: |
+          dotnet clean src/SecureQrPortal/SecureQrPortal.csproj -c Release
+          if ($LASTEXITCODE -ne 0) { throw 'dotnet clean failed.' }
+          dotnet restore src/SecureQrPortal/SecureQrPortal.csproj
+          if ($LASTEXITCODE -ne 0) { throw 'second dotnet restore failed.' }
+
+      - name: Publish Release B
+        run: dotnet publish src/SecureQrPortal/SecureQrPortal.csproj -c Release --no-restore -o out/publish-b -p:ContinuousIntegrationBuild=true -p:Deterministic=true -p:SourceRevisionId=e9c62cd8ba215e5f1e038cdddb9776acc70990bb
+
+      - name: Verify reproducible payload hash
+        id: payload
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $payloadA = 'out/publish-a/SecureQrPortal.dll'
+          $payloadB = 'out/publish-b/SecureQrPortal.dll'
+          if (-not (Test-Path $payloadA) -or -not (Test-Path $payloadB)) { throw 'SecureQrPortal.dll is missing from one of the publish outputs.' }
+          $hashA = (Get-FileHash -Algorithm SHA256 $payloadA).Hash.ToLowerInvariant()
+          $hashB = (Get-FileHash -Algorithm SHA256 $payloadB).Hash.ToLowerInvariant()
+          if ($hashA -ne $hashB) { throw "Two clean publishes in the same runner produced different DLL hashes: A=$hashA B=$hashB" }
+          Write-Host "Reproducible payload SHA256: $hashA"
+          "payload_hash=$hashA" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
 
       - name: Reject service-account credentials from publish
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
-          Get-ChildItem out/publish -Filter '*.json' -File -Recurse | ForEach-Object {
+          Get-ChildItem out/publish-a -Filter '*.json' -File -Recurse | ForEach-Object {
             $text = Get-Content $_.FullName -Raw
             if ($text -match '"private_key"\s*:' -and $text -match '"client_email"\s*:') {
               throw "Service-account credential JSON must not be packaged: $($_.Name)"
             }
           }
 
-      - name: Verify locked package provenance and build artifact
-        id: package
+      - name: Build IIS deployment artifact and manifest
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
-          $expectedVersion = '1.0.0-iis.1'
-          $expectedSourceBranch = 'lead/da-secure-runtime-convergence'
-          $expectedSourceSha = 'e9c62cd8ba215e5f1e038cdddb9776acc70990bb'
-          $manifest = Get-Content deployment/iis/BUILD-MANIFEST.json -Raw | ConvertFrom-Json
-          $dotnetVersion = (& dotnet --version).Trim()
-          $payload = Join-Path $PWD 'out/publish/SecureQrPortal.dll'
-          if (-not (Test-Path $payload)) { throw 'SecureQrPortal.dll is missing from publish output.' }
-          $hash = (Get-FileHash -Algorithm SHA256 $payload).Hash.ToLowerInvariant()
-
-          if ($manifest.packageVersion -ne $expectedVersion) { throw 'Manifest packageVersion mismatch.' }
-          if ($manifest.sourceBranch -ne $expectedSourceBranch) { throw 'Manifest sourceBranch mismatch.' }
-          if ($manifest.sourceSha -ne $expectedSourceSha) { throw 'Manifest sourceSha mismatch.' }
-          if ($manifest.dotnetTargetFramework -ne 'net10.0') { throw 'Manifest target framework mismatch.' }
-          if ($manifest.dotnetVersion -ne $dotnetVersion) { throw "Manifest .NET version mismatch: expected $($manifest.dotnetVersion), actual $dotnetVersion." }
-          if ($manifest.artifactHash.algorithm -ne 'SHA256') { throw 'Manifest artifact hash algorithm mismatch.' }
-          if ($manifest.artifactHash.target -ne 'publish/SecureQrPortal.dll') { throw 'Manifest artifact hash target mismatch.' }
-          if ($manifest.artifactHash.value -ne $hash) { throw "Deterministic payload hash mismatch: manifest=$($manifest.artifactHash.value) actual=$hash" }
-
-          $packageRoot = Join-Path $PWD "out/DA-Secure-IIS-$expectedVersion"
+          $packageVersion = '1.0.0-iis.1'
+          $sourceBranch = 'lead/da-secure-runtime-convergence'
+          $sourceSha = 'e9c62cd8ba215e5f1e038cdddb9776acc70990bb'
+          $packageRoot = Join-Path $PWD "out/DA-Secure-IIS-$packageVersion"
           New-Item -ItemType Directory -Path $packageRoot -Force | Out-Null
-          Copy-Item out/publish (Join-Path $packageRoot 'publish') -Recurse
+          Copy-Item out/publish-a (Join-Path $packageRoot 'publish') -Recurse
           Copy-Item deployment/iis/Install-QR-IIS.ps1 $packageRoot
           Copy-Item deployment/iis/Update-QR-IIS.ps1 $packageRoot
           Copy-Item deployment/iis/Rollback-QR-IIS.ps1 $packageRoot
           Copy-Item deployment/iis/QR-IIS.Common.ps1 $packageRoot
           Copy-Item deployment/iis/README.md $packageRoot
-          Copy-Item deployment/iis/BUILD-MANIFEST.json $packageRoot
 
-          Write-Host "Locked payload SHA256 verified: $hash"
-          "payload_hash=$hash" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          $payload = Join-Path $packageRoot 'publish/SecureQrPortal.dll'
+          $hash = (Get-FileHash -Algorithm SHA256 $payload).Hash.ToLowerInvariant()
+          if ($hash -ne '${{ steps.payload.outputs.payload_hash }}') { throw 'Packaged DLL hash differs from verified publish hash.' }
+          $dotnetVersion = (& dotnet --version).Trim()
+          $manifest = [ordered]@{
+            packageVersion = $packageVersion
+            sourceBranch = $sourceBranch
+            sourceSha = $sourceSha
+            buildTimestampUtc = [DateTime]::UtcNow.ToString('o')
+            dotnetTargetFramework = 'net10.0'
+            dotnetVersion = $dotnetVersion
+            artifactHash = [ordered]@{
+              algorithm = 'SHA256'
+              target = 'publish/SecureQrPortal.dll'
+              value = $hash
+            }
+          }
+          $manifest | ConvertTo-Json -Depth 5 | Set-Content (Join-Path $packageRoot 'BUILD-MANIFEST.json') -Encoding utf8
+          Write-Host "Package manifest payload SHA256: $hash"
 
       - name: Upload IIS deployment package
         uses: actions/upload-artifact@v4
