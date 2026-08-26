@@ -1,0 +1,106 @@
+name: DA Secure Google Font Closure Verify
+
+on:
+  push:
+    branches:
+      - worker/da-secure-google-font-closure
+    paths:
+      - 'mobile/da_secure/**'
+      - '.github/workflows/google-font-closure-verify.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  flutter:
+    name: flutter-font-format-analyze-test-apk
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile/da_secure
+    steps:
+      - name: Checkout exact typography head
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Bootstrap exact official Google Fonts binary once
+        shell: bash
+        run: |
+          set -euo pipefail
+          font='assets/fonts/noto_sans_arabic/NotoSansArabic[wdth,wght].ttf'
+          expected_blob='f1d01edce4ebaedcbe9a06fc75fec07b304ec3df'
+          if [[ ! -f "$font" ]]; then
+            mkdir -p "$(dirname "$font")"
+            curl --fail --location --retry 3 \
+              --output "$font" \
+              'https://raw.githubusercontent.com/google/fonts/main/ofl/notosansarabic/NotoSansArabic%5Bwdth%2Cwght%5D.ttf'
+          fi
+          size="$(wc -c < "$font" | tr -d ' ')"
+          actual_blob="$( (printf 'blob %s\0' "$size"; cat "$font") | sha1sum | awk '{print $1}' )"
+          test "$actual_blob" = "$expected_blob"
+          if [[ -n "$(git status --porcelain -- "$font")" ]]; then
+            git config user.name 'da-secure-typography-bot'
+            git config user.email 'actions@users.noreply.github.com'
+            git add "$font"
+            git commit -m 'chore(typography): bundle official Noto Sans Arabic font'
+            git push origin HEAD:worker/da-secure-google-font-closure
+          fi
+
+      - name: Verify local-only font contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          font='assets/fonts/noto_sans_arabic/NotoSansArabic[wdth,wght].ttf'
+          license='assets/fonts/noto_sans_arabic/OFL.txt'
+          test -s "$font"
+          test -s "$license"
+          grep -F 'family: NotoSansArabic' pubspec.yaml
+          grep -F 'NotoSansArabic[wdth,wght].ttf' pubspec.yaml
+          grep -F "static const fontFamily = 'NotoSansArabic';" lib/design_system/da_secure_theme.dart
+          grep -F 'fontFamily: fontFamily' lib/design_system/da_secure_theme.dart
+          grep -F 'SIL OPEN FONT LICENSE Version 1.1' "$license"
+          if grep -R -n -E 'fonts\.googleapis\.com|fonts\.gstatic\.com|GoogleFonts\.|google_fonts:' lib pubspec.yaml; then
+            echo 'Remote/runtime Google Font dependency detected.' >&2
+            exit 1
+          fi
+
+      - name: Install Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Install Flutter stable
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      - name: Verify Dart format
+        run: dart format --output=none --set-exit-if-changed lib test
+
+      - name: Analyze
+        run: flutter analyze
+
+      - name: Test
+        run: flutter test
+
+      - name: Build debug APK
+        run: flutter build apk --debug
+
+      - name: Record APK SHA-256
+        shell: bash
+        run: sha256sum build/app/outputs/flutter-apk/app-debug.apk
+
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: da-secure-google-font-closure-debug-apk
+          path: mobile/da_secure/build/app/outputs/flutter-apk/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14
