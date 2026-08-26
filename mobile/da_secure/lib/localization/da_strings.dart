@@ -39,7 +39,9 @@ class DaStrings {
   String get enableBiometric => isArabic ? 'تفعيل البصمة' : 'Enable biometrics';
   String get notNow => isArabic ? 'ليس الآن' : 'Not now';
 
+  String get home => isArabic ? 'الرئيسية' : 'Home';
   String get inbox => isArabic ? 'الوارد' : 'Inbox';
+  String get profile => isArabic ? 'الملف الشخصي' : 'Profile';
   String get secureLinks => isArabic ? 'الروابط الآمنة' : 'Secure links';
   String get inboxEmpty => isArabic
       ? 'لا توجد رسائل آمنة حاليًا.'

@@ -1,4 +1,5 @@
 import 'package:da_secure/design_system/da_secure_theme.dart';
+import 'package:da_secure/localization/da_presentation_text.dart';
 import 'package:da_secure/localization/da_strings.dart';
 import 'package:da_secure/presentation/mobile_ui_contracts.dart';
 import 'package:flutter/material.dart';
@@ -69,10 +70,19 @@ class InboxScreen extends StatelessWidget {
       ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: 1,
-        destinations: const [
-          NavigationDestination(icon: Icon(Icons.home_outlined), label: ''),
-          NavigationDestination(icon: Icon(Icons.inbox_outlined), label: ''),
-          NavigationDestination(icon: Icon(Icons.person_outline), label: ''),
+        destinations: [
+          NavigationDestination(
+            icon: const Icon(Icons.home_outlined),
+            label: strings.home,
+          ),
+          NavigationDestination(
+            icon: const Icon(Icons.inbox_outlined),
+            label: strings.inbox,
+          ),
+          NavigationDestination(
+            icon: const Icon(Icons.person_outline),
+            label: strings.profile,
+          ),
         ],
       ),
     );
@@ -192,6 +202,8 @@ class _InboxCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final locale = Localizations.localeOf(context);
+
     return Material(
       color: DaSecureColors.navy,
       shape: RoundedRectangleBorder(
@@ -216,21 +228,21 @@ class _InboxCard extends StatelessWidget {
               if (item.remainingRevealsLabel != null) ...[
                 const SizedBox(height: 12),
                 Text(
-                  '$remainingLabel: ${item.remainingRevealsLabel}',
+                  '$remainingLabel: ${DaPresentationText.isolateTechnical(item.remainingRevealsLabel!)}',
                   style: const TextStyle(color: DaSecureColors.goldSoft),
                 ),
               ],
               if (item.sentLabel != null) ...[
                 const SizedBox(height: 6),
                 Text(
-                  '$sentLabel: ${item.sentLabel}',
+                  '$sentLabel: ${DaPresentationText.localizedRuntimeDate(item.sentLabel!, locale)}',
                   style: const TextStyle(color: DaSecureColors.textMuted),
                 ),
               ],
               if (item.expiryLabel != null) ...[
                 const SizedBox(height: 6),
                 Text(
-                  '$expiryLabel: ${item.expiryLabel}',
+                  '$expiryLabel: ${DaPresentationText.localizedRuntimeDate(item.expiryLabel!, locale)}',
                   style: const TextStyle(color: DaSecureColors.textMuted),
                 ),
               ],
