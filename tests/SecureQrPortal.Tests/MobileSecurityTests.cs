@@ -355,6 +355,7 @@ public sealed class MobileSecurityTests
         public MobileOtpService Otp { get; }
         public MobileDeviceService Devices { get; }
         public MobileDeliveryAccessService Deliveries { get; }
+        public SecureMessageEncryptionService Encryption { get; }
 
         private Fixture(SqliteConnection connection, ApplicationDbContext db)
         {
@@ -362,6 +363,8 @@ public sealed class MobileSecurityTests
             Db = db;
             var time = TimeProvider.System;
             var dataProtection = new EphemeralDataProtectionProvider();
+            var securitySettings = new SecureMessageSecuritySettingsService(new AppSettingsService(Db));
+            Encryption = new SecureMessageEncryptionService(dataProtection, securitySettings);
             Secrets = new MobileSecretProtector(dataProtection);
             var accessor = new HttpContextAccessor { HttpContext = Http };
             var audit = new AuditService(Db, accessor);
@@ -370,7 +373,7 @@ public sealed class MobileSecurityTests
                 new SmsGatewayService(new ConfigurationBuilder().Build()), audit, Tokens, time);
             Devices = new MobileDeviceService(Db, Secrets, Tokens, audit, time);
             var pageAccess = new SecurePageAccessService(Db, null!, new QrStatusService(time), new DeviceInfoService());
-            Deliveries = new MobileDeliveryAccessService(Db, pageAccess, new QrStatusService(time), Tokens, audit, time);
+            Deliveries = new MobileDeliveryAccessService(Db, pageAccess, new QrStatusService(time), Tokens, Encryption, audit, time);
         }
 
         public static async Task<Fixture> CreateAsync()
@@ -379,6 +382,10 @@ public sealed class MobileSecurityTests
             await connection.OpenAsync();
             var db = new ApplicationDbContext(new DbContextOptionsBuilder<ApplicationDbContext>().UseSqlite(connection).Options);
             await db.Database.EnsureCreatedAsync();
+            db.ApplicationSettings.AddRange(
+                new ApplicationSetting { Key = SecureMessageSecuritySettingsService.EnabledKey, Value = "true" },
+                new ApplicationSetting { Key = SecureMessageSecuritySettingsService.AllowRevealKey, Value = "true" });
+            await db.SaveChangesAsync();
             return new Fixture(connection, db);
         }
 
@@ -421,6 +428,8 @@ public sealed class MobileSecurityTests
             };
             Db.SecurePages.Add(page);
             await Db.SaveChangesAsync();
+            await Encryption.EncryptAndStoreAsync(page, page.ContentArabicHtml, page.ContentEnglishHtml);
+            await Db.SaveChangesAsync();
             var credential = new PageCredential { SecurePageId = page.Id, Username = "page-user" };
             credential.PasswordHash = new PasswordHasher<PageCredential>().HashPassword(credential, "Correct!Pass123");
             Db.PageCredentials.Add(credential);
@@ -451,3 +460,8 @@ public sealed class MobileSecurityTests
         }
     }
 }
+
+
+
+
+

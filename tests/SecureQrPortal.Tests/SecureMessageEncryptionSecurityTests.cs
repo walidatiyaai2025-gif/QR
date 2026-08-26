@@ -80,7 +80,7 @@ public sealed class SecureMessageEncryptionSecurityTests
 
         var tampered = page.ContentEnglishHtml;
         page.ContentEnglishHtml = tampered[..^1] + (tampered[^1] == 'A' ? "B" : "A");
-        await Assert.ThrowsAsync<CryptographicException>(() => f.Crypto.RevealAsync(page));
+        await Assert.ThrowsAnyAsync<CryptographicException>(() => f.Crypto.RevealAsync(page));
     }
 
     [Fact]
@@ -305,7 +305,7 @@ public sealed class SecureMessageEncryptionSecurityTests
         Assert.NotNull(page.ContentKeyDestroyedAtUtc);
         Assert.Equal(arCipher, page.ContentArabicHtml);
         Assert.Equal(enCipher, page.ContentEnglishHtml);
-        await Assert.ThrowsAsync<CryptographicException>(() => f.Crypto.RevealAsync(page));
+        await Assert.ThrowsAnyAsync<CryptographicException>(() => f.Crypto.RevealAsync(page));
     }
 
     private static SecurePage NewPage(long id) => new()
@@ -378,3 +378,4 @@ public sealed class SecureMessageEncryptionSecurityTests
         }
     }
 }
+

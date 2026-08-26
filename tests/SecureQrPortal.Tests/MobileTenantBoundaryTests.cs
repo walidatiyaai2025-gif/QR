@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
@@ -77,7 +78,10 @@ public sealed class MobileTenantBoundaryTests
         var audit = new AuditService(db, new HttpContextAccessor { HttpContext = http });
         var status = new QrStatusService(TimeProvider.System);
         var access = new SecurePageAccessService(db, null!, status, new DeviceInfoService());
-        var service = new MobileDeliveryAccessService(db, access, status, tokens, audit, TimeProvider.System);
+        var encryption = new SecureMessageEncryptionService(
+            new EphemeralDataProtectionProvider(),
+            new SecureMessageSecuritySettingsService(new AppSettingsService(db)));
+        var service = new MobileDeliveryAccessService(db, access, status, tokens, encryption, audit, TimeProvider.System);
 
         var inbox = await service.GetInboxAsync(orgA.Id, 1, 20);
         Assert.Empty(inbox.Items);
@@ -91,3 +95,6 @@ public sealed class MobileTenantBoundaryTests
         Assert.Equal(0, (await db.SecurePages.AsNoTracking().SingleAsync(x => x.Id == pageB.Id)).CurrentSuccessfulAccessCount);
     }
 }
+
+
+

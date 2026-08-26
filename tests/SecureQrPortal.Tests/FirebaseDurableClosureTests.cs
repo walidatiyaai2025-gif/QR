@@ -269,6 +269,7 @@ public sealed class FirebaseDurableClosureTests
             access,
             f.QrStatus,
             mobileTokens,
+            f.Encryption,
             f.Audit,
             f.Clock);
 
@@ -493,6 +494,8 @@ public sealed class FirebaseDurableClosureTests
             Provider = provider;
             Tokens = new MobileTokenService();
             Secrets = new MobileSecretProtector(protection);
+            var securitySettings = new SecureMessageSecuritySettingsService(new AppSettingsService(Db));
+            Encryption = new SecureMessageEncryptionService(protection, securitySettings);
             var http = new HttpContextAccessor { HttpContext = new DefaultHttpContext() };
             Audit = new AuditService(Db, http);
             QrStatus = new QrStatusService(Clock);
@@ -508,6 +511,7 @@ public sealed class FirebaseDurableClosureTests
         public FakeProvider Provider { get; }
         public MobileTokenService Tokens { get; }
         public MobileSecretProtector Secrets { get; }
+        public SecureMessageEncryptionService Encryption { get; }
         public AuditService Audit { get; }
         public QrStatusService QrStatus { get; }
         public MobilePushDeviceStore Devices { get; }
@@ -524,6 +528,10 @@ public sealed class FirebaseDurableClosureTests
                     .UseSqlite(connection)
                     .Options);
             await db.Database.EnsureCreatedAsync();
+            db.ApplicationSettings.AddRange(
+                new ApplicationSetting { Key = SecureMessageSecuritySettingsService.EnabledKey, Value = "true" },
+                new ApplicationSetting { Key = SecureMessageSecuritySettingsService.AllowRevealKey, Value = "true" });
+            await db.SaveChangesAsync();
             var clock = new TestClock(
                 new DateTimeOffset(2026, 8, 25, 20, 0, 0, TimeSpan.Zero));
             var protection = new EphemeralDataProtectionProvider();
@@ -563,6 +571,8 @@ public sealed class FirebaseDurableClosureTests
             await Db.SaveChangesAsync();
             var page = NewPage(org, Now, pageActive, pageRevoked);
             Db.SecurePages.Add(page);
+            await Db.SaveChangesAsync();
+            await Encryption.EncryptAndStoreAsync(page, page.ContentArabicHtml, page.ContentEnglishHtml);
             await Db.SaveChangesAsync();
             if (addDevice)
             {
@@ -684,3 +694,8 @@ public sealed class FirebaseDurableClosureTests
         public IFileProvider ContentRootFileProvider { get; set; } = new NullFileProvider();
     }
 }
+
+
+
+
+
