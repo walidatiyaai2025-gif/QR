@@ -1,0 +1,40 @@
+name: DA Secure Admin Runtime Regression Verify
+
+on:
+  push:
+    branches:
+      - worker/da-secure-admin-runtime-regression
+
+permissions:
+  contents: read
+
+jobs:
+  dotnet-runtime-regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install .NET 10 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.400'
+
+      - name: Restore
+        run: dotnet restore SecureQrPortal.sln
+
+      - name: Build Release
+        run: dotnet build SecureQrPortal.sln --configuration Release --no-restore
+
+      - name: Test Release
+        run: dotnet test SecureQrPortal.sln --configuration Release --no-build --logger "trx;LogFileName=admin-runtime-regression.trx" --results-directory TestResults
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: admin-runtime-regression-test-results
+          path: TestResults/**/*.trx
+          if-no-files-found: warn
+          retention-days: 14
