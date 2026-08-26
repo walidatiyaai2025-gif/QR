@@ -11,6 +11,8 @@ abstract final class DaSecureColors {
 }
 
 abstract final class DaSecureTheme {
+  static const fontFamily = 'NotoSansArabic';
+
   static ThemeData get light {
     final scheme = ColorScheme.fromSeed(
       seedColor: DaSecureColors.gold,
@@ -22,6 +24,7 @@ abstract final class DaSecureTheme {
       useMaterial3: true,
       brightness: Brightness.dark,
       colorScheme: scheme,
+      fontFamily: fontFamily,
       scaffoldBackgroundColor: DaSecureColors.deepNavy,
       appBarTheme: const AppBarTheme(
         backgroundColor: DaSecureColors.deepNavy,

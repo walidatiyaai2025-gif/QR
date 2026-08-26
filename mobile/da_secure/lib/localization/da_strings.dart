@@ -17,15 +17,18 @@ class DaStrings {
   String get signIn => isArabic ? 'تسجيل الدخول' : 'Sign in';
   String get signOut => isArabic ? 'تسجيل الخروج' : 'Sign out';
   String get mobilePrompt => isArabic
-      ? 'أدخل رقم الجوال المسجل لتسجيل الدخول'
-      : 'Enter the registered mobile number to sign in.';
+      ? 'أدخل رقم الجوال المسجل للوصول الآمن إلى رسائلك'
+      : 'Enter your registered mobile number to securely access your messages.';
   String get mobileNumber => isArabic ? 'رقم الجوال' : 'Mobile number';
   String get requestOtp =>
       isArabic ? 'طلب رمز التحقق' : 'Request verification code';
-  String get verifyCode => isArabic ? 'تحقق من الرمز' : 'Verify code';
+  String get verifyCode => isArabic ? 'التحقق من الرمز' : 'Verify your code';
   String get otpPrompt => isArabic
       ? 'أدخل رمز التحقق المكوّن من 6 أرقام'
       : 'Enter the 6-digit verification code.';
+  String get otpSecurityNote => isArabic
+      ? 'لأمانك، لا تشارك رمز التحقق مع أي شخص.'
+      : 'For your security, never share your verification code.';
   String get verify => isArabic ? 'تحقق' : 'Verify';
   String get resend => isArabic ? 'إعادة إرسال الرمز' : 'Resend code';
   String resendIn(int seconds) =>
@@ -39,10 +42,11 @@ class DaStrings {
   String get enableBiometric => isArabic ? 'تفعيل البصمة' : 'Enable biometrics';
   String get notNow => isArabic ? 'ليس الآن' : 'Not now';
 
-  String get home => isArabic ? 'الرئيسية' : 'Home';
   String get inbox => isArabic ? 'الوارد' : 'Inbox';
-  String get profile => isArabic ? 'الملف الشخصي' : 'Profile';
   String get secureLinks => isArabic ? 'الروابط الآمنة' : 'Secure links';
+  String get inboxSubtitle => isArabic
+      ? 'رسائلك المحمية في مكان واحد'
+      : 'Your protected messages in one place';
   String get inboxEmpty => isArabic
       ? 'لا توجد رسائل آمنة حاليًا.'
       : 'There are no secure messages right now.';
@@ -55,9 +59,14 @@ class DaStrings {
       isArabic ? 'المشاهدات المتبقية' : 'Remaining reveals';
   String get sentAt => isArabic ? 'وقت الإرسال' : 'Sent';
   String get expiresAt => isArabic ? 'تنتهي' : 'Expires';
+  String get home => isArabic ? 'الرئيسية' : 'Home';
+  String get profile => isArabic ? 'الملف الشخصي' : 'Profile';
 
   String get secureMessageLogin =>
       isArabic ? 'تسجيل دخول الرسالة الآمنة' : 'Secure message sign in';
+  String get secureAccessSubtitle => isArabic
+      ? 'أدخل بيانات اعتماد الرسالة لاستعراض المحتوى المحمي'
+      : 'Enter the message credentials to view protected content.';
   String get username => isArabic ? 'اسم المستخدم' : 'Username';
   String get password => isArabic ? 'كلمة المرور' : 'Password';
   String get revealMessage =>

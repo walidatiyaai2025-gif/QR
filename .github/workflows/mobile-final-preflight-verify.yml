@@ -1,0 +1,130 @@
+name: DA Secure Mobile Final Preflight
+
+on:
+  push:
+    branches:
+      - worker/da-secure-mobile-final-preflight
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  mobile-preflight:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    defaults:
+      run:
+        working-directory: mobile/da_secure
+    steps:
+      - name: Checkout exact preflight head
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Guard authoritative functional composition
+        working-directory: .
+        shell: bash
+        run: |
+          set -euo pipefail
+          base_sha='ff0de0dbf305e50472f446b0ad751cf550a2c3e2'
+          git cat-file -e "$base_sha^{commit}"
+          changed="$(git diff --name-only "$base_sha" HEAD)"
+          echo "$changed"
+          if echo "$changed" | grep -Eq '^(src/|tests/SecureQrPortal\.Tests/)'; then
+            echo 'Preflight must not modify backend/runtime authority.' >&2
+            exit 1
+          fi
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.1'
+          channel: stable
+          cache: true
+
+      - name: Resolve dependencies
+        run: flutter pub get
+
+      - name: Dart format verification
+        run: dart format --output=none --set-exit-if-changed lib test
+
+      - name: Flutter analyze
+        run: flutter analyze
+
+      - name: Flutter tests
+        run: flutter test
+
+      - name: Validate bundled Noto Sans Arabic contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          font='assets/fonts/noto_sans_arabic/NotoSansArabic[wdth,wght].ttf'
+          license='assets/fonts/noto_sans_arabic/OFL.txt'
+          test -s "$font"
+          test -s "$license"
+          grep -Fq 'SIL OPEN FONT LICENSE Version 1.1' "$license"
+          grep -Fq 'family: NotoSansArabic' pubspec.yaml
+          grep -Fq 'NotoSansArabic[wdth,wght].ttf' pubspec.yaml
+          grep -Fq "fontFamily: fontFamily" lib/design_system/da_secure_theme.dart
+          if grep -RIEq 'fonts\.googleapis\.com|fonts\.gstatic\.com|GoogleFonts\.|google_fonts:' lib pubspec.yaml; then
+            echo 'Remote/runtime Google Fonts usage is forbidden.' >&2
+            exit 1
+          fi
+
+      - name: Verify font axes and mixed-script glyph coverage
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check --quiet fonttools
+          python - <<'PY'
+          from fontTools.ttLib import TTFont
+
+          path = 'assets/fonts/noto_sans_arabic/NotoSansArabic[wdth,wght].ttf'
+          font = TTFont(path)
+          axes = {axis.axisTag: (axis.minValue, axis.defaultValue, axis.maxValue) for axis in font['fvar'].axes}
+          if 'wght' not in axes:
+              raise SystemExit('Noto Sans Arabic variable font is missing the wght axis')
+          wmin, _, wmax = axes['wght']
+          if wmin > 400 or wmax < 800:
+              raise SystemExit(f'Unexpected weight range: {axes["wght"]}')
+          cmap = font.getBestCmap() or {}
+          sample = 'الديوان الأميري DA Secure 0123456789 !?.,:;()[]+-/'
+          missing = sorted({ch for ch in sample if not ch.isspace() and ord(ch) not in cmap})
+          if missing:
+              raise SystemExit(f'Missing mixed-script glyphs: {missing}')
+          print('Font axes:', axes)
+          print('Mixed Arabic/Latin/numeric/punctuation glyph coverage: PASS')
+          PY
+
+      - name: Build debug APK
+        run: flutter build apk --debug
+
+      - name: Inspect packaged resources
+        shell: bash
+        run: |
+          set -euo pipefail
+          apk='build/app/outputs/flutter-apk/app-debug.apk'
+          test -s "$apk"
+          unzip -l "$apk" > /tmp/da-secure-apk.txt
+          grep -Fq 'flutter_assets/assets/fonts/noto_sans_arabic/NotoSansArabic[wdth,wght].ttf' /tmp/da-secure-apk.txt
+          grep -Fq 'applicationId = "com.qr.mobile.da"' android/app/build.gradle.kts
+
+          if test -f assets/brand/diwan_crest.png; then
+            grep -Fq 'flutter_assets/assets/brand/diwan_crest.png' /tmp/da-secure-apk.txt
+            if ! grep -Eq 'res/mipmap[^/]*/.*launcher|res/mipmap[^/]*/ic_launcher' /tmp/da-secure-apk.txt; then
+              echo 'Official crest exists but launcher resources are not packaged.' >&2
+              exit 1
+            fi
+            echo 'Branding packaged-resource precheck: PASS'
+          else
+            echo '::notice::Branding owner has not yet supplied assets/brand/diwan_crest.png on this preflight composition; crest/launcher APK checks remain pending.'
+          fi
+
+      - name: Upload debug APK preflight artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: da-secure-mobile-preflight-${{ github.sha }}
+          path: mobile/da_secure/build/app/outputs/flutter-apk/app-debug.apk
+          if-no-files-found: error
+          retention-days: 7

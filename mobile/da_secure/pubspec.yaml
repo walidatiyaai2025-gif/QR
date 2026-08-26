@@ -29,3 +29,8 @@ flutter:
   uses-material-design: true
   assets:
     - assets/brand/
+    - assets/fonts/noto_sans_arabic/OFL.txt
+  fonts:
+    - family: NotoSansArabic
+      fonts:
+        - asset: assets/fonts/noto_sans_arabic/NotoSansArabic[wdth,wght].ttf
