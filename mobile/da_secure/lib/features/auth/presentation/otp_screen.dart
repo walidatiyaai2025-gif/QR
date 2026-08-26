@@ -156,7 +156,9 @@ class _OtpScreenState extends State<OtpScreen> {
                         child: widget.state.isSubmitting
                             ? const SizedBox.square(
                                 dimension: 22,
-                                child: CircularProgressIndicator(strokeWidth: 2),
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
                               )
                             : Text(strings.verify),
                       ),

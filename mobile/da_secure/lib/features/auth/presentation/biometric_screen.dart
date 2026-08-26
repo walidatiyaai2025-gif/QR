@@ -82,7 +82,9 @@ class BiometricScreen extends StatelessWidget {
                         child: state.isBusy
                             ? const SizedBox.square(
                                 dimension: 22,
-                                child: CircularProgressIndicator(strokeWidth: 2),
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
                               )
                             : Text(strings.enableBiometric),
                       ),

@@ -156,9 +156,7 @@ class SecureMessageScreen extends StatelessWidget {
                             decoration: BoxDecoration(
                               color: DaSecureColors.navy,
                               borderRadius: BorderRadius.circular(16),
-                              border: Border.all(
-                                color: DaSecureColors.border,
-                              ),
+                              border: Border.all(color: DaSecureColors.border),
                             ),
                             child: ListTile(
                               leading: const Icon(
@@ -233,11 +231,7 @@ class _InfoChip extends StatelessWidget {
 }
 
 class _StatusBody extends StatelessWidget {
-  const _StatusBody({
-    required this.message,
-    this.actionLabel,
-    this.onAction,
-  });
+  const _StatusBody({required this.message, this.actionLabel, this.onAction});
 
   final String message;
   final String? actionLabel;

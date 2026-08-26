@@ -120,7 +120,9 @@ class _SecureLoginScreenState extends State<SecureLoginScreen> {
                           enableSuggestions: false,
                           decoration: daPremiumInputDecoration(
                             labelText: strings.username,
-                            prefixIcon: const Icon(Icons.person_outline_rounded),
+                            prefixIcon: const Icon(
+                              Icons.person_outline_rounded,
+                            ),
                           ),
                         ),
                         const SizedBox(height: 14),
