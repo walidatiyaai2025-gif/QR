@@ -2,3 +2,11 @@ using System.ComponentModel.DataAnnotations;
 namespace SecureQrPortal.ViewModels;
 public sealed class GeneralSettingsVm { [Required] public string ApplicationName{get;set;}="Secure QR Portal"; public string DefaultLanguage{get;set;}="ar"; public string LoginFooterText{get;set;}=""; [Range(4,30)] public int DefaultQrSize{get;set;}=12; [Range(5,240)] public int SessionTimeoutMinutes{get;set;}=20; public string TimeZone{get;set;}="Asia/Kuwait"; public bool ShowExpiryPublicly{get;set;}=true; }
 public sealed class DatabaseSettingsVm { public string CurrentProvider{get;set;}="SQLite"; [Required] public string Server{get;set;}=""; [Required] public string Database{get;set;}="SecureQrPortal"; public string AuthenticationMode{get;set;}="Windows"; public string? Username{get;set;} public string? Password{get;set;} public bool Encrypt{get;set;}=true; public bool TrustServerCertificate{get;set;} public int ConnectionTimeout{get;set;}=15; public string? Message{get;set;} public bool? TestOk{get;set;} }
+public sealed class SecuritySettingsVm
+{
+    public bool EncryptionEnabled { get; set; } = true;
+    public bool AllowReveal { get; set; } = true;
+    public bool EncryptionSettingHealthy { get; set; } = true;
+    public bool RevealSettingHealthy { get; set; } = true;
+    [MaxLength(64)] public string? Confirmation { get; set; }
+}
